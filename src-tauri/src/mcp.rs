@@ -134,7 +134,7 @@ fn tool_definitions() -> serde_json::Value {
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "command": { "type": "string", "description": "Comando exato a executar, sem o ! na frente." },
+                    "command": { "type": "string", "description": "Comando exato a executar, sem o ! na frente, numa linha só. Para vários passos, junte com && ou ponha num script." },
                     "reason": { "type": "string", "description": "Uma frase curta dizendo por que o usuário deve rodar isso." }
                 },
                 "required": ["command"],
@@ -279,6 +279,14 @@ fn call_suggest_command(
         .unwrap_or_default();
     if command.is_empty() {
         return text_result("Informe o comando em `command`.".into(), true);
+    }
+    // A line break reaches Claude's prompt as Enter and runs only the first line.
+    if command.contains(['\n', '\r']) {
+        return text_result(
+            "O comando precisa caber numa linha só: junte os passos com && ou ponha num script e sugira só a chamada dele."
+                .into(),
+            true,
+        );
     }
     if tab_id.is_none() {
         return text_result(
