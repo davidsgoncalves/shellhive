@@ -9,7 +9,7 @@ import { GROUP_COLORS } from "./types";
 import { IS_MAC } from "./shortcuts";
 import { reportError } from "./errors";
 
-export type ThemeId = "classic" | "glass";
+export type ThemeId = "classic" | "glass" | "glow" | "glow-amber";
 
 interface ThemeSpec {
   label: string;
@@ -20,9 +20,38 @@ interface ThemeSpec {
   groupColors: string[];
   /** Whether the main window shows the system's blur behind it (macOS only). */
   vibrancy: boolean;
+  /** Floating layers over a backdrop, the layout Glass and the Glows share. */
+  layers: boolean;
 }
 
 const SYSTEM_MONO = "Menlo, Monaco, 'Cascadia Mono', Consolas, 'DejaVu Sans Mono', 'Courier New', monospace";
+
+/** Terminal colours of the layered themes, from the Claude Design mock. */
+const LAYERED_TERMINAL: ITheme = {
+  background: "#0d1016",
+  foreground: "#e6e9f0",
+  cursor: "#ffffff",
+  cursorAccent: "#0d1016",
+  selectionBackground: "#2a3350",
+  black: "#7d8597",
+  red: "#ff6e7a",
+  green: "#6ee7a8",
+  yellow: "#ffd166",
+  blue: "#7ab8ff",
+  magenta: "#d49bff",
+  cyan: "#5fd8e0",
+  white: "#c9cfdb",
+  brightBlack: "#9aa2b3",
+  brightRed: "#ff9aa3",
+  brightGreen: "#9ff0c4",
+  brightYellow: "#ffe199",
+  brightBlue: "#a6d0ff",
+  brightMagenta: "#e5bfff",
+  brightCyan: "#93e8ee",
+  brightWhite: "#f5f7fb",
+};
+
+const LAYERED_GROUPS = ["#6ee7a8", "#4fd1c5", "#b69cff", "#ff8fc7", "#cfe06a", "#e2c9a0"];
 
 export const THEMES: Record<ThemeId, ThemeSpec> = {
   classic: {
@@ -32,37 +61,35 @@ export const THEMES: Record<ThemeId, ThemeSpec> = {
     lineHeight: 1,
     groupColors: GROUP_COLORS,
     vibrancy: false,
+    layers: false,
   },
   glass: {
     label: "Glass",
-    terminal: {
-      background: "#0d1016",
-      foreground: "#e6e9f0",
-      cursor: "#ffffff",
-      cursorAccent: "#0d1016",
-      selectionBackground: "#2a3350",
-      black: "#7d8597",
-      red: "#ff6e7a",
-      green: "#6ee7a8",
-      yellow: "#ffd166",
-      blue: "#7ab8ff",
-      magenta: "#d49bff",
-      cyan: "#5fd8e0",
-      white: "#c9cfdb",
-      brightBlack: "#9aa2b3",
-      brightRed: "#ff9aa3",
-      brightGreen: "#9ff0c4",
-      brightYellow: "#ffe199",
-      brightBlue: "#a6d0ff",
-      brightMagenta: "#e5bfff",
-      brightCyan: "#93e8ee",
-      brightWhite: "#f5f7fb",
-    },
+    terminal: LAYERED_TERMINAL,
     fontFamily: `'Geist Mono', ${SYSTEM_MONO}`,
     // 13px text on 18px lines.
     lineHeight: 18 / 13,
-    groupColors: ["#6ee7a8", "#4fd1c5", "#b69cff", "#ff8fc7", "#cfe06a", "#e2c9a0"],
+    groupColors: LAYERED_GROUPS,
     vibrancy: true,
+    layers: true,
+  },
+  glow: {
+    label: "Glow",
+    terminal: LAYERED_TERMINAL,
+    fontFamily: `'Geist Mono', ${SYSTEM_MONO}`,
+    lineHeight: 18 / 13,
+    groupColors: LAYERED_GROUPS,
+    vibrancy: false,
+    layers: true,
+  },
+  "glow-amber": {
+    label: "Glow Âmbar",
+    terminal: LAYERED_TERMINAL,
+    fontFamily: `'Geist Mono', ${SYSTEM_MONO}`,
+    lineHeight: 18 / 13,
+    groupColors: LAYERED_GROUPS,
+    vibrancy: false,
+    layers: true,
   },
 };
 
@@ -168,6 +195,8 @@ export function applyLook(id: ThemeId, terminalFont: TerminalFont): void {
   current = id;
   font = terminalFont;
   document.documentElement.dataset.theme = id;
+  if (THEMES[id].layers) document.documentElement.dataset.layers = "on";
+  else delete document.documentElement.dataset.layers;
   void restyleTerminals();
   if (themeChanged) void setVibrancy(THEMES[id].vibrancy);
 }
