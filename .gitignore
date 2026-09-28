@@ -7,3 +7,6 @@ src-tauri/gen/schemas
 # Release signing keys never belong in the repository.
 *.key
 *.key.pub
+
+# Local planning notes
+handoffs/
