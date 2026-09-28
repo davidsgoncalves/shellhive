@@ -5,7 +5,7 @@ import { SessionsBrowser } from "./SessionsBrowser";
 import { EventsList } from "./EventsPanel";
 import { shortcutLabel } from "../lib/shortcuts";
 
-type PanelTab = "queue" | "sessions" | "events";
+type PanelTab = "queue" | "sessions" | "pinned" | "events";
 
 export function RightPanel() {
   const { eventsOpen, toggleEvents, permissions, questions, commands, showEvents } = useStore();
@@ -28,6 +28,7 @@ export function RightPanel() {
   const TABS: Array<{ key: PanelTab; label: string; badge?: number }> = [
     { key: "queue", label: "Fila", badge: pending },
     { key: "sessions", label: "Histórico" },
+    { key: "pinned", label: "Fixadas" },
     // Raw hook traffic, only for diagnosing the app; switched on under Sobre.
     ...(showEvents ? [{ key: "events" as const, label: "Eventos" }] : []),
   ];
@@ -59,6 +60,11 @@ export function RightPanel() {
       {current === "sessions" && (
         <div className="panel-body">
           <SessionsBrowser />
+        </div>
+      )}
+      {current === "pinned" && (
+        <div className="panel-body">
+          <SessionsBrowser onlyPinned />
         </div>
       )}
       {current === "events" && (
