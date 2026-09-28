@@ -1,5 +1,14 @@
 [
   {
+    "version": "0.1.24",
+    "date": "2026-09-28",
+    "items": [
+      "Seletor de tema em Configurações > Aparência, com o tema novo Glass. No macOS, a janela fica translúcida.",
+      "Menu de Novidades na barra de cima (✦).",
+      "Aba Fixadas no painel da direita, com só as sessões fixadas."
+    ]
+  },
+  {
     "version": "0.1.23",
     "date": "2026-09-28",
     "items": [
