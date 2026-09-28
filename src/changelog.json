@@ -1,5 +1,15 @@
 [
   {
+    "version": "0.1.25",
+    "date": "2026-09-29",
+    "items": [
+      "Dois temas novos, Glow e Glow Âmbar: o visual do Glass com fundo sólido, igual em todos os sistemas.",
+      "Fonte do terminal configurável em Configurações > Aparência: fonte, tamanho, altura da linha e espaço entre letras.",
+      "No menu de clique direito, Fechar terminal só libera o painel e a sessão continua na lista. Arquivar sessão encerra e manda para o Histórico.",
+      "Ao trocar de tema ou de fonte, o shell recebe o novo tamanho do terminal."
+    ]
+  },
+  {
     "version": "0.1.24",
     "date": "2026-09-28",
     "items": [
