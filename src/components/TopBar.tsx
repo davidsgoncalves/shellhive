@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Announcements } from "./Announcements";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useStore } from "../lib/store";
 import { SPLIT_MODES, type RateWindow, type TabState } from "../lib/types";
@@ -128,6 +129,7 @@ export function TopBar() {
         )}
       </div>
 
+      <Announcements />
       <button className="icon-btn" title={`Configurações (${shortcutLabel("settings")})`} onClick={() => openModal({ kind: "settings" })}>
         ⚙
       </button>
