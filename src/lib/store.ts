@@ -175,6 +175,8 @@ interface Store {
     opts?: { cwd?: string | null; claudeSessionId?: string; title?: string; customTitle?: boolean },
   ) => string;
   closeTab: (id: string) => void;
+  /** Frees the pane showing a tab; the tab and its shell keep running in the list. */
+  closePane: (id: string) => void;
   activateTab: (id: string) => void;
   renameTab: (id: string, title: string) => void;
   moveTab: (id: string, groupId: string) => void;
@@ -400,6 +402,14 @@ export const useStore = create<Store>()(
             closedTabs,
             subagentsByTab,
           };
+        }),
+      closePane: (id) =>
+        set((s) => {
+          const slot = s.panes.indexOf(id);
+          if (slot === -1) return {};
+          const panes = [...s.panes];
+          panes[slot] = null;
+          return { panes, activeTabId: s.activeTabId === id ? (panes[s.focusedPane] ?? null) : s.activeTabId };
         }),
       activateTab: (id) => {
         if (get().detached.includes(id)) return focusDetachedWindow(id);
