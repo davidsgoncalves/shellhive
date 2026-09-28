@@ -8,6 +8,7 @@ import type { ReportsState } from "../lib/errors";
 import { shortcutLabel, withShortcuts } from "../lib/shortcuts";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useStore, type SettingsTab } from "../lib/store";
+import { THEMES, type ThemeId } from "../lib/theme";
 import { Modal } from "./Modal";
 import { AddFolder, FolderChoice } from "./FolderFields";
 import { BORDER_OPTIONS } from "../lib/types";
@@ -332,6 +333,8 @@ function SettingsDialog({ initialTab, onClose }: { initialTab?: SettingsTab; onC
     setGroupTint,
     miniPanel,
     setMiniPanel,
+    theme,
+    setTheme,
   } = useStore();
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -360,6 +363,18 @@ function SettingsDialog({ initialTab, onClose }: { initialTab?: SettingsTab; onC
 
       {tab === "aparencia" && (
       <>
+      <section className="settings-section">
+        <h3>Tema</h3>
+        <p className="hint">No macOS, o Glass deixa o fundo da janela translúcido; nos outros sistemas ele usa um fundo sólido.</p>
+        <div className="chip-row">
+          {(Object.keys(THEMES) as ThemeId[]).map((id) => (
+            <button key={id} className={`chip ${theme === id ? "on" : ""}`} onClick={() => setTheme(id)}>
+              {THEMES[id].label}
+            </button>
+          ))}
+        </div>
+      </section>
+
       <section className="settings-section">
         <h3>Lista de sessões</h3>
         <div className="chip-row">

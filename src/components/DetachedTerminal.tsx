@@ -4,7 +4,8 @@ import { emitTo, listen } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
-import { decodeBase64, TERMINAL_OPTIONS } from "../lib/terminals";
+import { decodeBase64 } from "../lib/terminals";
+import { terminalOptions, trackTerminal } from "../lib/theme";
 import { actionOf, shortcutLabel } from "../lib/shortcuts";
 import { attachLinks, carriesFiles, fixLinuxInput, pasteDroppedFiles } from "../lib/termExtras";
 import {
@@ -35,10 +36,11 @@ export function DetachedTerminal({ tabId }: { tabId: string }) {
 
     const el = ref.current;
     if (!el) return;
-    const term = new Terminal(TERMINAL_OPTIONS);
+    const term = new Terminal(terminalOptions());
     const fit = new FitAddon();
     term.loadAddon(fit);
     term.open(el);
+    const untrack = trackTerminal(term, fit);
     const input = fixLinuxInput(term);
     let cwd: string | null = null;
     const links = attachLinks(term, () => cwd);
@@ -95,6 +97,7 @@ export function DetachedTerminal({ tabId }: { tabId: string }) {
       dataSub.dispose();
       links.dispose();
       input.dispose();
+      untrack();
       term.dispose();
       for (const p of [unTitle, unData, unSnap, unExit, unClose]) void p.then((u) => u());
     };
