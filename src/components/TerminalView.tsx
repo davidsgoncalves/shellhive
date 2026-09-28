@@ -82,14 +82,10 @@ export function TerminalView({
     termRef.current = term;
     fitRef.current = fit;
 
-    invoke("pty_spawn", { id: tab.id, cols: term.cols, rows: term.rows, cwd: tab.cwd })
-      .then(() => {
-        // Resume only when this tab was opened to continue a session; the PATH
-        // shim supplies the settings, so no flags are needed here.
-        if (tab.claudeSessionId && takePendingResume(tab.id)) {
-          invoke("pty_write", { id: tab.id, data: `claude --resume ${tab.claudeSessionId}\r` });
-        }
-      })
+    // Resume only when this tab was opened to continue a session; the backend
+    // types the command through the shim, which supplies the settings.
+    const resume = tab.claudeSessionId && takePendingResume(tab.id) ? tab.claudeSessionId : null;
+    invoke("pty_spawn", { id: tab.id, cols: term.cols, rows: term.rows, cwd: tab.cwd, resume })
       .catch((e) => {
         term.writeln(`\x1b[31mpty_spawn failed: ${e}\x1b[0m`);
         reportError("pty", `pty_spawn failed: ${e}`);

@@ -4,7 +4,9 @@ import { useStore } from "../lib/store";
 import { looksDestructive } from "../lib/describe";
 import type { CommandSuggestion } from "../lib/types";
 
-/** Types into Claude's prompt a character at a time, the way a person would. */
+const TYPE_CHUNK = 64;
+
+/** Types into Claude's prompt a little at a time, the way a person would. */
 export async function typeCommand(tabId: string, command: string): Promise<void> {
   const write = (data: string) => invoke("pty_write", { id: tabId, data });
   const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -12,7 +14,14 @@ export async function typeCommand(tabId: string, command: string): Promise<void>
   // on its own, or it is read as part of a paste.
   await write("!");
   await pause(150);
-  await write(command);
+  // Written in one go, a long command reaches Claude Code as several reads
+  // and only the last one survives; small chunks arrive one at a time.
+  // Split by code point, so an emoji is never cut in half.
+  const chars = Array.from(command);
+  for (let i = 0; i < chars.length; i += TYPE_CHUNK) {
+    await write(chars.slice(i, i + TYPE_CHUNK).join(""));
+    await pause(15);
+  }
   await pause(80);
   await write("\r");
 }
