@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useStore } from "../lib/store";
-import { GROUP_COLORS } from "../lib/types";
+import { THEMES } from "../lib/theme";
 import { describeRule } from "../lib/permRules";
 
 /** Right-click menu for a group: colour, rename, collapse and removal. */
 export function GroupMenu() {
-  const { groupMenu, openGroupMenu, groups, tabs, setGroupColor, renameGroup, toggleGroupCollapsed, setGroupHidden, ungroupTabs, closeGroup, removeGroupRule } =
+  const { groupMenu, openGroupMenu, groups, tabs, setGroupColor, renameGroup, toggleGroupCollapsed, setGroupHidden, ungroupTabs, closeGroup, removeGroupRule, theme } =
     useStore();
   const [confirming, setConfirming] = useState(false);
   const [renaming, setRenaming] = useState(false);
@@ -61,7 +61,7 @@ export function GroupMenu() {
       style={{ left: Math.min(groupMenu.x, window.innerWidth - 230), top: groupMenu.y + 4 }}
     >
       <div className="menu-colors">
-        {GROUP_COLORS.map((c) => (
+        {THEMES[theme].groupColors.map((c) => (
           <button
             key={c}
             className={`menu-swatch ${group.color === c ? "on" : ""}`}

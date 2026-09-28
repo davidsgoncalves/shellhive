@@ -5,9 +5,9 @@ import { fileStorage } from "./persist";
 import { markPendingResume } from "./restored";
 import { sameRule } from "./permRules";
 import type { MiniBounds } from "./mini";
+import { THEMES, type ThemeId } from "./theme";
 import { closeDetachedWindow, focusDetachedWindow, openDetachedWindow } from "./detach";
 import {
-  GROUP_COLORS,
   DEFAULT_TAB_TITLE,
   UNGROUPED_COLOR,
   UNGROUPED_ID,
@@ -121,6 +121,8 @@ interface Store {
   tabTitleWrap: TitleWrap;
   /** Background tint of each group in the tab list. */
   groupTint: GroupTint;
+  /** Colours, fonts and backdrop of the whole app. */
+  theme: ThemeId;
   /** The one-time question about sending error reports was answered. */
   errorReportsAsked: boolean;
   /** Whether the raw hook events tab is shown in the right panel. */
@@ -209,6 +211,7 @@ interface Store {
   setTerminalBorder: (px: number) => void;
   setTabTitleWrap: (w: TitleWrap) => void;
   setGroupTint: (t: GroupTint) => void;
+  setTheme: (t: ThemeId) => void;
   setMiniPanel: (on: boolean) => void;
   setShowEvents: (on: boolean) => void;
   setErrorReportsAsked: (asked: boolean) => void;
@@ -251,6 +254,7 @@ export const useStore = create<Store>()(
       terminalBorder: 1,
       tabTitleWrap: "wrap",
       groupTint: "subtle",
+      theme: "classic",
       miniPanel: false,
       showEvents: false,
       errorReportsAsked: false,
@@ -270,7 +274,8 @@ export const useStore = create<Store>()(
 
       addGroup: (name, folderId = null) => {
         const id = newId();
-        const color = GROUP_COLORS[get().groups.length % GROUP_COLORS.length];
+        const palette = THEMES[get().theme].groupColors;
+        const color = palette[get().groups.length % palette.length];
         set((s) => {
           const created: Group = {
             id,
@@ -294,8 +299,9 @@ export const useStore = create<Store>()(
         set((s) => ({
           groups: s.groups.map((g) => {
             if (g.id !== id) return g;
-            const next = (GROUP_COLORS.indexOf(g.color) + 1) % GROUP_COLORS.length;
-            return { ...g, color: GROUP_COLORS[next] };
+            const palette = THEMES[s.theme].groupColors;
+            const next = (palette.indexOf(g.color) + 1) % palette.length;
+            return { ...g, color: palette[next] };
           }),
         })),
       toggleGroupCollapsed: (id) =>
@@ -579,6 +585,7 @@ export const useStore = create<Store>()(
       setTerminalBorder: (terminalBorder) => set({ terminalBorder }),
       setTabTitleWrap: (tabTitleWrap) => set({ tabTitleWrap }),
       setGroupTint: (groupTint) => set({ groupTint }),
+      setTheme: (theme) => set({ theme }),
       setMiniPanel: (miniPanel) => set({ miniPanel }),
       setShowEvents: (showEvents) => set({ showEvents }),
       setErrorReportsAsked: (errorReportsAsked) => set({ errorReportsAsked }),
@@ -681,6 +688,7 @@ export const useStore = create<Store>()(
         terminalBorder: s.terminalBorder,
         tabTitleWrap: s.tabTitleWrap,
         groupTint: s.groupTint,
+        theme: s.theme,
         miniPanel: s.miniPanel,
         showEvents: s.showEvents,
         errorReportsAsked: s.errorReportsAsked,

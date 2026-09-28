@@ -1,0 +1,13 @@
+{
+  "app": {
+    "windows": [
+      {
+        "title": "Shellhive",
+        "width": 1280,
+        "height": 800,
+        "dragDropEnabled": false,
+        "transparent": true
+      }
+    ]
+  }
+}

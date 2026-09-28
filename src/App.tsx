@@ -19,6 +19,7 @@ import { EmptyPane } from "./components/EmptyPane";
 import { EditorPanel } from "./components/EditorPanel";
 import { TerminalSearch } from "./components/TerminalSearch";
 import { CommandCard, typeCommand } from "./components/CommandCard";
+import { applyTheme, shareTheme } from "./lib/theme";
 import { defaultGroupId, ensureUngrouped, openSession, openSessionInGroup, useStore } from "./lib/store";
 import { tabPatchFor } from "./lib/hookState";
 import { decodeBase64, serializers, terminals } from "./lib/terminals";
@@ -452,6 +453,15 @@ function useEditorRequests(): [EditorRequest | null, () => void] {
   return [request, () => setRequest(null)];
 }
 
+/** Applies the chosen theme and shares it with the other windows. */
+function useTheme() {
+  const theme = useStore((s) => s.theme);
+  useEffect(() => {
+    applyTheme(theme);
+    shareTheme(theme);
+  }, [theme]);
+}
+
 function App() {
   const [editorRequest, closeEditor] = useEditorRequests();
   useBackendBridge();
@@ -463,6 +473,7 @@ function App() {
   useDetachedWindows();
   useGitPoll();
   useMiniPanel();
+  useTheme();
   const tabs = useStore((s) => s.tabs);
 
   useEffect(() => {

@@ -4,7 +4,8 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { SerializeAddon } from "@xterm/addon-serialize";
 import { SearchAddon } from "@xterm/addon-search";
-import { searches, serializers, terminals, TERMINAL_OPTIONS } from "../lib/terminals";
+import { searches, serializers, terminals } from "../lib/terminals";
+import { terminalOptions, trackTerminal } from "../lib/theme";
 import { actionOf, isAppShortcut } from "../lib/shortcuts";
 import { reportError } from "../lib/errors";
 import { sessionFromDrag, type SessionRef } from "../lib/store";
@@ -54,7 +55,7 @@ export function TerminalView({
     const el = ref.current;
     if (!el) return;
 
-    const term = new Terminal(TERMINAL_OPTIONS);
+    const term = new Terminal(terminalOptions());
     const fit = new FitAddon();
     const serializer = new SerializeAddon();
     const search = new SearchAddon();
@@ -65,6 +66,7 @@ export function TerminalView({
     term.open(el);
     const input = fixLinuxInput(term);
     fit.fit();
+    const untrack = trackTerminal(term, fit);
 
     term.attachCustomKeyEventHandler((e) => {
       if (e.type !== "keydown") return true;
@@ -108,6 +110,7 @@ export function TerminalView({
       searches.delete(tab.id);
       links.dispose();
       input.dispose();
+      untrack();
       term.dispose();
       invoke("pty_kill", { id: tab.id }).catch(() => {});
     };
