@@ -1,5 +1,14 @@
 [
   {
+    "version": "0.1.23",
+    "date": "2026-09-28",
+    "items": [
+      "Comandos sugeridos longos chegam inteiros ao Claude, em vez de só o final.",
+      "Comandos sugeridos com mais de uma linha são recusados, e o Claude recebe a orientação de juntar os passos ou usar um script.",
+      "No zsh, as abas não perdem mais a conexão com o Shellhive quando algum arquivo de inicialização pergunta algo ao abrir, como o aviso de atualização do oh-my-zsh."
+    ]
+  },
+  {
     "version": "0.1.22",
     "date": "2026-09-25",
     "items": [
