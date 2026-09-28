@@ -123,6 +123,8 @@ interface Store {
   groupTint: GroupTint;
   /** Colours, fonts and backdrop of the whole app. */
   theme: ThemeId;
+  /** Ids of the Novidades already shown. */
+  seenAnnouncements: string[];
   /** The one-time question about sending error reports was answered. */
   errorReportsAsked: boolean;
   /** Whether the raw hook events tab is shown in the right panel. */
@@ -212,6 +214,7 @@ interface Store {
   setTabTitleWrap: (w: TitleWrap) => void;
   setGroupTint: (t: GroupTint) => void;
   setTheme: (t: ThemeId) => void;
+  markAnnouncementsSeen: (ids: string[]) => void;
   setMiniPanel: (on: boolean) => void;
   setShowEvents: (on: boolean) => void;
   setErrorReportsAsked: (asked: boolean) => void;
@@ -255,6 +258,7 @@ export const useStore = create<Store>()(
       tabTitleWrap: "wrap",
       groupTint: "subtle",
       theme: "classic",
+      seenAnnouncements: [],
       miniPanel: false,
       showEvents: false,
       errorReportsAsked: false,
@@ -586,6 +590,8 @@ export const useStore = create<Store>()(
       setTabTitleWrap: (tabTitleWrap) => set({ tabTitleWrap }),
       setGroupTint: (groupTint) => set({ groupTint }),
       setTheme: (theme) => set({ theme }),
+      markAnnouncementsSeen: (ids) =>
+        set((s) => ({ seenAnnouncements: [...new Set([...s.seenAnnouncements, ...ids])] })),
       setMiniPanel: (miniPanel) => set({ miniPanel }),
       setShowEvents: (showEvents) => set({ showEvents }),
       setErrorReportsAsked: (errorReportsAsked) => set({ errorReportsAsked }),
@@ -689,6 +695,7 @@ export const useStore = create<Store>()(
         tabTitleWrap: s.tabTitleWrap,
         groupTint: s.groupTint,
         theme: s.theme,
+        seenAnnouncements: s.seenAnnouncements,
         miniPanel: s.miniPanel,
         showEvents: s.showEvents,
         errorReportsAsked: s.errorReportsAsked,
