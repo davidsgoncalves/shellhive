@@ -40,7 +40,6 @@ export function DetachedTerminal({ tabId }: { tabId: string }) {
     const fit = new FitAddon();
     term.loadAddon(fit);
     term.open(el);
-    const untrack = trackTerminal(term, fit);
     const input = fixLinuxInput(term);
     let cwd: string | null = null;
     const links = attachLinks(term, () => cwd);
@@ -50,6 +49,7 @@ export function DetachedTerminal({ tabId }: { tabId: string }) {
       void invoke("pty_resize", { id: tabId, cols: term.cols, rows: term.rows }).catch(() => {});
       void emitTo(MAIN_LABEL, DETACH_RESIZE, { id: tabId, cols: term.cols, rows: term.rows });
     };
+    const untrack = trackTerminal(term, resize);
 
     // Output that arrives before the snapshot is already part of it.
     let ready = false;

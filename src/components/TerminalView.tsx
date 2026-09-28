@@ -66,7 +66,6 @@ export function TerminalView({
     term.open(el);
     const input = fixLinuxInput(term);
     fit.fit();
-    const untrack = trackTerminal(term, fit);
 
     term.attachCustomKeyEventHandler((e) => {
       if (e.type !== "keydown") return true;
@@ -95,12 +94,15 @@ export function TerminalView({
 
     const dataSub = term.onData((data) => invoke("pty_write", { id: tab.id, data }));
 
-    const observer = new ResizeObserver(() => {
+    // Hidden panes measure as zero; they fit when shown again.
+    const refit = () => {
       if (el.offsetParent === null) return;
       fit.fit();
       invoke("pty_resize", { id: tab.id, cols: term.cols, rows: term.rows }).catch(() => {});
-    });
+    };
+    const observer = new ResizeObserver(refit);
     observer.observe(el);
+    const untrack = trackTerminal(term, refit);
 
     return () => {
       observer.disconnect();

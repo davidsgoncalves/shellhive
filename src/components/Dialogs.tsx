@@ -8,7 +8,7 @@ import type { ReportsState } from "../lib/errors";
 import { shortcutLabel, withShortcuts } from "../lib/shortcuts";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useStore, type SettingsTab } from "../lib/store";
-import { THEMES, type ThemeId } from "../lib/theme";
+import { DEFAULT_FONT_SIZE, THEMES, type ThemeId } from "../lib/theme";
 import { Modal } from "./Modal";
 import { AddFolder, FolderChoice } from "./FolderFields";
 import { BORDER_OPTIONS } from "../lib/types";
@@ -314,6 +314,140 @@ function PromptsTab() {
   );
 }
 
+const FONT_PRESETS = ["Geist Mono", "Menlo", "SF Mono"];
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/** A number with − and + buttons, kept within [min, max]. */
+function Stepper({
+  value,
+  min,
+  max,
+  step,
+  format,
+  onChange,
+}: {
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  format: (n: number) => string;
+  onChange: (n: number) => void;
+}) {
+  const move = (dir: number) => onChange(round2(Math.min(max, Math.max(min, value + dir * step))));
+  return (
+    <div className="stepper">
+      <button className="chip" disabled={value <= min} onClick={() => move(-1)}>
+        −
+      </button>
+      <span className="stepper-value">{format(value)}</span>
+      <button className="chip" disabled={value >= max} onClick={() => move(1)}>
+        +
+      </button>
+    </div>
+  );
+}
+
+/** Terminal font overrides; every field falls back to the theme's choice. */
+function TerminalFontSection() {
+  const { theme, terminalFont, setTerminalFont, resetTerminalFont } = useStore();
+  const [custom, setCustom] = useState(
+    terminalFont.family !== null && !FONT_PRESETS.includes(terminalFont.family),
+  );
+  const themeLine = THEMES[theme].lineHeight;
+  const decimal = (n: number) => n.toFixed(2).replace(".", ",");
+  const untouched = Object.values(terminalFont).every((v) => v === null);
+
+  return (
+    <section className="settings-section">
+      <h3>Fonte do terminal</h3>
+      <div className="field">
+        <span>Fonte</span>
+        <div className="chip-row">
+          <button
+            className={`chip ${terminalFont.family === null && !custom ? "on" : ""}`}
+            onClick={() => {
+              setCustom(false);
+              setTerminalFont({ family: null });
+            }}
+          >
+            Do tema
+          </button>
+          {FONT_PRESETS.map((f) => (
+            <button
+              key={f}
+              className={`chip ${terminalFont.family === f && !custom ? "on" : ""}`}
+              onClick={() => {
+                setCustom(false);
+                setTerminalFont({ family: f });
+              }}
+            >
+              {f}
+            </button>
+          ))}
+          <button className={`chip ${custom ? "on" : ""}`} onClick={() => setCustom(true)}>
+            Outra…
+          </button>
+        </div>
+        {custom && (
+          <input
+            placeholder="Nome de uma fonte instalada, ex. JetBrains Mono"
+            defaultValue={terminalFont.family ?? ""}
+            onChange={(e) => setTerminalFont({ family: e.target.value.trim() || null })}
+          />
+        )}
+      </div>
+      <div className="font-steppers">
+        <div className="field">
+          <span>Tamanho</span>
+          <Stepper
+            value={terminalFont.size ?? DEFAULT_FONT_SIZE}
+            min={10}
+            max={18}
+            step={1}
+            format={(n) => `${n} px`}
+            onChange={(size) => setTerminalFont({ size })}
+          />
+        </div>
+        <div className="field">
+          <span>Altura da linha</span>
+          <Stepper
+            value={terminalFont.lineHeight ?? round2(themeLine)}
+            min={1}
+            max={1.6}
+            step={0.05}
+            format={decimal}
+            onChange={(lineHeight) => setTerminalFont({ lineHeight })}
+          />
+        </div>
+        <div className="field">
+          <span>Espaço entre letras</span>
+          <Stepper
+            value={terminalFont.letterSpacing ?? 0}
+            min={-1}
+            max={2}
+            step={0.5}
+            format={(n) => `${decimal(n)} px`}
+            onChange={(letterSpacing) => setTerminalFont({ letterSpacing })}
+          />
+        </div>
+      </div>
+      <div className="row">
+        <button
+          className="ghost auto"
+          disabled={untouched}
+          onClick={() => {
+            setCustom(false);
+            resetTerminalFont();
+          }}
+        >
+          Restaurar padrão do tema
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function SettingsDialog({ initialTab, onClose }: { initialTab?: SettingsTab; onClose: () => void }) {
   const {
     folders,
@@ -374,6 +508,8 @@ function SettingsDialog({ initialTab, onClose }: { initialTab?: SettingsTab; onC
           ))}
         </div>
       </section>
+
+      <TerminalFontSection />
 
       <section className="settings-section">
         <h3>Lista de sessões</h3>

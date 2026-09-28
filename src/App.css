@@ -1064,3 +1064,10 @@ button.ghost.danger { border-color: var(--danger); color: var(--danger); }
   box-shadow: var(--glass-edge), 0 20px 50px rgba(0,0,0,.45);
 }
 @media (prefers-reduced-motion: reduce) { .announce-panel { animation: none; } }
+
+/* ---------- terminal font settings ---------- */
+.font-steppers { display: flex; gap: 18px; flex-wrap: wrap; }
+.stepper { display: flex; align-items: center; gap: 6px; }
+.stepper .chip { width: 28px; padding: 4px 0; text-align: center; }
+.stepper .chip:disabled { opacity: .35; cursor: default; }
+.stepper-value { min-width: 54px; text-align: center; font-size: 12px; font-variant-numeric: tabular-nums; }

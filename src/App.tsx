@@ -19,7 +19,7 @@ import { EmptyPane } from "./components/EmptyPane";
 import { EditorPanel } from "./components/EditorPanel";
 import { TerminalSearch } from "./components/TerminalSearch";
 import { CommandCard, typeCommand } from "./components/CommandCard";
-import { applyTheme, shareTheme } from "./lib/theme";
+import { applyLook, shareLook } from "./lib/theme";
 import { defaultGroupId, ensureUngrouped, openSession, openSessionInGroup, useStore } from "./lib/store";
 import { tabPatchFor } from "./lib/hookState";
 import { decodeBase64, serializers, terminals } from "./lib/terminals";
@@ -453,13 +453,14 @@ function useEditorRequests(): [EditorRequest | null, () => void] {
   return [request, () => setRequest(null)];
 }
 
-/** Applies the chosen theme and shares it with the other windows. */
-function useTheme() {
+/** Applies the chosen theme and terminal font and shares them with the other windows. */
+function useLook() {
   const theme = useStore((s) => s.theme);
+  const terminalFont = useStore((s) => s.terminalFont);
   useEffect(() => {
-    applyTheme(theme);
-    shareTheme(theme);
-  }, [theme]);
+    applyLook(theme, terminalFont);
+    shareLook(theme, terminalFont);
+  }, [theme, terminalFont]);
 }
 
 function App() {
@@ -473,7 +474,7 @@ function App() {
   useDetachedWindows();
   useGitPoll();
   useMiniPanel();
-  useTheme();
+  useLook();
   const tabs = useStore((s) => s.tabs);
 
   useEffect(() => {
