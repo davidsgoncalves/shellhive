@@ -25,7 +25,8 @@ function place(s: SessionInfo): string {
   return dir.split("/").filter(Boolean).slice(-1)[0] ?? dir;
 }
 
-export function SessionsBrowser() {
+/** Every recorded session, or only the pinned ones when `onlyPinned` is set. */
+export function SessionsBrowser({ onlyPinned = false }: { onlyPinned?: boolean }) {
   const { tabs, pinned, togglePinned } = useStore();
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [matches, setMatches] = useState<SessionMatch[] | null>(null);
@@ -72,12 +73,12 @@ export function SessionsBrowser() {
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
-    let list = sessions;
+    let list = onlyPinned ? sessions.filter((s) => pinned.includes(s.id)) : sessions;
     if (q.length >= 2) {
-      const byText = sessions.filter(
+      const byText = list.filter(
         (s) => label(s).toLowerCase().includes(q) || place(s).toLowerCase().includes(q),
       );
-      const byContent = sessions.filter((s) => snippetById.has(s.id));
+      const byContent = list.filter((s) => snippetById.has(s.id));
       const seen = new Set<string>();
       list = [...byText, ...byContent].filter((s) => (seen.has(s.id) ? false : seen.add(s.id)));
     }
@@ -87,7 +88,7 @@ export function SessionsBrowser() {
       return i === -1 ? pinned.length : i;
     };
     return [...list].sort((a, b) => rank(a) - rank(b));
-  }, [sessions, query, snippetById, pinned]);
+  }, [sessions, query, snippetById, pinned, onlyPinned]);
 
   const refOf = (s: SessionInfo): SessionRef => ({ id: s.id, cwd: s.cwd, title: label(s) });
   const open = (s: SessionInfo) => openSession(refOf(s));
@@ -106,7 +107,13 @@ export function SessionsBrowser() {
       </div>
       {loading && <p className="hint pad">Lendo transcripts…</p>}
       {!loading && visible.length === 0 && (
-        <p className="hint pad">{query ? "Nada encontrado." : "Nenhuma sessão gravada."}</p>
+        <p className="hint pad">
+          {query
+            ? "Nada encontrado."
+            : onlyPinned
+              ? "Nenhuma sessão fixada. Fixe uma pela ☆ no Histórico."
+              : "Nenhuma sessão gravada."}
+        </p>
       )}
       {searching && <p className="hint pad">Buscando no conteúdo…</p>}
       <ul className="session-list">
