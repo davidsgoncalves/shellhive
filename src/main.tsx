@@ -8,7 +8,7 @@ import { DetachedTerminal } from "./components/DetachedTerminal";
 import { MiniPanel } from "./components/MiniPanel";
 import { MINI_LABEL } from "./lib/mini";
 import { watchUncaughtErrors } from "./lib/errors";
-import { applyTheme, followSharedTheme } from "./lib/theme";
+import { applyLook, followSharedLook } from "./lib/theme";
 
 // State lives in a file, so it loads before the first render. Rendering first
 // would let early writes persist an empty layout over the saved one.
@@ -18,7 +18,7 @@ const label = getCurrentWebviewWindow().label;
 const detachedTab = tabIdOfLabel(label);
 // Secondary windows only draw what the main window sends; they never load or
 // save state.
-if (label === MINI_LABEL || detachedTab) followSharedTheme();
+if (label === MINI_LABEL || detachedTab) followSharedLook();
 if (label === MINI_LABEL) root.render(<MiniPanel />);
 else if (detachedTab) root.render(<DetachedTerminal tabId={detachedTab} />);
 else useStore.persist
@@ -27,6 +27,6 @@ else useStore.persist
   .finally(() => {
     markPendingResume(useStore.getState().tabs.map((t) => t.id));
     // Before the first render, so terminals open in the saved theme.
-    applyTheme(useStore.getState().theme);
+    applyLook(useStore.getState().theme, useStore.getState().terminalFont);
     root.render(<App />);
   });

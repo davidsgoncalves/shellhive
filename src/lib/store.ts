@@ -5,7 +5,7 @@ import { fileStorage } from "./persist";
 import { markPendingResume } from "./restored";
 import { sameRule } from "./permRules";
 import type { MiniBounds } from "./mini";
-import { THEMES, type ThemeId } from "./theme";
+import { THEME_FONT, THEMES, type TerminalFont, type ThemeId } from "./theme";
 import { closeDetachedWindow, focusDetachedWindow, openDetachedWindow } from "./detach";
 import {
   DEFAULT_TAB_TITLE,
@@ -123,6 +123,8 @@ interface Store {
   groupTint: GroupTint;
   /** Colours, fonts and backdrop of the whole app. */
   theme: ThemeId;
+  /** Terminal font overrides; null fields follow the theme. */
+  terminalFont: TerminalFont;
   /** Ids of the Novidades already shown. */
   seenAnnouncements: string[];
   /** The one-time question about sending error reports was answered. */
@@ -214,6 +216,8 @@ interface Store {
   setTabTitleWrap: (w: TitleWrap) => void;
   setGroupTint: (t: GroupTint) => void;
   setTheme: (t: ThemeId) => void;
+  setTerminalFont: (f: Partial<TerminalFont>) => void;
+  resetTerminalFont: () => void;
   markAnnouncementsSeen: (ids: string[]) => void;
   setMiniPanel: (on: boolean) => void;
   setShowEvents: (on: boolean) => void;
@@ -258,6 +262,7 @@ export const useStore = create<Store>()(
       tabTitleWrap: "wrap",
       groupTint: "subtle",
       theme: "classic",
+      terminalFont: THEME_FONT,
       seenAnnouncements: [],
       miniPanel: false,
       showEvents: false,
@@ -590,6 +595,8 @@ export const useStore = create<Store>()(
       setTabTitleWrap: (tabTitleWrap) => set({ tabTitleWrap }),
       setGroupTint: (groupTint) => set({ groupTint }),
       setTheme: (theme) => set({ theme }),
+      setTerminalFont: (f) => set((s) => ({ terminalFont: { ...s.terminalFont, ...f } })),
+      resetTerminalFont: () => set({ terminalFont: THEME_FONT }),
       markAnnouncementsSeen: (ids) =>
         set((s) => ({ seenAnnouncements: [...new Set([...s.seenAnnouncements, ...ids])] })),
       setMiniPanel: (miniPanel) => set({ miniPanel }),
@@ -695,6 +702,7 @@ export const useStore = create<Store>()(
         tabTitleWrap: s.tabTitleWrap,
         groupTint: s.groupTint,
         theme: s.theme,
+        terminalFont: s.terminalFont,
         seenAnnouncements: s.seenAnnouncements,
         miniPanel: s.miniPanel,
         showEvents: s.showEvents,

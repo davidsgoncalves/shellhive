@@ -1,5 +1,4 @@
 import type { ITerminalOptions, ITheme, Terminal } from "@xterm/xterm";
-import type { FitAddon } from "@xterm/addon-fit";
 import { getCurrentWindow, Effect } from "@tauri-apps/api/window";
 import "@fontsource/geist-sans/400.css";
 import "@fontsource/geist-sans/500.css";
@@ -67,9 +66,21 @@ export const THEMES: Record<ThemeId, ThemeSpec> = {
   },
 };
 
-const STORAGE_KEY = "shellhive-theme";
+/** The user's terminal font; null fields follow the theme. */
+export interface TerminalFont {
+  family: string | null;
+  size: number | null;
+  lineHeight: number | null;
+  letterSpacing: number | null;
+}
+
+export const THEME_FONT: TerminalFont = { family: null, size: null, lineHeight: null, letterSpacing: null };
+export const DEFAULT_FONT_SIZE = 13;
+
+const STORAGE_KEY = "shellhive-look";
 
 let current: ThemeId = "classic";
+let font: TerminalFont = THEME_FONT;
 
 export function isThemeId(value: unknown): value is ThemeId {
   return typeof value === "string" && value in THEMES;
@@ -79,13 +90,23 @@ export function currentTheme(): ThemeSpec {
   return THEMES[current];
 }
 
+/** Font options after the user's choices, falling back to the theme's. */
+export function resolvedFont(): Pick<ITerminalOptions, "fontFamily" | "fontSize" | "lineHeight" | "letterSpacing"> {
+  const t = currentTheme();
+  const family = font.family?.replace(/['"]/g, "").trim();
+  return {
+    fontFamily: family ? `'${family}', ${SYSTEM_MONO}` : t.fontFamily,
+    fontSize: font.size ?? DEFAULT_FONT_SIZE,
+    lineHeight: font.lineHeight ?? t.lineHeight,
+    letterSpacing: font.letterSpacing ?? 0,
+  };
+}
+
 /** Options for a new terminal, in the current theme. */
 export function terminalOptions(): ITerminalOptions {
   const t = currentTheme();
   return {
-    fontFamily: t.fontFamily,
-    fontSize: 13,
-    lineHeight: t.lineHeight,
+    ...resolvedFont(),
     cursorBlink: true,
     allowProposedApi: true,
     scrollback: 5000,
@@ -94,24 +115,27 @@ export function terminalOptions(): ITerminalOptions {
   };
 }
 
-/** Live terminals in this window, restyled when the theme changes. */
-const live = new Map<Terminal, FitAddon>();
+/**
+ * Live terminals in this window, restyled when the look changes. `refit`
+ * fits the terminal to its pane and tells the pty its new size.
+ */
+const live = new Map<Terminal, () => void>();
 
-export function trackTerminal(term: Terminal, fit: FitAddon): () => void {
-  live.set(term, fit);
+export function trackTerminal(term: Terminal, refit: () => void): () => void {
+  live.set(term, refit);
   return () => live.delete(term);
 }
 
 async function restyleTerminals(): Promise<void> {
   const t = currentTheme();
+  const f = resolvedFont();
   // xterm measures the font when it is set; measuring a font still loading
   // would space every cell with the fallback's width.
-  await document.fonts.load(`13px ${t.fontFamily}`).catch(() => {});
-  for (const [term, fit] of live) {
+  await document.fonts.load(`${f.fontSize}px ${f.fontFamily}`).catch(() => {});
+  for (const [term, refit] of live) {
     term.options.theme = t.terminal;
-    term.options.fontFamily = t.fontFamily;
-    term.options.lineHeight = t.lineHeight;
-    fit.fit();
+    Object.assign(term.options, f);
+    refit();
   }
 }
 
@@ -138,38 +162,40 @@ async function setVibrancy(on: boolean): Promise<void> {
   }
 }
 
-/** Applies a theme to this window: colours, fonts, terminals and backdrop. */
-export function applyTheme(id: ThemeId): void {
+/** Applies a theme and terminal font to this window. */
+export function applyLook(id: ThemeId, terminalFont: TerminalFont): void {
+  const themeChanged = id !== current || document.documentElement.dataset.theme !== id;
   current = id;
+  font = terminalFont;
   document.documentElement.dataset.theme = id;
   void restyleTerminals();
-  void setVibrancy(THEMES[id].vibrancy);
+  if (themeChanged) void setVibrancy(THEMES[id].vibrancy);
 }
 
 /**
  * Detached windows and the mini panel never load the app state, so the main
  * window shares the theme through storage, which every window of the app sees.
  */
-export function shareTheme(id: ThemeId): void {
+export function shareLook(id: ThemeId, terminalFont: TerminalFont): void {
   try {
-    localStorage.setItem(STORAGE_KEY, id);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ theme: id, font: terminalFont }));
   } catch {
     // Storage off only leaves secondary windows in the default theme.
   }
 }
 
-/** For secondary windows: take the shared theme now and follow its changes. */
-export function followSharedTheme(): void {
-  const read = (): ThemeId => {
+/** For secondary windows: take the shared look now and follow its changes. */
+export function followSharedLook(): void {
+  const read = (): [ThemeId, TerminalFont] => {
     try {
-      const v = localStorage.getItem(STORAGE_KEY);
-      return isThemeId(v) ? v : "classic";
+      const v = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
+      return [isThemeId(v.theme) ? v.theme : "classic", { ...THEME_FONT, ...v.font }];
     } catch {
-      return "classic";
+      return ["classic", THEME_FONT];
     }
   };
-  applyTheme(read());
+  applyLook(...read());
   window.addEventListener("storage", (e) => {
-    if (e.key === STORAGE_KEY) applyTheme(read());
+    if (e.key === STORAGE_KEY) applyLook(...read());
   });
 }
