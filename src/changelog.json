@@ -1,5 +1,16 @@
 [
   {
+    "version": "1.0.0",
+    "date": "2026-09-29",
+    "items": [
+      "Plugins oficiais: recursos extras que vêm com o app e se ligam em Configurações > Plugins.",
+      "O Editor em painel virou o primeiro plugin, ligado por padrão.",
+      "Os prompts salvos foram removidos.",
+      "Fixar sessão direto no menu de clique direito da aba.",
+      "Seleção e hover com contraste nos temas Glass e Glow."
+    ]
+  },
+  {
     "version": "0.1.25",
     "date": "2026-09-29",
     "items": [
@@ -148,7 +159,7 @@
       "Cada aba mostra a branch e as linhas alteradas da pasta.",
       "Pedidos de permissão podem ser aprovados de vez para um grupo.",
       "{reopenTab} reabre a última aba fechada.",
-      "Prompts salvos, inseridos com {prompts}.",
+      "Prompts salvos, inseridos por atalho (removidos na 1.0).",
       "{click} abre links e caminhos de arquivo impressos no terminal.",
       "{search} busca no histórico do terminal.",
       "Soltar um arquivo no terminal cola o caminho dele.",
