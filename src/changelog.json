@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.2.0",
+    "date": "2026-09-29",
+    "items": [
+      "Plugin Diagramas Mermaid para todos: o Claude mostra fluxogramas, sequências, modelos de dados, estados e cronogramas num painel abaixo do terminal.",
+      "Plugins começam desligados e só ligam quando você quiser; a escolha fica entre atualizações.",
+      "Novidades com × para fechar o painel e para remover cada anúncio."
+    ]
+  },
+  {
     "version": "1.2.0-beta.1",
     "date": "2026-09-29",
     "items": [
