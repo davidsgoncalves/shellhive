@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { detectDelimiter, normalise, parse, stringify } from "../../lib/csv";
+import { detectDelimiter, normalise, parse, stringify } from "./csv";
 
 interface Props {
   value: string;

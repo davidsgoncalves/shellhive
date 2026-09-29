@@ -69,13 +69,6 @@ export interface Subagent {
   startedAt: number;
 }
 
-/** A prompt kept for reuse, inserted with Cmd+Shift+P. */
-export interface SavedPrompt {
-  id: string;
-  name: string;
-  text: string;
-}
-
 /** Branch and pending changes of a tab's folder. */
 export interface GitInfo {
   branch: string;
@@ -215,22 +208,6 @@ export interface PathCheck {
   is_dir: boolean;
   name: string | null;
   expanded: string;
-}
-
-/** Which editor the panel renders. */
-export type EditorFormat = "text" | "csv" | "json" | "xml";
-
-/** An editor panel opened by Claude through the app's MCP server. */
-export interface EditorRequest {
-  id: string;
-  tab_id: string | null;
-  path: string | null;
-  title: string;
-  instructions: string | null;
-  content: string;
-  /** False when Claude is not waiting for the text back. */
-  blocking: boolean;
-  format: EditorFormat;
 }
 
 /** One question Claude asked through its question tool, shown in the queue. */

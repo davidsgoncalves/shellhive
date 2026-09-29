@@ -8,7 +8,7 @@ use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpStream};
 use std::time::Duration;
 
-use crate::hooks::{PORT, SESSION_CONTEXT};
+use crate::hooks::PORT;
 use crate::permissions::DECISION_TIMEOUT;
 
 const QUICK: Duration = Duration::from_secs(2);
@@ -23,8 +23,10 @@ pub fn run(kind: &str) -> i32 {
             let _ = post("/hook", &tab, &input, QUICK);
         }
         "session-start" => {
-            let _ = post("/hook", &tab, &input, QUICK);
-            print!("{SESSION_CONTEXT}");
+            // The app answers with what to tell Claude.
+            if let Some(out) = post("/session-start", &tab, &input, QUICK) {
+                print!("{out}");
+            }
         }
         "statusline" => {
             let _ = post("/statusline", &tab, &input, QUICK);

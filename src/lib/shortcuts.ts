@@ -14,7 +14,6 @@ export type Action =
   | "events"
   | "settings"
   | "switcher"
-  | "prompts"
   | "search"
   | "clear"
   | "nextTab"
@@ -40,7 +39,6 @@ const MAC: Record<Action, Combo> = {
   events: cmd("KeyE"),
   settings: cmd("Comma"),
   switcher: cmd("KeyP"),
-  prompts: cmd("KeyP", true),
   search: cmd("KeyF"),
   clear: cmd("KeyK"),
   nextTab: cmd("BracketRight", true),
@@ -56,7 +54,6 @@ const LINUX: Record<Action, Combo> = {
   events: ctrlShift("KeyE"),
   settings: ctrlShift("Comma"),
   switcher: ctrlShift("KeyP"),
-  prompts: ctrlShift("KeyO"),
   search: ctrlShift("KeyF"),
   clear: ctrlShift("KeyK"),
   nextTab: { code: "PageDown", ctrl: true },

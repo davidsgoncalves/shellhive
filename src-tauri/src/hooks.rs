@@ -13,7 +13,22 @@ use crate::permissions::{Permissions, DECISION_TIMEOUT};
 pub const PORT: u16 = 47831;
 
 /// What SessionStart tells Claude about running inside this app.
-pub const SESSION_CONTEXT: &str = r#"{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"Voce esta rodando dentro do Shellhive, um terminal com abas agrupadas feito para o Claude Code. Ele expoe o servidor MCP 'shellhive'. Use a ferramenta open_editor sempre que precisar que o usuario escreva, preencha ou revise um texto: ela abre um editor em painel logo abaixo do terminal e devolve o texto final, e salva o arquivo quando voce passa 'path'. Prefira open_editor a pedir para o usuario abrir VSCode ou outro editor externo. Quando precisar que o usuario rode um comando de shell ele mesmo, chame suggest_command em vez de pedir para ele digitar ! comando: o comando vira um botao que roda nesta sessao."}}"#;
+/// What Claude is told when a session starts: that it runs inside Shellhive,
+/// plus a sentence from each enabled plugin.
+fn session_context() -> serde_json::Value {
+    let mut text = String::from(
+        "Voce esta rodando dentro do Shellhive, um terminal com abas agrupadas feito para o Claude Code. \
+         Ele expoe o servidor MCP 'shellhive'. Quando precisar que o usuario rode um comando de shell ele mesmo, \
+         chame suggest_command em vez de pedir para ele digitar ! comando: o comando vira um botao que roda nesta sessao.",
+    );
+    for extra in crate::plugins::agent_context() {
+        text.push(' ');
+        text.push_str(&extra);
+    }
+    serde_json::json!({
+        "hookSpecificOutput": { "hookEventName": "SessionStart", "additionalContext": text }
+    })
+}
 
 /// Events forwarded for state only. PermissionRequest is handled separately
 /// because its hook blocks waiting for a decision.
@@ -209,6 +224,8 @@ fn handle(app: AppHandle, mut req: tiny_http::Request) {
         return;
     }
 
+    // SessionStart is also a hook event; its reply carries the session context.
+    let session_start = url.starts_with("/session-start");
     let event = if url.starts_with("/statusline") {
         "statusline-event"
     } else {
@@ -238,7 +255,22 @@ fn handle(app: AppHandle, mut req: tiny_http::Request) {
             payload,
         },
     );
-    let _ = req.respond(Response::empty(204));
+    if session_start {
+        let _ = req.respond(json_response(&session_context()));
+    } else {
+        let _ = req.respond(Response::empty(204));
+    }
+}
+
+/// Tools that open a panel the user has to act on, so they need no prompt of
+/// their own: the core's and every official plugin's.
+fn allowed_tools() -> Vec<String> {
+    ["list_sessions", "suggest_command"]
+        .iter()
+        .map(|t| t.to_string())
+        .chain(crate::plugins::all_tool_names())
+        .map(|t| format!("mcp__shellhive__{t}"))
+        .collect()
 }
 
 fn config_dir() -> Result<PathBuf, String> {
@@ -354,15 +386,12 @@ pub fn write_scripts() -> Result<HookSetup, String> {
         &session_start_sh,
         format!(
             "#!/bin/sh\n\
-             # Forwards SessionStart and tells Claude it is running inside this app.\n\
+             # Forwards SessionStart; the app answers with what to tell Claude.\n\
              input=$(cat)\n\
              printf '%s' \"$input\" | curl -s --max-time 2 -X POST \\\n\
              \x20 -H \"Content-Type: application/json\" \\\n\
              \x20 -H \"X-Tab-Id: ${{SHELLHIVE_TAB_ID:-}}\" \\\n\
-             \x20 --data-binary @- \"http://127.0.0.1:{PORT}/hook\" >/dev/null 2>&1 || true\n\
-             cat <<'JSON'\n\
-             {SESSION_CONTEXT}\n\
-             JSON\n\
+             \x20 --data-binary @- \"http://127.0.0.1:{PORT}/session-start\" 2>/dev/null || true\n\
              exit 0\n"
         ),
     )?;
@@ -418,14 +447,8 @@ pub fn write_scripts() -> Result<HookSetup, String> {
     );
 
     let settings = serde_json::json!({
-        // The app's own tools only open a panel the user has to act on, so they
-        // do not need a prompt of their own.
         "permissions": {
-            "allow": [
-                "mcp__shellhive__open_editor",
-                "mcp__shellhive__list_sessions",
-                "mcp__shellhive__suggest_command"
-            ]
+            "allow": allowed_tools()
         },
         "hooks": hooks,
         "statusLine": {

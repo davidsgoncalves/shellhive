@@ -23,9 +23,10 @@ shell, então `.zshrc`, aliases e tudo mais continuam valendo.
   Botão direito em qualquer terminal escolhe o painel pelo número.
 - **Histórico.** Lista com título, pasta e branch, busca no conteúdo
   completo das conversas e retomada com um clique. Fixe as que você usa sempre.
-- **Editor em painel.** O Claude abre um editor embaixo do terminal para você
-  preencher ou revisar algo, em texto, planilha, JSON ou XML, e recebe de volta
-  o que você escreveu.
+- **Plugins oficiais.** Recursos extras que vêm com o app e se ligam em
+  Configurações > Plugins. O primeiro é o **Editor em painel**: o Claude abre um
+  editor embaixo do terminal para você preencher ou revisar algo, em texto,
+  planilha, JSON ou XML, e recebe de volta o que você escreveu.
 - **Limites de uso.** Consumo das janelas de 5 horas e 7 dias no topo, contexto
   e custo por aba.
 - **Avisos do sistema.** Notificação quando uma sessão termina ou pede
@@ -118,13 +119,13 @@ Sessões abertas fora do app não são afetadas.
 
 | Ferramenta | Para quê |
 | --- | --- |
-| `open_editor` | Abre o editor em painel e devolve o texto final. Salva o arquivo quando recebe um caminho. Detecta planilha, JSON e XML pela extensão |
+| `open_editor` | Do plugin Editor em painel. Abre o editor e devolve o texto final. Salva o arquivo quando recebe um caminho. Detecta planilha, JSON e XML pela extensão |
 | `list_sessions` | Lista as sessões gravadas na máquina, com título e pasta |
 | `suggest_command` | Mostra um comando de shell como botão na fila. Ao clicar em Executar, ele roda na sessão como `! comando` |
 
 No início de cada sessão o Claude recebe um contexto dizendo que está rodando
-aqui dentro e que deve usar o editor em painel no lugar de pedir um editor
-externo.
+aqui dentro, mais uma frase de cada plugin ligado; com o Editor em painel, que
+deve usá-lo no lugar de pedir um editor externo.
 
 ## Atalhos
 
@@ -136,7 +137,6 @@ externo.
 | Trocar de aba | `⌘1` a `⌘9` | `Alt+1` a `Alt+9` |
 | Aba anterior e próxima | `⌘⇧[` e `⌘⇧]` | `Ctrl+PgUp` e `Ctrl+PgDn` |
 | Buscar abas | `⌘P` | `Ctrl+Shift+P` |
-| Prompts salvos | `⌘⇧P` | `Ctrl+Shift+O` |
 | Buscar no terminal | `⌘F` | `Ctrl+Shift+F` |
 | Abrir link ou arquivo | `⌘`-clique | `Ctrl`-clique |
 | Mostrar ou esconder a lista de sessões | `⌘B` | `Ctrl+Shift+B` |
