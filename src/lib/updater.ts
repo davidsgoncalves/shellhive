@@ -1,20 +1,15 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import type { Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
-import { findUpdate } from "./update";
 import { reportError } from "./errors";
+import { useStore } from "./store";
 
 export type Phase = "idle" | "found" | "working" | "ready" | "handed-off" | "restart-failed" | "error";
 
-interface PackageUpdate {
-  version: string;
-}
-
 interface Updater {
-  update: Update | null;
-  pkg: PackageUpdate | null;
+  /** Newer version found in the chosen channel. */
+  version: string | null;
   phase: Phase;
   progress: number;
   message: string | null;
@@ -29,15 +24,16 @@ interface Updater {
 
 const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
+/** Whether this install follows the beta channel. */
+const beta = () => useStore.getState().betaChannel;
+
 /**
  * One update state for the banner and the Sobre tab, so a check made from
- * either one shows up in both. A macOS build and a Linux AppImage install
- * themselves through the updater; a Linux package install cannot, so the new
- * .deb is downloaded and handed to the system installer instead.
+ * either one shows up in both. The backend checks the regular or the beta
+ * channel, and installs the update bundle, or a .deb for a package install.
  */
 export const useUpdater = create<Updater>()((set, get) => ({
-  update: null,
-  pkg: null,
+  version: null,
   phase: "idle",
   progress: 0,
   message: null,
@@ -45,45 +41,27 @@ export const useUpdater = create<Updater>()((set, get) => ({
 
   look: async () => {
     // A download in progress or a pending restart must not be reset.
-    if (get().phase !== "idle" && get().phase !== "found") {
-      return get().update?.version ?? get().pkg?.version ?? null;
+    if (get().phase !== "idle" && get().phase !== "found") return get().version;
+    const version = await invoke<string | null>("update_check", { beta: beta() });
+    if (!version) {
+      set({ version: null, phase: "idle" });
+      return null;
     }
-    const found = await findUpdate();
-    if (!found) return null;
-    if (found.kind === "native") set({ update: found.update, pkg: null, phase: "found", dismissed: false });
-    else set({ pkg: { version: found.version }, update: null, phase: "found", dismissed: false });
-    return found.version;
+    set({ version, phase: "found", dismissed: false });
+    return version;
   },
 
   install: async () => {
-    const { update, pkg } = get();
     set({ phase: "working", progress: 0, dismissed: false });
+    const unlisten = await listen<number>("update-progress", (ev) => set({ progress: ev.payload }));
     try {
-      if (update) {
-        let total = 0;
-        let got = 0;
-        await update.downloadAndInstall((event) => {
-          if (event.event === "Started") total = event.data.contentLength ?? 0;
-          if (event.event === "Progress") {
-            got += event.data.chunkLength;
-            if (total > 0) set({ progress: Math.round((got / total) * 100) });
-          }
-        });
-        set({ phase: "ready" });
-        return;
-      }
-      if (!pkg) return;
-      // Downloaded and verified by the backend; the webview cannot fetch it.
-      const unlisten = await listen<number>("package-update-progress", (ev) => set({ progress: ev.payload }));
-      try {
-        const result = await invoke<string>("package_update_install");
-        set({ phase: result === "installed" ? "ready" : "handed-off" });
-      } finally {
-        unlisten();
-      }
+      const result = await invoke<string>("update_install", { beta: beta() });
+      set({ phase: result === "installed" ? "ready" : "handed-off" });
     } catch (err) {
       reportError("update", err);
       set({ phase: "error", message: errorText(err) });
+    } finally {
+      unlisten();
     }
   },
 
@@ -107,6 +85,6 @@ export const useUpdater = create<Updater>()((set, get) => ({
     // Closing an error or a handed-off notice ends it; closing an offer only
     // hides the banner, and Sobre keeps it.
     if (phase === "found" || phase === "ready") set({ dismissed: true });
-    else set({ update: null, pkg: null, phase: "idle", message: null, dismissed: false });
+    else set({ version: null, phase: "idle", message: null, dismissed: false });
   },
 }));

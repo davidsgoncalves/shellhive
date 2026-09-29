@@ -34,14 +34,28 @@ fn run(program: &str, args: &[&str]) -> Result<(), String> {
 /// Entry of the .deb build in the updater manifest.
 const DEB_TARGET: &str = "linux-x86_64-deb";
 
-/// Looks up the .deb entry of the manifest through the updater, which fetches
-/// from Rust: the webview cannot read release files, GitHub sends no CORS
-/// headers for them.
-async fn find_package_update(
+/// Manifest of the beta channel: always the newest release, beta or not, so
+/// people in the beta also get every regular version.
+const BETA_ENDPOINT: &str =
+    "https://github.com/davidsgoncalves/shellhive/releases/download/beta-channel/latest.json";
+
+/// Looks for a newer release in the chosen channel. The check runs in Rust:
+/// the webview cannot read release files, GitHub sends no CORS headers for
+/// them, and the JS updater cannot switch endpoints.
+async fn find_update(
     app: &AppHandle,
+    beta: bool,
 ) -> Result<Option<tauri_plugin_updater::Update>, String> {
-    app.updater_builder()
-        .target(DEB_TARGET)
+    let mut builder = app.updater_builder();
+    // A package install is replaced by a newer .deb, not by the updater bundle.
+    if install_kind() == "package" {
+        builder = builder.target(DEB_TARGET);
+    }
+    if beta {
+        let url = tauri::Url::parse(BETA_ENDPOINT).map_err(|e| e.to_string())?;
+        builder = builder.endpoints(vec![url]).map_err(|e| e.to_string())?;
+    }
+    builder
         .build()
         .map_err(|e| e.to_string())?
         .check()
@@ -49,37 +63,44 @@ async fn find_package_update(
         .map_err(|e| e.to_string())
 }
 
-/// Version of a newer .deb, or None when this one is current.
+/// Version of a newer release in the channel, or None when this one is current.
 #[tauri::command]
-pub async fn package_update_check(app: AppHandle) -> Result<Option<String>, String> {
-    Ok(find_package_update(&app).await?.map(|u| u.version))
+pub async fn update_check(app: AppHandle, beta: bool) -> Result<Option<String>, String> {
+    Ok(find_update(&app, beta).await?.map(|u| u.version))
 }
 
-/// Downloads the newer .deb, checks its signature and installs it, reporting
-/// progress as `package-update-progress` in percent.
+/// Downloads the newer release, checks its signature and installs it,
+/// reporting progress as `update-progress` in percent. Returns "installed"
+/// when a restart finishes the job, or "handed-off" when the system installer
+/// took the package over.
 #[tauri::command]
-pub async fn package_update_install(app: AppHandle) -> Result<String, String> {
-    let update = find_package_update(&app)
+pub async fn update_install(app: AppHandle, beta: bool) -> Result<String, String> {
+    let update = find_update(&app, beta)
         .await?
         .ok_or("nenhuma atualização disponível")?;
+    let progress = app.clone();
+    let mut got: u64 = 0;
+    let on_chunk = move |chunk: usize, total: Option<u64>| {
+        got += chunk as u64;
+        if let Some(total) = total.filter(|t| *t > 0) {
+            let _ = progress.emit("update-progress", got * 100 / total);
+        }
+    };
+    if install_kind() != "package" {
+        update
+            .download_and_install(on_chunk, || {})
+            .await
+            .map_err(|e| e.to_string())?;
+        return Ok("installed".into());
+    }
     let file_name = update
         .download_url
         .path_segments()
         .and_then(|mut s| s.next_back())
         .unwrap_or("update.deb")
         .to_string();
-    let progress = app.clone();
-    let mut got: u64 = 0;
     let bytes = update
-        .download(
-            move |chunk, total| {
-                got += chunk as u64;
-                if let Some(total) = total.filter(|t| *t > 0) {
-                    let _ = progress.emit("package-update-progress", got * 100 / total);
-                }
-            },
-            || {},
-        )
+        .download(on_chunk, || {})
         .await
         .map_err(|e| format!("download falhou: {e}"))?;
     tauri::async_runtime::spawn_blocking(move || install_package(file_name, bytes))

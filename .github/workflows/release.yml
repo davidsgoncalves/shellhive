@@ -2,6 +2,9 @@ name: release
 
 # Releases whatever lands on main, as soon as the version in tauri.conf.json
 # has no tag yet. Bump it with `pnpm bump` and merge; the rest is automatic.
+# A version with a pre-release suffix (1.1.0-beta.1) ships as a GitHub
+# pre-release, reaching only the beta channel; any other version is a regular
+# release, which reaches both channels.
 on:
   push:
     branches: [main]
@@ -22,6 +25,7 @@ jobs:
     outputs:
       version: ${{ steps.check.outputs.version }}
       release: ${{ steps.check.outputs.release }}
+      beta: ${{ steps.check.outputs.beta }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -31,6 +35,10 @@ jobs:
         run: |
           version=$(node -p "require('./src-tauri/tauri.conf.json').version")
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          case "$version" in
+            *-*) echo "beta=true" >> "$GITHUB_OUTPUT" ;;
+            *) echo "beta=false" >> "$GITHUB_OUTPUT" ;;
+          esac
           if git rev-parse "v$version" >/dev/null 2>&1; then
             echo "v$version already released; nothing to do"
             echo "release=false" >> "$GITHUB_OUTPUT"
@@ -62,6 +70,7 @@ jobs:
             -f target_commitish="$GITHUB_SHA" \
             -f name="Shellhive $TAG" \
             -F draft=true \
+            -F prerelease=${{ needs.decide.outputs.beta }} \
             -f body="$(cat <<'BODY'
           Qual arquivo baixar:
           - Mac com chip Apple (M1 ou mais novo): `macOS-Apple-Silicon.dmg`
@@ -158,7 +167,16 @@ jobs:
         run: node .github/scripts/rename-assets.mjs
       - name: Compose the updater manifest
         run: node .github/scripts/manifest.mjs
-      # Publishing creates the tag and makes this the latest release, now that
-      # every file the updater needs is in place.
+      # Publishing creates the tag, now that every file the updater needs is in
+      # place. A regular release becomes the latest, which is the regular
+      # channel; a beta stays a pre-release, which GitHub never makes latest.
       - name: Publish the release
-        run: gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" -F draft=false -f make_latest=true --silent
+        run: |
+          if [ "${{ needs.decide.outputs.beta }}" = "true" ]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" -F draft=false -f make_latest=false --silent
+          else
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" -F draft=false -f make_latest=true --silent
+          fi
+      # Every release, beta or not, also feeds the beta channel.
+      - name: Update the beta channel
+        run: node .github/scripts/beta-channel.mjs
