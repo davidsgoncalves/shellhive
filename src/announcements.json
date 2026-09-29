@@ -2,11 +2,10 @@
   {
     "id": "mermaid-beta",
     "date": "2026-09-29",
-    "beta": true,
     "highlight": true,
-    "title": "Beta: diagramas dentro do Shellhive",
+    "title": "Diagramas dentro do Shellhive",
     "body": "Peça ao Claude um fluxograma, um diagrama de sequência ou o modelo de dados de uma feature: ele aparece num painel logo abaixo do terminal, sem abrir o navegador. Dá para copiar como imagem ou salvar em SVG.",
-    "note": "É o primeiro plugin novo. Ele liga e desliga em Configurações > Plugins."
+    "note": "É o primeiro plugin novo e vem desligado: ligue em Configurações > Plugins."
   },
   {
     "id": "glass-theme",
