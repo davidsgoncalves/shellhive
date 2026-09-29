@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.2.1",
+    "date": "2026-09-29",
+    "items": [
+      "Sessões fixadas ganham uma ★ na lista da esquerda.",
+      "Uma sessão fixada pelo menu da aba aparece na hora em Fixadas."
+    ]
+  },
+  {
     "version": "1.2.0",
     "date": "2026-09-29",
     "items": [
