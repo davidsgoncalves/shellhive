@@ -5,6 +5,7 @@
 //! frontend from the same folder.
 
 pub mod editor;
+pub mod events;
 pub mod local;
 
 use std::collections::{HashMap, HashSet};

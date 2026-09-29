@@ -196,7 +196,7 @@ fn read_plugin(dir: &Path, id: &str, approved: &HashMap<String, String>) -> Loca
     plugin
 }
 
-const PERMISSIONS: &[&str] = &["tab", "tools", "prompt", "storage"];
+const PERMISSIONS: &[&str] = &["tab", "tools", "prompt", "storage", "events"];
 
 fn parse(dir: &Path, id: &str, plugin: &mut LocalPlugin) -> Result<(), String> {
     if !valid_id(id) {
@@ -425,6 +425,16 @@ pub fn local_plugin_panel(id: String) -> Result<String, String> {
     fs::read_to_string(Path::new(&plugin.dir).join(panel.entry)).map_err(|e| e.to_string())
 }
 
+/// Recent agent events, for an approved plugin that asked for them.
+#[tauri::command]
+pub fn plugin_events(id: String) -> Result<serde_json::Value, String> {
+    let plugin = approved(&id).ok_or("plugin não aprovado")?;
+    if !plugin.permissions.iter().any(|p| p == "events") {
+        return Err("o plugin não pediu a permissão events".into());
+    }
+    serde_json::to_value(super::events::recent()).map_err(|e| e.to_string())
+}
+
 fn storage_path(id: &str) -> Option<PathBuf> {
     Some(
         crate::paths::data_dir()?
@@ -532,6 +542,19 @@ fn run_tool(
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    // A plugin allowed to see what the agent does gets the recent events as
+    // a JSON file, the same list its panel reads.
+    if plugin.permissions.iter().any(|p| p == "events") {
+        let file = std::env::temp_dir().join(format!("shellhive-events-{}.json", plugin.id));
+        if fs::write(
+            &file,
+            serde_json::to_string(&super::events::recent()).unwrap_or_default(),
+        )
+        .is_ok()
+        {
+            cmd.env("SHELLHIVE_EVENTS_FILE", &file);
+        }
+    }
     if let Some(tab) = tab_id {
         cmd.env("SHELLHIVE_TAB_ID", tab);
         if let Some(cwd) = crate::pty::tab_cwd(tab) {

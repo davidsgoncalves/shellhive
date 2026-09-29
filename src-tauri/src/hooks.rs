@@ -252,6 +252,7 @@ fn handle(app: AppHandle, mut req: tiny_http::Request) {
             let conn = db.0.lock().unwrap();
             crate::db::record_event(&conn, tab_id.as_deref(), &payload, received_at as i64);
         }
+        crate::plugins::events::record(&app, tab_id.clone(), received_at as u64, &payload);
     }
     let _ = app.emit(
         event,
