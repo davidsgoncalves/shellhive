@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { useStore } from "../lib/store";
 import type { PluginHost } from "../lib/plugins";
 import { submit, typeText } from "../lib/typing";
@@ -19,6 +20,7 @@ function frameDocument(html: string): string {
 <style>:root { ${vars} color-scheme: dark; }</style>
 <script>(() => {
   let seq = 0, onData = null, last;
+  const eventFns = [];
   const waiting = new Map();
   addEventListener("message", (e) => {
     if (e.source !== parent) return;
@@ -31,6 +33,8 @@ function frameDocument(html: string): string {
     } else if (m.type === "data") {
       last = m.value;
       if (onData) onData(m.value);
+    } else if (m.type === "event") {
+      for (const fn of eventFns) fn(m.value);
     }
   });
   const call = (method, params) => new Promise((resolve, reject) => {
@@ -45,6 +49,8 @@ function frameDocument(html: string): string {
     tool: (name, args) => call("tool", { name, args }),
     prompt: (text, opts) => call("prompt", { text, submit: !!(opts && opts.submit) }),
     storage: { get: () => call("storage.get"), set: (value) => call("storage.set", { value }) },
+    events: () => call("events"),
+    onEvent(fn) { eventFns.push(fn); call("events.subscribe").catch((e) => console.error(e)); },
   };
 })();</script>`;
   return /<head[^>]*>/i.test(html) ? html.replace(/<head[^>]*>/i, (m) => `${m}${head}`) : `${head}${html}`;
@@ -60,8 +66,11 @@ export function LocalPluginPanel({ host }: { host: PluginHost }) {
   const [html, setHtml] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const pluginId = panel?.plugin;
+  // Set once the panel asks for live events and holds the permission.
+  const subscribed = useRef(false);
 
   useEffect(() => {
+    subscribed.current = false;
     setHtml(null);
     setError(null);
     if (!pluginId) return;
@@ -69,6 +78,16 @@ export function LocalPluginPanel({ host }: { host: PluginHost }) {
       .then((h) => setHtml(frameDocument(h)))
       .catch((e) => setError(String(e)));
   }, [pluginId]);
+
+  // What the agent does, for a panel that subscribed with the permission.
+  useEffect(() => {
+    const p = listen("plugin-event", (ev) => {
+      if (subscribed.current) frame.current?.contentWindow?.postMessage({ type: "event", value: ev.payload }, "*");
+    });
+    return () => {
+      void p.then((un) => un());
+    };
+  }, []);
 
   // New data from a tool reaches a panel that is already open.
   useEffect(() => {
@@ -112,6 +131,13 @@ export function LocalPluginPanel({ host }: { host: PluginHost }) {
             if (m.params?.submit) await submit(panel.tabId);
             return reply(null);
           }
+          case "events":
+            need("events");
+            return reply(await invoke("plugin_events", { id: plugin.id }));
+          case "events.subscribe":
+            need("events");
+            subscribed.current = true;
+            return reply(null);
           case "storage.get":
             need("storage");
             return reply(await invoke("plugin_storage_get", { id: plugin.id }));

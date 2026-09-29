@@ -26,4 +26,5 @@ export const PERMISSION_LABEL: Record<string, string> = {
   tools: "chamar as próprias ferramentas",
   prompt: "escrever no prompt do agente",
   storage: "guardar dados próprios",
+  events: "ver o que o agente faz em cada aba (arquivos e comandos)",
 };

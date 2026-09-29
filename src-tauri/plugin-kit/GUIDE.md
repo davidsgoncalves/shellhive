@@ -32,7 +32,7 @@ Qualquer alteração em um arquivo da pasta pede aprovação de novo. Se o plugi
     }
   ],
   "panel": { "entry": "panel.html", "title": "Deploy" },
-  "permissions": ["tab", "tools", "prompt", "storage"]
+  "permissions": ["tab", "tools", "prompt", "storage", "events"]
 }
 ```
 
@@ -41,7 +41,7 @@ Qualquer alteração em um arquivo da pasta pede aprovação de novo. Se o plugi
 - `description` e `agentContext`: opcionais.
 - `tools`: opcional. Cada ferramenta precisa de `name`, que começa com `<id>_`, de `description` e de `run`. O `inputSchema` é JSON Schema; sem ele, a ferramenta aceita qualquer objeto.
 - `panel`: opcional.
-- `permissions`: opcional, e só vale para o painel.
+- `permissions`: opcional. Vale para o painel; `events` também libera os eventos para os programas das ferramentas.
 - Um plugin precisa de ao menos uma ferramenta ou um painel.
 
 ## Ferramentas
@@ -53,6 +53,7 @@ Qualquer alteração em um arquivo da pasta pede aprovação de novo. Se o plugi
   - `SHELLHIVE_PLUGIN_DIR`: a pasta do plugin.
   - `SHELLHIVE_TAB_ID`: a aba que chamou.
   - `SHELLHIVE_TAB_CWD`: a pasta em que a aba foi aberta.
+  - `SHELLHIVE_EVENTS_FILE`: só com a permissão `events`. Arquivo JSON com a lista de eventos recentes (veja Eventos do agente).
 
 A resposta sai no stdout, de uma de duas formas:
 
@@ -75,8 +76,37 @@ Saída de erro com código diferente de zero vira erro para o agente. Uma chamad
 | `shellhive.tool(nome, args)` | `tools` | Chama uma ferramenta do próprio plugin e devolve `{ text, isError }` |
 | `shellhive.prompt(texto, { submit })` | `prompt` | Escreve no prompt do agente da aba; envia só com `submit: true` |
 | `shellhive.storage.get()` / `.set(valor)` | `storage` | Guarda um valor JSON do plugin, até 256 KB |
+| `shellhive.events()` | `events` | Devolve os eventos recentes do agente em todas as abas, do mais antigo ao mais novo |
+| `shellhive.onEvent(fn)` | `events` | Chama `fn` com cada evento novo, de qualquer aba, enquanto o painel está aberto |
 
 Todas devolvem Promise. O usuário também abre o painel pelo menu de clique direito da aba, em "Abrir painel".
+
+## Eventos do agente
+
+Com a permissão `events`, o plugin vê o que o agente faz em cada aba. O Shellhive guarda os 2000 eventos mais recentes, de todas as abas, desde que o app abriu. Cada evento é um objeto:
+
+```json
+{
+  "type": "tool",
+  "tabId": "a1b2…",
+  "at": 1790690000000,
+  "cwd": "/Users/voce/projects/api/.worktrees/feat-x",
+  "tool": "Edit",
+  "action": "edit",
+  "paths": ["/Users/voce/projects/api/.worktrees/feat-x/src/app.ts"],
+  "command": "git status"
+}
+```
+
+- `type`: `tool` (o agente usou uma ferramenta), `turn-start` (o usuário mandou uma mensagem) ou `turn-end` (o agente terminou de responder).
+- `at`: milissegundos desde 1970.
+- `cwd`: a pasta em que o agente estava.
+- `tool`, `action`, `paths` e `command`: só em `tool`.
+  - `action` é `edit` (Edit, Write, MultiEdit, NotebookEdit), `read` (Read, Grep, Glob), `command` (Bash) ou `other`.
+  - `paths` traz caminhos absolutos dos arquivos tocados; pode vir vazio.
+  - `command` só aparece em comandos.
+
+Para saber em quais repositórios e worktrees o agente está mexendo, junte os `paths` e os `cwd` dos eventos de uma aba e rode `git -C <pasta> rev-parse --show-toplevel` em cada um.
 
 ## Testar
 

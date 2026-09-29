@@ -92,6 +92,7 @@ pub fn run() {
             plugins::local::local_plugin_run,
             plugins::local::plugin_storage_get,
             plugins::local::plugin_storage_set,
+            plugins::local::plugin_events,
             files::save_text_file,
         ])
         .run(tauri::generate_context!())
