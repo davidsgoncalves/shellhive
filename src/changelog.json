@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.1.0",
+    "date": "2026-09-29",
+    "items": [
+      "Programa beta: em Configurações > Sobre, marque Participar do beta para receber as versões beta antes, além das normais.",
+      "A busca e a instalação de atualizações passaram para o núcleo do app, igual em todos os sistemas."
+    ]
+  },
+  {
     "version": "1.0.0",
     "date": "2026-09-29",
     "items": [
