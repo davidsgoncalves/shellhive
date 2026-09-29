@@ -5,7 +5,7 @@ const CHECK_EVERY_MS = 6 * 60 * 60 * 1000;
 
 /** Offers the update found on GitHub at the top of the window. */
 export function UpdateBanner() {
-  const { update, pkg, phase, progress, message, dismissed, look, install, restart, dismiss } = useUpdater();
+  const { version, phase, progress, message, dismissed, look, install, restart, dismiss } = useUpdater();
 
   useEffect(() => {
     const quiet = () =>
@@ -16,8 +16,7 @@ export function UpdateBanner() {
     return () => clearInterval(id);
   }, [look]);
 
-  if (phase === "idle" || dismissed || (!update && !pkg)) return null;
-  const version = update?.version ?? pkg?.version ?? "";
+  if (phase === "idle" || dismissed || !version) return null;
 
   return (
     <div className={`update-bar ${phase}`}>
@@ -27,7 +26,7 @@ export function UpdateBanner() {
             Versão <strong>{version}</strong> disponível.
           </span>
           <button className="primary" onClick={() => void install()}>
-            {update ? "Atualizar" : "Baixar e instalar"}
+            Atualizar
           </button>
           <button className="ghost auto" onClick={dismiss}>
             Depois

@@ -140,9 +140,8 @@ function AboutTab() {
   const [kind, setKind] = useState("…");
   const [status, setStatus] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
-  const { update, pkg, phase, progress, message, look: lookForUpdate, install, restart } = useUpdater();
-  const { showEvents, setShowEvents } = useStore();
-  const available = update?.version ?? pkg?.version;
+  const { version: available, phase, progress, message, look: lookForUpdate, install, restart } = useUpdater();
+  const { showEvents, setShowEvents, betaChannel, setBetaChannel } = useStore();
 
   useEffect(() => {
     void getVersion().then(setVersion);
@@ -191,7 +190,7 @@ function AboutTab() {
             Versão <strong>{available}</strong> disponível.
           </span>
           <button className="primary" onClick={() => void install()}>
-            {update ? "Atualizar agora" : "Baixar e instalar"}
+            Atualizar agora
           </button>
         </div>
       )}
@@ -209,6 +208,34 @@ function AboutTab() {
         <p className="hint">Atualização instalada. Feche e abra o app para concluir.{message ? ` (${message})` : ""}</p>
       )}
       {phase === "error" && <p className="error">Falha ao atualizar: {message}</p>}
+    </section>
+
+    <section className="settings-section">
+      <h3>Programa beta</h3>
+      <p className="hint">
+        Recebe as versões beta antes de todo mundo, além das versões normais. Uma beta pode ter problemas que a versão
+        normal não tem. Ao sair, o app fica na versão instalada até sair uma versão normal mais nova.
+      </p>
+      <div className="chip-row">
+        <button
+          className={`chip ${betaChannel ? "on" : ""}`}
+          onClick={() => {
+            setBetaChannel(true);
+            void look();
+          }}
+        >
+          Participar do beta
+        </button>
+        <button
+          className={`chip ${!betaChannel ? "on" : ""}`}
+          onClick={() => {
+            setBetaChannel(false);
+            void look();
+          }}
+        >
+          Só versões normais
+        </button>
+      </div>
     </section>
 
     <ErrorReportsSection version={version} kind={INSTALL_LABEL[kind] ?? kind} />
@@ -235,6 +262,7 @@ function AboutTab() {
           <li key={entry.version}>
             <div className="changelog-head">
               <strong>{entry.version}</strong>
+              {entry.version.includes("-beta") && <span className="changelog-tag beta">beta</span>}
               {entry.version === version && <span className="changelog-tag">instalada</span>}
               <time>{new Date(`${entry.date}T12:00:00`).toLocaleDateString()}</time>
             </div>

@@ -13,13 +13,16 @@ interface Announcement {
   note?: string;
   /** Opens by itself once, so the news is seen without looking for it. */
   highlight?: boolean;
+  /** Shown only to people in the beta program. */
+  beta?: boolean;
 }
 
-const ITEMS = announcements as Announcement[];
+const ALL = announcements as Announcement[];
 
 /** News the app wants people to see, behind a button in the top bar. */
 export function Announcements() {
-  const { seenAnnouncements, markAnnouncementsSeen, theme, setTheme, barPosition } = useStore();
+  const { seenAnnouncements, markAnnouncementsSeen, theme, setTheme, barPosition, betaChannel } = useStore();
+  const ITEMS = ALL.filter((a) => betaChannel || !a.beta);
   const unseen = ITEMS.filter((a) => !seenAnnouncements.includes(a.id));
   const [open, setOpen] = useState(() => unseen.some((a) => a.highlight));
   const ref = useRef<HTMLDivElement>(null);

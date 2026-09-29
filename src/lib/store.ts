@@ -124,6 +124,8 @@ interface Store {
   theme: ThemeId;
   /** Terminal font overrides; null fields follow the theme. */
   terminalFont: TerminalFont;
+  /** Follows the beta channel for updates. */
+  betaChannel: boolean;
   /** Official plugins turned on. */
   enabledPlugins: string[];
   /** Ids of the Novidades already shown. */
@@ -218,6 +220,7 @@ interface Store {
   resetTerminalFont: () => void;
   markAnnouncementsSeen: (ids: string[]) => void;
   setPluginEnabled: (id: string, on: boolean) => void;
+  setBetaChannel: (on: boolean) => void;
   setMiniPanel: (on: boolean) => void;
   setShowEvents: (on: boolean) => void;
   setErrorReportsAsked: (asked: boolean) => void;
@@ -264,6 +267,7 @@ export const useStore = create<Store>()(
       terminalFont: THEME_FONT,
       seenAnnouncements: [],
       enabledPlugins: defaultEnabledPlugins(),
+      betaChannel: false,
       miniPanel: false,
       showEvents: false,
       errorReportsAsked: false,
@@ -600,6 +604,7 @@ export const useStore = create<Store>()(
       setTheme: (theme) => set({ theme }),
       setTerminalFont: (f) => set((s) => ({ terminalFont: { ...s.terminalFont, ...f } })),
       resetTerminalFont: () => set({ terminalFont: THEME_FONT }),
+      setBetaChannel: (betaChannel) => set({ betaChannel }),
       setPluginEnabled: (id, on) =>
         set((s) => ({
           enabledPlugins: on ? [...new Set([...s.enabledPlugins, id])] : s.enabledPlugins.filter((p) => p !== id),
@@ -712,6 +717,7 @@ export const useStore = create<Store>()(
         terminalFont: s.terminalFont,
         seenAnnouncements: s.seenAnnouncements,
         enabledPlugins: s.enabledPlugins,
+        betaChannel: s.betaChannel,
         miniPanel: s.miniPanel,
         showEvents: s.showEvents,
         errorReportsAsked: s.errorReportsAsked,
