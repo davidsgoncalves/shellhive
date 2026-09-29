@@ -6,7 +6,6 @@ import { markPendingResume } from "./restored";
 import { sameRule } from "./permRules";
 import type { MiniBounds } from "./mini";
 import { THEME_FONT, THEMES, type TerminalFont, type ThemeId } from "./theme";
-import { defaultEnabledPlugins } from "./plugins";
 import { closeDetachedWindow, focusDetachedWindow, openDetachedWindow } from "./detach";
 import {
   DEFAULT_TAB_TITLE,
@@ -126,7 +125,8 @@ interface Store {
   terminalFont: TerminalFont;
   /** Follows the beta channel for updates. */
   betaChannel: boolean;
-  /** Official plugins turned on. */
+  /** Official plugins the user turned on; all start off, and the choice
+   *  is kept across updates. */
   enabledPlugins: string[];
   /** Ids of the Novidades removed from the list for good. */
   dismissedAnnouncements: string[];
@@ -270,7 +270,7 @@ export const useStore = create<Store>()(
       terminalFont: THEME_FONT,
       seenAnnouncements: [],
       dismissedAnnouncements: [],
-      enabledPlugins: defaultEnabledPlugins(),
+      enabledPlugins: [],
       betaChannel: false,
       miniPanel: false,
       showEvents: false,

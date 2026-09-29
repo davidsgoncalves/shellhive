@@ -24,7 +24,7 @@ shell, então `.zshrc`, aliases e tudo mais continuam valendo.
 - **Histórico.** Lista com título, pasta e branch, busca no conteúdo
   completo das conversas e retomada com um clique. Fixe as que você usa sempre.
 - **Plugins oficiais.** Recursos extras que vêm com o app e se ligam em
-  Configurações > Plugins. O primeiro é o **Editor em painel**: o Claude abre um
+  Configurações > Plugins. Todos começam desligados. O primeiro é o **Editor em painel**: o Claude abre um
   editor embaixo do terminal para você preencher ou revisar algo, em texto,
   planilha, JSON ou XML, e recebe de volta o que você escreveu. O segundo é
   **Diagramas Mermaid**: fluxogramas, sequências e modelos de dados num painel
