@@ -39,6 +39,7 @@ pub fn run() {
                 eprintln!("[setup] could not write hook scripts: {e}");
             }
             hooks::start_server(app.handle().clone());
+            plugins::local::start(app.handle().clone());
             Ok(())
         })
         // The mini panel and detached terminals are asked to close with the
@@ -83,6 +84,14 @@ pub fn run() {
             plugins::editor::editor_cancel,
             plugins::plugins_set_enabled,
             plugins::plugin_tool_result,
+            plugins::local::local_plugins,
+            plugins::local::local_plugins_folder,
+            plugins::local::local_plugin_approve,
+            plugins::local::local_plugin_remove,
+            plugins::local::local_plugin_panel,
+            plugins::local::local_plugin_run,
+            plugins::local::plugin_storage_get,
+            plugins::local::plugin_storage_set,
             files::save_text_file,
         ])
         .run(tauri::generate_context!())

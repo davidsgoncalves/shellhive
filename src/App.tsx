@@ -18,6 +18,8 @@ import { PaneOverlay } from "./components/PaneOverlay";
 import { EmptyPane } from "./components/EmptyPane";
 import { PLUGINS, type PluginHost } from "./lib/plugins";
 import { reportError } from "./lib/errors";
+import { LocalPluginPanel } from "./components/LocalPluginPanel";
+import type { LocalPlugin } from "./lib/localPlugins";
 import { TerminalSearch } from "./components/TerminalSearch";
 import { CommandCard, typeCommand } from "./components/CommandCard";
 import { applyLook, shareLook } from "./lib/theme";
@@ -466,6 +468,22 @@ function usePluginToolCalls() {
   }, []);
 }
 
+/** Keeps the list of local plugins current and opens their panels on request. */
+function useLocalPlugins() {
+  useEffect(() => {
+    const store = useStore.getState;
+    invoke<LocalPlugin[]>("local_plugins").then(store().setLocalPlugins).catch(console.error);
+    const subs = [
+      listen<LocalPlugin[]>("local-plugins", (ev) => store().setLocalPlugins(ev.payload)),
+      listen<{ plugin: string; tab_id: string | null; data: unknown }>("plugin-panel-open", ({ payload }) => {
+        if (!store().enabledPlugins.includes(payload.plugin)) return;
+        store().openPluginPanel({ plugin: payload.plugin, tabId: payload.tab_id, data: payload.data });
+      }),
+    ];
+    return () => subs.forEach((p) => void p.then((un) => un()));
+  }, []);
+}
+
 /** Tells the backend which plugins' agent tools to offer. */
 function usePluginSync() {
   const enabled = useStore((s) => s.enabledPlugins);
@@ -497,6 +515,7 @@ function App() {
   useLook();
   usePluginSync();
   usePluginToolCalls();
+  useLocalPlugins();
   const tabs = useStore((s) => s.tabs);
 
   useEffect(() => {
@@ -579,6 +598,7 @@ function App() {
               const Overlay = p.Overlay!;
               return <Overlay key={p.manifest.id} host={pluginHost} />;
             })}
+            <LocalPluginPanel host={pluginHost} />
             {searchTabId && paneOf(searchTabId) !== -1 && (
               <TerminalSearch
                 key={searchTabId}

@@ -5,6 +5,7 @@ import { describeTool, looksDestructive } from "../lib/describe";
 import { describeRule, ruleFor } from "../lib/permRules";
 import type { PermissionDecision, PermissionRequest, QuestionItem } from "../lib/types";
 import { CommandCard } from "./CommandCard";
+import { PluginApprovals, pendingApprovals } from "./PluginApprovals";
 
 function Countdown({ req }: { req: PermissionRequest }) {
   const secondsLeft = () =>
@@ -128,11 +129,13 @@ export function PermissionQueue() {
   const permissions = useStore((s) => s.permissions);
   const questions = useStore((s) => s.questions);
   const commands = useStore((s) => s.commands);
-  if (permissions.length === 0 && questions.length === 0 && commands.length === 0) {
+  const approvals = useStore((s) => pendingApprovals(s.localPlugins, s.deferredApprovals).length);
+  if (permissions.length === 0 && questions.length === 0 && commands.length === 0 && approvals === 0) {
     return <p className="hint pad">Nada pendente.</p>;
   }
   return (
     <ul className="perm-list">
+      <PluginApprovals />
       {permissions.map((p) => (
         <Item key={p.id} req={p} />
       ))}

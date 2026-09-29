@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useStore } from "../lib/store";
 import { PermissionQueue } from "./PermissionQueue";
+import { pendingApprovals } from "./PluginApprovals";
 import { SessionsBrowser } from "./SessionsBrowser";
 import { EventsList } from "./EventsPanel";
 import { shortcutLabel } from "../lib/shortcuts";
@@ -9,7 +10,8 @@ type PanelTab = "queue" | "sessions" | "pinned" | "events";
 
 export function RightPanel() {
   const { eventsOpen, toggleEvents, permissions, questions, commands, showEvents } = useStore();
-  const pending = permissions.length + questions.length + commands.length;
+  const approvals = useStore((s) => pendingApprovals(s.localPlugins, s.deferredApprovals).length);
+  const pending = permissions.length + questions.length + commands.length + approvals;
   const [panel, setPanel] = useState<PanelTab>("queue");
 
   if (!eventsOpen) {

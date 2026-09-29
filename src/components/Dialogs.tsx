@@ -15,6 +15,7 @@ import { BORDER_OPTIONS } from "../lib/types";
 import { QuickSwitcher } from "./QuickSwitcher";
 import changelog from "../changelog.json";
 import { PLUGINS } from "../lib/plugins";
+import type { LocalPlugin } from "../lib/localPlugins";
 import type { PathCheck } from "../lib/types";
 
 const INSTALL_LABEL: Record<string, string> = {
@@ -279,10 +280,88 @@ function AboutTab() {
   );
 }
 
+/** One local plugin: its state, its switch once approved, and removal. */
+function LocalPluginRow({ plugin }: { plugin: LocalPlugin }) {
+  const { enabledPlugins, setPluginEnabled } = useStore();
+  const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const on = enabledPlugins.includes(plugin.id);
+  const remove = async () => {
+    if (!confirming) return setConfirming(true);
+    try {
+      await invoke("local_plugin_remove", { id: plugin.id });
+    } catch (err) {
+      setError(String(err));
+      setConfirming(false);
+    }
+  };
+  return (
+    <li className={plugin.status}>
+      <div className="plugin-info">
+        <strong>{plugin.name}</strong>
+        {plugin.description && <p>{plugin.description}</p>}
+        {plugin.status === "pending" && <p>Aguardando aprovação na Fila.</p>}
+        {plugin.status === "invalid" && <p className="error">{plugin.error}</p>}
+        {error && <p className="error">{error}</p>}
+      </div>
+      <div className="plugin-local-actions">
+        {plugin.status === "approved" && (
+          <div className="chip-row">
+            <button className={`chip ${on ? "on" : ""}`} onClick={() => setPluginEnabled(plugin.id, true)}>
+              Ligado
+            </button>
+            <button className={`chip ${!on ? "on" : ""}`} onClick={() => setPluginEnabled(plugin.id, false)}>
+              Desligado
+            </button>
+          </div>
+        )}
+        <button className={`ghost auto ${confirming ? "danger" : ""}`} onClick={() => void remove()}>
+          {confirming ? "Apagar a pasta?" : "Remover"}
+        </button>
+      </div>
+    </li>
+  );
+}
+
+/** Plugins the user made, usually by asking the agent, from the plugins folder. */
+function LocalPluginsSection() {
+  const localPlugins = useStore((s) => s.localPlugins);
+  const [folder, setFolder] = useState<string | null>(null);
+  useEffect(() => {
+    void invoke<string | null>("local_plugins_folder").then(setFolder);
+  }, []);
+  return (
+    <section className="settings-section">
+      <h3>Seus plugins</h3>
+      <p className="hint">
+        Peça ao Claude para criar um plugin: ele lê o guia na pasta de plugins e escreve os arquivos. Um plugin novo ou
+        alterado aparece na Fila para você aprovar, e só depois pode ser ligado aqui.
+      </p>
+      {localPlugins.length === 0 ? (
+        <p className="hint">Nenhum plugin seu ainda.</p>
+      ) : (
+        <ul className="plugin-list">
+          {localPlugins.map((p) => (
+            <LocalPluginRow key={p.id} plugin={p} />
+          ))}
+        </ul>
+      )}
+      {folder && (
+        <div className="row">
+          <button className="ghost auto" onClick={() => void invoke("link_open", { target: folder, cwd: null })}>
+            Abrir pasta de plugins
+          </button>
+        </div>
+      )}
+    </section>
+  );
+}
+
 /** Official plugins bundled with the app, each turned on or off here. */
 function PluginsTab() {
   const { enabledPlugins, setPluginEnabled } = useStore();
   return (
+    <>
     <section className="settings-section">
       <h3>Plugins oficiais</h3>
       <p className="hint">
@@ -311,6 +390,8 @@ function PluginsTab() {
         })}
       </ul>
     </section>
+    <LocalPluginsSection />
+    </>
   );
 }
 

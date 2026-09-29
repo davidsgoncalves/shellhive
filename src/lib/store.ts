@@ -6,6 +6,7 @@ import { markPendingResume } from "./restored";
 import { sameRule } from "./permRules";
 import type { MiniBounds } from "./mini";
 import { THEME_FONT, THEMES, type TerminalFont, type ThemeId } from "./theme";
+import type { LocalPlugin, PluginPanel } from "./localPlugins";
 import { closeDetachedWindow, focusDetachedWindow, openDetachedWindow } from "./detach";
 import {
   DEFAULT_TAB_TITLE,
@@ -123,6 +124,12 @@ interface Store {
   theme: ThemeId;
   /** Terminal font overrides; null fields follow the theme. */
   terminalFont: TerminalFont;
+  /** Plugins found in the plugins folder, as the backend last reported. */
+  localPlugins: LocalPlugin[];
+  /** Approval cards the user put off, by plugin id and the hash they saw. */
+  deferredApprovals: Record<string, string>;
+  /** The local plugin panel on screen. */
+  pluginPanel: PluginPanel | null;
   /** Follows the beta channel for updates. */
   betaChannel: boolean;
   /** Official plugins the user turned on; all start off, and the choice
@@ -224,6 +231,9 @@ interface Store {
   dismissAnnouncement: (id: string) => void;
   setPluginEnabled: (id: string, on: boolean) => void;
   setBetaChannel: (on: boolean) => void;
+  setLocalPlugins: (list: LocalPlugin[]) => void;
+  deferApproval: (id: string, hash: string) => void;
+  openPluginPanel: (panel: PluginPanel | null) => void;
   setMiniPanel: (on: boolean) => void;
   setShowEvents: (on: boolean) => void;
   setErrorReportsAsked: (asked: boolean) => void;
@@ -272,6 +282,9 @@ export const useStore = create<Store>()(
       dismissedAnnouncements: [],
       enabledPlugins: [],
       betaChannel: false,
+      localPlugins: [],
+      deferredApprovals: {},
+      pluginPanel: null,
       miniPanel: false,
       showEvents: false,
       errorReportsAsked: false,
@@ -609,6 +622,23 @@ export const useStore = create<Store>()(
       setTerminalFont: (f) => set((s) => ({ terminalFont: { ...s.terminalFont, ...f } })),
       resetTerminalFont: () => set({ terminalFont: THEME_FONT }),
       setBetaChannel: (betaChannel) => set({ betaChannel }),
+      setLocalPlugins: (localPlugins) =>
+        set((s) => {
+          // A removed plugin is forgotten; a changed one keeps its switch and
+          // works again once re-approved, since the backend only offers
+          // approved plugins. Its panel closes meanwhile.
+          const present = new Set(localPlugins.map((p) => p.id));
+          const gone = new Set(s.localPlugins.map((p) => p.id).filter((id) => !present.has(id)));
+          const usable = new Set(localPlugins.filter((p) => p.status === "approved").map((p) => p.id));
+          const panel = s.pluginPanel;
+          return {
+            localPlugins,
+            enabledPlugins: s.enabledPlugins.filter((id) => !gone.has(id)),
+            pluginPanel: panel && present.has(panel.plugin) && !usable.has(panel.plugin) ? null : panel,
+          };
+        }),
+      deferApproval: (id, hash) => set((s) => ({ deferredApprovals: { ...s.deferredApprovals, [id]: hash } })),
+      openPluginPanel: (pluginPanel) => set({ pluginPanel }),
       setPluginEnabled: (id, on) =>
         set((s) => ({
           enabledPlugins: on ? [...new Set([...s.enabledPlugins, id])] : s.enabledPlugins.filter((p) => p !== id),

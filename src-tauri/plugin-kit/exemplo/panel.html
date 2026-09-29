@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body { margin: 0; padding: 12px; font: 13px var(--font-ui); color: var(--fg); background: transparent; }
+      .mensagem { font-size: 15px; margin: 0 0 12px; }
+      button { font: inherit; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--panel-2); color: var(--fg); cursor: pointer; }
+      button:hover { border-color: var(--accent); }
+      .muted { color: var(--muted); font-size: 11px; }
+    </style>
+  </head>
+  <body>
+    <p class="mensagem" id="mensagem">Peça ao agente para usar exemplo_ola.</p>
+    <button id="enviar">Mandar para o agente</button>
+    <p class="muted" id="contagem"></p>
+    <script>
+      const el = (id) => document.getElementById(id);
+      shellhive.onData((data) => {
+        if (data && data.mensagem) el("mensagem").textContent = data.mensagem;
+      });
+      shellhive.storage.get().then((saved) => {
+        const vezes = (saved && saved.vezes) || 0;
+        el("contagem").textContent = `Painel aberto ${vezes + 1} vez(es).`;
+        return shellhive.storage.set({ vezes: vezes + 1 });
+      });
+      el("enviar").onclick = () => shellhive.prompt("O painel do plugin Exemplo mandou um oi.");
+    </script>
+  </body>
+</html>

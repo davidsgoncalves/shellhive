@@ -117,6 +117,21 @@ cada aba, além de definir uma função de shell com o mesmo nome. Qualquer
 
 Sessões abertas fora do app não são afetadas.
 
+### Seus próprios plugins
+
+Peça ao Claude algo como "cria um plugin do Shellhive que mostra o status do
+deploy". Ele lê o guia que o app mantém em `plugins/GUIDE.md`, dentro da pasta
+de dados, e escreve a pasta do plugin ao lado. Em poucos segundos o plugin
+aparece na Fila para você aprovar, com os programas que vai rodar e as
+permissões do painel; depois de aprovado, ele liga em Configurações > Plugins.
+Qualquer mudança nos arquivos pede aprovação de novo.
+
+- As ferramentas são programas da pasta do plugin (`node`, `python3`, um
+  script), que recebem os argumentos em JSON e respondem pela saída padrão.
+- O painel é um arquivo HTML que abre abaixo do terminal, isolado do app, sem
+  rede, e conversa com o Shellhive só pelas funções que o plugin declarou.
+- A pasta `plugins/_exemplo/` tem um plugin completo para servir de modelo.
+
 ### Ferramentas que o Claude ganha
 
 | Ferramenta | Para quê |
