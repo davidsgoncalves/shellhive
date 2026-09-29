@@ -19,7 +19,6 @@ export interface PluginManifest {
   id: string;
   name: string;
   description: string;
-  defaultEnabled?: boolean;
   agentContext?: string;
   tools?: unknown[];
 }
@@ -47,7 +46,3 @@ const found = import.meta.glob<{ default: ShellhivePlugin }>("../../plugins/*/in
 export const PLUGINS: ShellhivePlugin[] = Object.values(found)
   .map((m) => m.default)
   .sort((a, b) => a.manifest.name.localeCompare(b.manifest.name));
-
-export function defaultEnabledPlugins(): string[] {
-  return PLUGINS.filter((p) => p.manifest.defaultEnabled).map((p) => p.manifest.id);
-}

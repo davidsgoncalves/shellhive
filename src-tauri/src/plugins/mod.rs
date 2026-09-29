@@ -24,9 +24,6 @@ const FRONTEND_TIMEOUT: Duration = Duration::from_secs(30);
 #[serde(rename_all = "camelCase")]
 struct Manifest {
     id: String,
-    /// On until the user turns it off.
-    #[serde(default)]
-    default_enabled: bool,
     /// Sentence added to what the agent is told when a session starts.
     #[serde(default)]
     agent_context: Option<String>,
@@ -45,15 +42,16 @@ fn manifests() -> &'static [Manifest] {
     })
 }
 
-/// Enabled plugin ids, as last sent by the interface. None until then, when
-/// each plugin's default applies.
+/// Enabled plugin ids, as last sent by the interface. Every plugin starts
+/// off; only the user turns one on.
 static ENABLED: Mutex<Option<HashSet<String>>> = Mutex::new(None);
 
 fn is_enabled(m: &Manifest) -> bool {
-    match &*ENABLED.lock().unwrap() {
-        Some(ids) => ids.contains(&m.id),
-        None => m.default_enabled,
-    }
+    ENABLED
+        .lock()
+        .unwrap()
+        .as_ref()
+        .is_some_and(|ids| ids.contains(&m.id))
 }
 
 fn tool_name(tool: &serde_json::Value) -> Option<&str> {
@@ -176,13 +174,16 @@ mod tests {
     }
 
     #[test]
-    fn mermaid_offers_show_diagram() {
-        assert_eq!(tool_owner("show_diagram").as_deref(), Some("mermaid"));
-    }
+    fn plugins_follow_what_the_user_turned_on() {
+        *ENABLED.lock().unwrap() = Some(HashSet::new());
+        assert!(tools().is_empty());
+        assert_eq!(tool_owner("show_diagram"), None);
 
-    #[test]
-    fn default_context_mentions_the_editor() {
-        assert!(agent_context().iter().any(|c| c.contains("open_editor")));
+        *ENABLED.lock().unwrap() = Some(HashSet::from(["mermaid".to_string()]));
+        assert_eq!(tool_owner("show_diagram").as_deref(), Some("mermaid"));
+        assert_eq!(tool_owner("open_editor"), None);
+        assert!(agent_context().iter().any(|c| c.contains("show_diagram")));
+        assert!(!agent_context().iter().any(|c| c.contains("open_editor")));
     }
 
     #[test]

@@ -2,7 +2,6 @@
   "id": "editor",
   "name": "Editor em painel",
   "description": "O agente abre um editor abaixo do terminal para você escrever, revisar ou preencher um texto, uma planilha CSV ou um JSON/XML, e recebe o resultado de volta.",
-  "defaultEnabled": true,
   "agentContext": "Use a ferramenta open_editor sempre que precisar que o usuario escreva, preencha ou revise um texto: ela abre um editor em painel logo abaixo do terminal e devolve o texto final, e salva o arquivo quando voce passa 'path'. Prefira open_editor a pedir para o usuario abrir VSCode ou outro editor externo.",
   "tools": [
     {
