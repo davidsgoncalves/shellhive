@@ -24,10 +24,21 @@ export interface PluginManifest {
   tools?: unknown[];
 }
 
+/** What a tool handler sends back to the agent. */
+export interface ToolReply {
+  text: string;
+  isError?: boolean;
+}
+
+/** An agent tool answered by the plugin's interface. */
+export type ToolHandler = (args: Record<string, unknown>, call: { tabId: string | null }) => Promise<ToolReply>;
+
 export interface ShellhivePlugin {
   manifest: PluginManifest;
   /** Drawn over the terminals area while the plugin is on. */
   Overlay?: ComponentType<{ host: PluginHost }>;
+  /** Handlers of the manifest's tools that run in the interface, by name. */
+  tools?: Record<string, ToolHandler>;
 }
 
 // Official plugins live in plugins/<id>/ and are bundled with the app.
