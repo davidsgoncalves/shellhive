@@ -1,0 +1,21 @@
+{
+  "id": "exemplo",
+  "name": "Exemplo",
+  "description": "Plugin de exemplo: uma ferramenta que cumprimenta e um painel que mostra o cumprimento.",
+  "agentContext": "O plugin Exemplo oferece exemplo_ola, que cumprimenta alguem pelo nome.",
+  "tools": [
+    {
+      "name": "exemplo_ola",
+      "description": "Cumprimenta uma pessoa pelo nome e mostra o cumprimento no painel do plugin.",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "nome": { "type": "string", "description": "Nome de quem cumprimentar." } },
+        "required": ["nome"],
+        "additionalProperties": false
+      },
+      "run": ["node", "ola.js"]
+    }
+  ],
+  "panel": { "entry": "panel.html", "title": "Exemplo" },
+  "permissions": ["tab", "prompt", "storage"]
+}

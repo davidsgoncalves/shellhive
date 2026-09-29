@@ -18,6 +18,13 @@ pub struct PtyHandle {
 #[derive(Default)]
 pub struct PtyState(pub Mutex<HashMap<String, PtyHandle>>);
 
+/// Folder each tab's shell started in, for plugin programs to work in.
+static TAB_CWD: Mutex<Option<HashMap<String, String>>> = Mutex::new(None);
+
+pub fn tab_cwd(id: &str) -> Option<String> {
+    TAB_CWD.lock().unwrap().as_ref()?.get(id).cloned()
+}
+
 #[derive(Clone, serde::Serialize)]
 struct PtyData {
     id: String,
@@ -243,6 +250,11 @@ pub fn pty_spawn(
         }
     }
     if let Some(dir) = cwd.map(PathBuf::from).or_else(dirs::home_dir) {
+        TAB_CWD
+            .lock()
+            .unwrap()
+            .get_or_insert_with(HashMap::new)
+            .insert(id.clone(), dir.to_string_lossy().to_string());
         cmd.cwd(dir);
     }
 

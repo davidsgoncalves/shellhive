@@ -5,6 +5,7 @@
 //! frontend from the same folder.
 
 pub mod editor;
+pub mod local;
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Condvar, Mutex, OnceLock};
@@ -47,23 +48,40 @@ fn manifests() -> &'static [Manifest] {
 static ENABLED: Mutex<Option<HashSet<String>>> = Mutex::new(None);
 
 fn is_enabled(m: &Manifest) -> bool {
-    ENABLED
-        .lock()
-        .unwrap()
-        .as_ref()
-        .is_some_and(|ids| ids.contains(&m.id))
+    id_enabled(&m.id)
 }
 
 fn tool_name(tool: &serde_json::Value) -> Option<&str> {
     tool.get("name").and_then(|n| n.as_str())
 }
 
-/// Agent tools of the enabled plugins.
+pub fn is_official(id: &str) -> bool {
+    manifests().iter().any(|m| m.id == id)
+}
+
+fn id_enabled(id: &str) -> bool {
+    ENABLED
+        .lock()
+        .unwrap()
+        .as_ref()
+        .is_some_and(|ids| ids.contains(id))
+}
+
+/// Local plugins that are approved and turned on: id, tools, context.
+fn enabled_local() -> Vec<(String, Vec<serde_json::Value>, Option<String>)> {
+    local::approved_plugins()
+        .into_iter()
+        .filter(|(id, _, _)| id_enabled(id))
+        .collect()
+}
+
+/// Agent tools of the enabled plugins, official and local.
 pub fn tools() -> Vec<serde_json::Value> {
     manifests()
         .iter()
         .filter(|m| is_enabled(m))
         .flat_map(|m| m.tools.iter().cloned())
+        .chain(enabled_local().into_iter().flat_map(|(_, tools, _)| tools))
         .collect()
 }
 
@@ -74,6 +92,12 @@ pub fn tool_owner(name: &str) -> Option<String> {
         .filter(|m| is_enabled(m))
         .find(|m| m.tools.iter().any(|t| tool_name(t) == Some(name)))
         .map(|m| m.id.clone())
+        .or_else(|| {
+            enabled_local()
+                .into_iter()
+                .find(|(_, tools, _)| tools.iter().any(|t| tool_name(t) == Some(name)))
+                .map(|(id, _, _)| id)
+        })
 }
 
 /// What the enabled plugins add to the agent's session context.
@@ -82,10 +106,13 @@ pub fn agent_context() -> Vec<String> {
         .iter()
         .filter(|m| is_enabled(m))
         .filter_map(|m| m.agent_context.clone())
+        .chain(enabled_local().into_iter().filter_map(|(_, _, c)| c))
         .collect()
 }
 
-/// Every tool any plugin offers, enabled or not, for the pre-allowed list.
+/// Every tool an official plugin offers, enabled or not, for the pre-allowed
+/// list. Local plugins' tools are left out, so Claude Code asks before the
+/// first use of each.
 pub fn all_tool_names() -> Vec<String> {
     manifests()
         .iter()

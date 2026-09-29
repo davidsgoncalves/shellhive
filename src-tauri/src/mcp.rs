@@ -172,6 +172,9 @@ pub fn handle_rpc(
                 "suggest_command" => call_suggest_command(app, tab_id, &args),
                 other => match crate::plugins::tool_owner(other).as_deref() {
                     Some("editor") => crate::plugins::editor::call(app, tab_id, &args),
+                    Some(plugin) if crate::plugins::local::is_local(plugin) => {
+                        crate::plugins::local::call(app, plugin, other, tab_id, &args)
+                    }
                     Some(plugin) => {
                         crate::plugins::call_frontend(app, plugin, other, tab_id, &args)
                     }

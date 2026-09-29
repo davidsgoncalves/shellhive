@@ -21,6 +21,12 @@ fn session_context() -> serde_json::Value {
          Ele expoe o servidor MCP 'shellhive'. Quando precisar que o usuario rode um comando de shell ele mesmo, \
          chame suggest_command em vez de pedir para ele digitar ! comando: o comando vira um botao que roda nesta sessao.",
     );
+    if let Some(guide) = crate::plugins::local::guide_path() {
+        text.push_str(&format!(
+            " Para criar ou editar um plugin do Shellhive quando o usuario pedir, leia antes o guia em {}.",
+            guide.display()
+        ));
+    }
     for extra in crate::plugins::agent_context() {
         text.push(' ');
         text.push_str(&extra);
