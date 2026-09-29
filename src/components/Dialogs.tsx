@@ -14,7 +14,7 @@ import { AddFolder, FolderChoice } from "./FolderFields";
 import { BORDER_OPTIONS } from "../lib/types";
 import { QuickSwitcher } from "./QuickSwitcher";
 import changelog from "../changelog.json";
-import { PromptPicker } from "./PromptPicker";
+import { PLUGINS } from "../lib/plugins";
 import type { PathCheck } from "../lib/types";
 
 const INSTALL_LABEL: Record<string, string> = {
@@ -251,66 +251,38 @@ function AboutTab() {
   );
 }
 
-function PromptsTab() {
-  const { prompts, addPrompt, updatePrompt, removePrompt } = useStore();
-  const [name, setName] = useState("");
-  const [text, setText] = useState("");
-
-  const add = () => {
-    if (!text.trim()) return;
-    addPrompt(name.trim() || text.trim().split("\n")[0].slice(0, 40), text.trim());
-    setName("");
-    setText("");
-  };
-
+/** Official plugins bundled with the app, each turned on or off here. */
+function PluginsTab() {
+  const { enabledPlugins, setPluginEnabled } = useStore();
   return (
-    <>
-      <section className="settings-section">
-        <h3>Novo prompt</h3>
-        <p className="hint">{shortcutLabel("prompts")} insere um destes na sessão ativa.</p>
-        <input placeholder="Nome (opcional)" value={name} onChange={(e) => setName(e.target.value)} />
-        <textarea
-          className="prompt-text"
-          placeholder="Texto do prompt"
-          rows={4}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-        />
-        <div className="row">
-          <button className="ghost auto" onClick={add} disabled={!text.trim()}>
-            Salvar prompt
-          </button>
-        </div>
-      </section>
-
-      {prompts.length > 0 && (
-        <section className="settings-section">
-          <h3>Salvos</h3>
-          <ul className="prompt-manage">
-            {prompts.map((p) => (
-              <li key={p.id}>
-                <div className="row">
-                  <input
-                    className="prompt-name"
-                    defaultValue={p.name}
-                    onBlur={(e) => e.target.value.trim() && updatePrompt(p.id, { name: e.target.value.trim() })}
-                  />
-                  <button className="icon-btn" title="Remover" onClick={() => removePrompt(p.id)}>
-                    ×
-                  </button>
-                </div>
-                <textarea
-                  className="prompt-text"
-                  rows={3}
-                  defaultValue={p.text}
-                  onBlur={(e) => e.target.value.trim() && updatePrompt(p.id, { text: e.target.value.trim() })}
-                />
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-    </>
+    <section className="settings-section">
+      <h3>Plugins oficiais</h3>
+      <p className="hint">
+        Recursos que vêm com o Shellhive e podem ser ligados ou desligados. Uma mudança vale para as sessões abertas
+        depois dela; nas que já estão abertas, reabra a aba.
+      </p>
+      <ul className="plugin-list">
+        {PLUGINS.map(({ manifest }) => {
+          const on = enabledPlugins.includes(manifest.id);
+          return (
+            <li key={manifest.id}>
+              <div className="plugin-info">
+                <strong>{manifest.name}</strong>
+                <p>{manifest.description}</p>
+              </div>
+              <div className="chip-row">
+                <button className={`chip ${on ? "on" : ""}`} onClick={() => setPluginEnabled(manifest.id, true)}>
+                  Ligado
+                </button>
+                <button className={`chip ${!on ? "on" : ""}`} onClick={() => setPluginEnabled(manifest.id, false)}>
+                  Desligado
+                </button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 
@@ -483,8 +455,8 @@ function SettingsDialog({ initialTab, onClose }: { initialTab?: SettingsTab; onC
         <button className={tab === "pastas" ? "on" : ""} onClick={() => setTab("pastas")}>
           Pastas
         </button>
-        <button className={tab === "prompts" ? "on" : ""} onClick={() => setTab("prompts")}>
-          Prompts
+        <button className={tab === "plugins" ? "on" : ""} onClick={() => setTab("plugins")}>
+          Plugins
         </button>
         <button className={tab === "sobre" ? "on" : ""} onClick={() => setTab("sobre")}>
           Sobre
@@ -493,7 +465,7 @@ function SettingsDialog({ initialTab, onClose }: { initialTab?: SettingsTab; onC
 
       {tab === "sobre" && <AboutTab />}
 
-      {tab === "prompts" && <PromptsTab />}
+      {tab === "plugins" && <PluginsTab />}
 
       {tab === "aparencia" && (
       <>
@@ -786,6 +758,5 @@ export function Dialogs() {
   if (modal.kind === "settings") return <SettingsDialog initialTab={modal.tab} onClose={close} />;
   if (modal.kind === "newGroup") return <NewGroupDialog onClose={close} />;
   if (modal.kind === "switcher") return <QuickSwitcher onClose={close} />;
-  if (modal.kind === "prompts") return <PromptPicker onClose={close} />;
   return <PickFolderDialog groupId={modal.groupId} onClose={close} />;
 }

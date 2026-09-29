@@ -1,0 +1,49 @@
+{
+  "id": "editor",
+  "name": "Editor em painel",
+  "description": "O agente abre um editor abaixo do terminal para você escrever, revisar ou preencher um texto, uma planilha CSV ou um JSON/XML, e recebe o resultado de volta.",
+  "defaultEnabled": true,
+  "agentContext": "Use a ferramenta open_editor sempre que precisar que o usuario escreva, preencha ou revise um texto: ela abre um editor em painel logo abaixo do terminal e devolve o texto final, e salva o arquivo quando voce passa 'path'. Prefira open_editor a pedir para o usuario abrir VSCode ou outro editor externo.",
+  "tools": [
+    {
+      "name": "open_editor",
+      "description": "Abre um editor em um painel dentro do Shellhive, logo abaixo do terminal, para o usuário preencher, revisar ou colar algo, e devolve o conteúdo final. Use sempre que precisar que o usuário escreva ou edite conteúdo, em vez de pedir para ele abrir um editor externo como VSCode. Suporta texto puro, CSV em planilha editável, e JSON e XML com validação. Se `path` for informado, o arquivo é carregado e salvo com o que o usuário escrever.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Caminho do arquivo a abrir e salvar. Criado se não existir."
+          },
+          "content": {
+            "type": "string",
+            "description": "Conteúdo inicial ou template a pré-preencher. Ignorado se o arquivo já existir e content não for informado."
+          },
+          "title": {
+            "type": "string",
+            "description": "Título do painel."
+          },
+          "instructions": {
+            "type": "string",
+            "description": "Instrução curta mostrada ao usuário sobre o que preencher."
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "text",
+              "csv",
+              "json",
+              "xml"
+            ],
+            "description": "Editor a usar. Omitido, é deduzido da extensão do arquivo. csv abre uma planilha editável, json e xml abrem com validação e formatação."
+          },
+          "wait": {
+            "type": "boolean",
+            "description": "Aguardar o usuário terminar e devolver o texto. Padrão true. Use false apenas para exibir algo."
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  ]
+}

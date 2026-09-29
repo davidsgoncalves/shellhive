@@ -1,130 +1,23 @@
-use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, Condvar, Mutex};
-use std::time::{Duration, Instant};
-
 use tauri::{AppHandle, Emitter, Manager};
 
-/// How long a tool call waits for the user before returning control to Claude.
-const EDIT_TIMEOUT: Duration = Duration::from_secs(300);
 const PROTOCOL_VERSION: &str = "2025-06-18";
 
-#[derive(Default)]
-struct Inner {
-    /// Request id -> submitted text, or None when the user cancelled.
-    answers: HashMap<String, Option<String>>,
-    waiting: HashSet<String>,
-}
-
-#[derive(Clone, Default)]
-pub struct Editors {
-    inner: Arc<(Mutex<Inner>, Condvar)>,
-}
-
-impl Editors {
-    fn register(&self, id: &str) {
-        let (lock, _) = &*self.inner;
-        lock.lock().unwrap().waiting.insert(id.to_string());
-    }
-
-    fn wait(&self, id: &str) -> Result<Option<String>, ()> {
-        let (lock, cv) = &*self.inner;
-        let mut guard = lock.lock().unwrap();
-        let deadline = Instant::now() + EDIT_TIMEOUT;
-        loop {
-            if let Some(answer) = guard.answers.remove(id) {
-                guard.waiting.remove(id);
-                return Ok(answer);
-            }
-            let remaining = deadline.saturating_duration_since(Instant::now());
-            if remaining.is_zero() {
-                guard.waiting.remove(id);
-                return Err(());
-            }
-            let (next, _) = cv.wait_timeout(guard, remaining).unwrap();
-            guard = next;
-        }
-    }
-
-    fn resolve(&self, id: &str, answer: Option<String>) -> bool {
-        let (lock, cv) = &*self.inner;
-        let mut guard = lock.lock().unwrap();
-        if !guard.waiting.contains(id) {
-            return false;
-        }
-        guard.answers.insert(id.to_string(), answer);
-        cv.notify_all();
-        true
-    }
-}
-
-#[derive(Clone, serde::Serialize)]
-struct EditorRequest {
-    id: String,
-    tab_id: Option<String>,
-    path: Option<String>,
-    title: String,
-    instructions: Option<String>,
-    content: String,
-    /// False when Claude is not waiting for a reply.
-    blocking: bool,
-    /// One of text, csv, json, xml.
-    format: String,
-}
-
-#[tauri::command]
-pub fn editor_submit(state: tauri::State<Editors>, id: String, content: String) -> bool {
-    state.resolve(&id, Some(content))
-}
-
-#[tauri::command]
-pub fn editor_cancel(state: tauri::State<Editors>, id: String) -> bool {
-    state.resolve(&id, None)
-}
-
-fn text_result(text: String, is_error: bool) -> serde_json::Value {
+pub(crate) fn text_result(text: String, is_error: bool) -> serde_json::Value {
     serde_json::json!({
         "content": [{ "type": "text", "text": text }],
         "isError": is_error,
     })
 }
 
+/// Tools of the core, followed by those of the enabled plugins.
 fn tool_definitions() -> serde_json::Value {
-    serde_json::json!([
-        {
-            "name": "open_editor",
-            "description": "Abre um editor em um painel dentro do Shellhive, logo abaixo do terminal, para o \
-    usuário preencher, revisar ou colar algo, e devolve o conteúdo final. Use sempre que precisar que o usuário escreva \
-    ou edite conteúdo, em vez de pedir para ele abrir um editor externo como VSCode. Suporta texto puro, CSV em planilha \
-    editável, e JSON e XML com validação. Se `path` for informado, o arquivo é carregado e salvo com o que o usuário escrever.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "path": {
-                        "type": "string",
-                        "description": "Caminho do arquivo a abrir e salvar. Criado se não existir."
-                    },
-                    "content": {
-                        "type": "string",
-                        "description": "Conteúdo inicial ou template a pré-preencher. Ignorado se o arquivo já existir e content não for informado."
-                    },
-                    "title": { "type": "string", "description": "Título do painel." },
-                    "instructions": {
-                        "type": "string",
-                        "description": "Instrução curta mostrada ao usuário sobre o que preencher."
-                    },
-                    "format": {
-                        "type": "string",
-                        "enum": ["text", "csv", "json", "xml"],
-                        "description": "Editor a usar. Omitido, é deduzido da extensão do arquivo. csv abre uma planilha editável, json e xml abrem com validação e formatação."
-                    },
-                    "wait": {
-                        "type": "boolean",
-                        "description": "Aguardar o usuário terminar e devolver o texto. Padrão true. Use false apenas para exibir algo."
-                    }
-                },
-                "additionalProperties": false
-            }
-        },
+    let mut tools = core_tools();
+    tools.extend(crate::plugins::tools());
+    serde_json::Value::Array(tools)
+}
+
+fn core_tools() -> Vec<serde_json::Value> {
+    let tools = serde_json::json!([
         {
             "name": "suggest_command",
             "description": "Mostra ao usuário um comando de shell como um botão na fila do Shellhive. Ao clicar em \
@@ -152,110 +45,8 @@ fn tool_definitions() -> serde_json::Value {
                 "additionalProperties": false
             }
         }
-    ])
-}
-
-fn call_open_editor(
-    app: &AppHandle,
-    tab_id: Option<String>,
-    args: &serde_json::Value,
-) -> serde_json::Value {
-    let path = args
-        .get("path")
-        .and_then(|v| v.as_str())
-        .map(str::to_string);
-    let given = args
-        .get("content")
-        .and_then(|v| v.as_str())
-        .map(str::to_string);
-    let blocking = args.get("wait").and_then(|v| v.as_bool()).unwrap_or(true);
-
-    let content = match (&path, &given) {
-        (Some(p), None) => std::fs::read_to_string(p).unwrap_or_default(),
-        (_, Some(c)) => c.clone(),
-        (None, None) => String::new(),
-    };
-    let title = args
-        .get("title")
-        .and_then(|v| v.as_str())
-        .map(str::to_string)
-        .or_else(|| {
-            path.as_ref().and_then(|p| {
-                std::path::Path::new(p)
-                    .file_name()
-                    .map(|n| n.to_string_lossy().to_string())
-            })
-        })
-        .unwrap_or_else(|| "Editor".into());
-
-    let format = args
-        .get("format")
-        .and_then(|v| v.as_str())
-        .map(str::to_string)
-        .unwrap_or_else(|| {
-            let ext = path
-                .as_ref()
-                .and_then(|p| {
-                    std::path::Path::new(p)
-                        .extension()
-                        .map(|e| e.to_string_lossy().to_lowercase())
-                })
-                .unwrap_or_default();
-            match ext.as_str() {
-                "csv" | "tsv" => "csv",
-                "json" | "jsonc" => "json",
-                "xml" | "svg" | "xhtml" | "plist" => "xml",
-                _ => "text",
-            }
-            .to_string()
-        });
-
-    let id = format!("ed-{}", crate::hooks::next_public_id());
-    let editors = app.state::<Editors>().inner().clone();
-    if blocking {
-        editors.register(&id);
-    }
-    let _ = app.emit(
-        "editor-request",
-        EditorRequest {
-            id: id.clone(),
-            tab_id,
-            path: path.clone(),
-            title,
-            instructions: args
-                .get("instructions")
-                .and_then(|v| v.as_str())
-                .map(str::to_string),
-            content,
-            blocking,
-            format,
-        },
-    );
-
-    if !blocking {
-        return text_result("Painel aberto para o usuário.".into(), false);
-    }
-
-    match editors.wait(&id) {
-        Ok(Some(text)) => {
-            if let Some(p) = &path {
-                if let Some(parent) = std::path::Path::new(p).parent() {
-                    let _ = std::fs::create_dir_all(parent);
-                }
-                if let Err(e) = std::fs::write(p, &text) {
-                    return text_result(format!("Não consegui salvar {p}: {e}"), true);
-                }
-            }
-            let saved = path.map(|p| format!(" e salvo em {p}")).unwrap_or_default();
-            text_result(format!("O usuário terminou de editar{saved}.\n\n{text}"), false)
-        }
-        Ok(None) => text_result("O usuário fechou o editor sem enviar.".into(), true),
-        Err(()) => text_result(
-            "O usuário ainda não terminou de editar. Chame open_editor de novo com wait=true se quiser continuar aguardando."
-                .into(),
-            true,
-        ),
-    }
+    ]);
+    tools.as_array().cloned().unwrap_or_default()
 }
 
 #[derive(Clone, serde::Serialize)]
@@ -377,10 +168,12 @@ pub fn handle_rpc(
                 .cloned()
                 .unwrap_or(serde_json::json!({}));
             match name {
-                "open_editor" => call_open_editor(app, tab_id, &args),
                 "list_sessions" => call_list_sessions(app, &args),
                 "suggest_command" => call_suggest_command(app, tab_id, &args),
-                other => text_result(format!("Ferramenta desconhecida: {other}"), true),
+                other => match crate::plugins::tool_owner(other).as_deref() {
+                    Some("editor") => crate::plugins::editor::call(app, tab_id, &args),
+                    _ => text_result(format!("Ferramenta desconhecida: {other}"), true),
+                },
             }
         }
         other => {

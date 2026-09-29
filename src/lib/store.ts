@@ -6,6 +6,7 @@ import { markPendingResume } from "./restored";
 import { sameRule } from "./permRules";
 import type { MiniBounds } from "./mini";
 import { THEME_FONT, THEMES, type TerminalFont, type ThemeId } from "./theme";
+import { defaultEnabledPlugins } from "./plugins";
 import { closeDetachedWindow, focusDetachedWindow, openDetachedWindow } from "./detach";
 import {
   DEFAULT_TAB_TITLE,
@@ -14,7 +15,6 @@ import {
   UNGROUPED_NAME,
   type Folder,
   type GitInfo,
-  type SavedPrompt,
   type Subagent,
   type CommandSuggestion,
   type Group,
@@ -71,14 +71,13 @@ function rememberClosed(list: ClosedTab[], tabs: Tab[]): ClosedTab[] {
   return [...list, ...added].slice(-CLOSED_TABS_MAX);
 }
 
-export type SettingsTab = "aparencia" | "pastas" | "prompts" | "sobre";
+export type SettingsTab = "aparencia" | "pastas" | "plugins" | "sobre";
 
 export type Modal =
   | null
   | { kind: "settings"; tab?: SettingsTab }
   | { kind: "newGroup" }
   | { kind: "switcher" }
-  | { kind: "prompts" }
   | { kind: "pickFolder"; groupId: string };
 
 interface Store {
@@ -125,6 +124,8 @@ interface Store {
   theme: ThemeId;
   /** Terminal font overrides; null fields follow the theme. */
   terminalFont: TerminalFont;
+  /** Official plugins turned on. */
+  enabledPlugins: string[];
   /** Ids of the Novidades already shown. */
   seenAnnouncements: string[];
   /** The one-time question about sending error reports was answered. */
@@ -153,8 +154,6 @@ interface Store {
   searchTabId: string | null;
   /** Last group each Claude session sat in, so reopening it lands there. */
   sessionGroups: Record<string, string>;
-  /** Prompts kept for reuse. */
-  prompts: SavedPrompt[];
   /** Recently closed tabs, newest last, for Cmd+Shift+T. */
   closedTabs: ClosedTab[];
   /** Git state of each tab's folder; absent outside a repository. */
@@ -187,9 +186,6 @@ interface Store {
   openSearch: (tabId: string | null) => void;
   setSubagents: (tabId: string, list: Subagent[]) => void;
   rememberSessionGroups: () => void;
-  addPrompt: (name: string, text: string) => void;
-  updatePrompt: (id: string, patch: Partial<Omit<SavedPrompt, "id">>) => void;
-  removePrompt: (id: string) => void;
   patchTab: (id: string, patch: Partial<Tab>) => void;
 
   toggleSidebar: () => void;
@@ -221,6 +217,7 @@ interface Store {
   setTerminalFont: (f: Partial<TerminalFont>) => void;
   resetTerminalFont: () => void;
   markAnnouncementsSeen: (ids: string[]) => void;
+  setPluginEnabled: (id: string, on: boolean) => void;
   setMiniPanel: (on: boolean) => void;
   setShowEvents: (on: boolean) => void;
   setErrorReportsAsked: (asked: boolean) => void;
@@ -266,6 +263,7 @@ export const useStore = create<Store>()(
       theme: "classic",
       terminalFont: THEME_FONT,
       seenAnnouncements: [],
+      enabledPlugins: defaultEnabledPlugins(),
       miniPanel: false,
       showEvents: false,
       errorReportsAsked: false,
@@ -278,7 +276,6 @@ export const useStore = create<Store>()(
       detached: [],
       gitByTab: {},
       closedTabs: [],
-      prompts: [],
       sessionGroups: {},
       searchTabId: null,
       subagentsByTab: {},
@@ -478,10 +475,6 @@ export const useStore = create<Store>()(
         }
         set({ sessionGroups: next });
       },
-      addPrompt: (name, text) => set((s) => ({ prompts: [...s.prompts, { id: newId(), name, text }] })),
-      updatePrompt: (id, patch) =>
-        set((s) => ({ prompts: s.prompts.map((p) => (p.id === id ? { ...p, ...patch } : p)) })),
-      removePrompt: (id) => set((s) => ({ prompts: s.prompts.filter((p) => p.id !== id) })),
       openSearch: (searchTabId) => set({ searchTabId }),
       setSubagents: (tabId, list) =>
         set((s) => {
@@ -607,6 +600,10 @@ export const useStore = create<Store>()(
       setTheme: (theme) => set({ theme }),
       setTerminalFont: (f) => set((s) => ({ terminalFont: { ...s.terminalFont, ...f } })),
       resetTerminalFont: () => set({ terminalFont: THEME_FONT }),
+      setPluginEnabled: (id, on) =>
+        set((s) => ({
+          enabledPlugins: on ? [...new Set([...s.enabledPlugins, id])] : s.enabledPlugins.filter((p) => p !== id),
+        })),
       markAnnouncementsSeen: (ids) =>
         set((s) => ({ seenAnnouncements: [...new Set([...s.seenAnnouncements, ...ids])] })),
       setMiniPanel: (miniPanel) => set({ miniPanel }),
@@ -714,11 +711,11 @@ export const useStore = create<Store>()(
         theme: s.theme,
         terminalFont: s.terminalFont,
         seenAnnouncements: s.seenAnnouncements,
+        enabledPlugins: s.enabledPlugins,
         miniPanel: s.miniPanel,
         showEvents: s.showEvents,
         errorReportsAsked: s.errorReportsAsked,
         miniBounds: s.miniBounds,
-        prompts: s.prompts,
         sessionGroups: s.sessionGroups,
         splitMode: s.splitMode,
         panes: s.panes,

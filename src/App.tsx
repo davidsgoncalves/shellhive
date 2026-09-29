@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { emitTo, listen } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
@@ -16,7 +16,7 @@ import { UpdateBanner } from "./components/UpdateBanner";
 import { ErrorReportsPrompt } from "./components/ErrorReportsPrompt";
 import { PaneOverlay } from "./components/PaneOverlay";
 import { EmptyPane } from "./components/EmptyPane";
-import { EditorPanel } from "./components/EditorPanel";
+import { PLUGINS, type PluginHost } from "./lib/plugins";
 import { TerminalSearch } from "./components/TerminalSearch";
 import { CommandCard, typeCommand } from "./components/CommandCard";
 import { applyLook, shareLook } from "./lib/theme";
@@ -57,7 +57,6 @@ import {
   paneRect,
   type HookEvent,
   type HookSetup,
-  type EditorRequest,
   type CommandSuggestion,
   type GitInfo,
   type PermissionRequest,
@@ -237,8 +236,6 @@ function useShortcuts() {
           return s.reopenClosedTab();
         case "closeTab":
           return void (s.activeTabId && s.closeTab(s.activeTabId));
-        case "prompts":
-          return s.openModal(s.modal?.kind === "prompts" ? null : { kind: "prompts" });
         case "switcher":
           return s.openModal(s.modal?.kind === "switcher" ? null : { kind: "switcher" });
         case "search": {
@@ -442,15 +439,12 @@ function useSessionGroups() {
   }, []);
 }
 
-function useEditorRequests(): [EditorRequest | null, () => void] {
-  const [request, setRequest] = useState<EditorRequest | null>(null);
+/** Tells the backend which plugins' agent tools to offer. */
+function usePluginSync() {
+  const enabled = useStore((s) => s.enabledPlugins);
   useEffect(() => {
-    const p = listen<EditorRequest>("editor-request", (ev) => setRequest(ev.payload));
-    return () => {
-      void p.then((un) => un());
-    };
-  }, []);
-  return [request, () => setRequest(null)];
+    void invoke("plugins_set_enabled", { ids: enabled }).catch(console.error);
+  }, [enabled]);
 }
 
 /** Applies the chosen theme and terminal font and shares them with the other windows. */
@@ -464,7 +458,6 @@ function useLook() {
 }
 
 function App() {
-  const [editorRequest, closeEditor] = useEditorRequests();
   useBackendBridge();
   useTitlePoll();
   useSessionGroups();
@@ -475,6 +468,7 @@ function App() {
   useGitPoll();
   useMiniPanel();
   useLook();
+  usePluginSync();
   const tabs = useStore((s) => s.tabs);
 
   useEffect(() => {
@@ -498,10 +492,13 @@ function App() {
   const barPosition = useStore((s) => s.barPosition);
   const groups = useStore((s) => s.groups);
   const borderWidth = useStore((s) => s.terminalBorder);
-  const { splitMode, panes, focusedPane, focusPane, detached, searchTabId, openSearch, commands, questions } =
+  const { splitMode, panes, focusedPane, focusPane, detached, searchTabId, openSearch, commands, questions, enabledPlugins } =
     useStore();
   const slots = paneCount(splitMode);
   const paneOf = (tabId: string) => panes.slice(0, slots).indexOf(tabId);
+  const pluginHost: PluginHost = {
+    paneRect: (tabId) => paneRect(splitMode, Math.max(0, tabId ? paneOf(tabId) : 0)),
+  };
   const colorOf = (tab: (typeof tabs)[number]) =>
     groups.find((g) => g.id === tab.groupId)?.color ?? "transparent";
   // A slot is empty when nothing is assigned or its tab is no longer running.
@@ -550,16 +547,10 @@ function App() {
             {emptySlots.map((i) => (
               <EmptyPane key={`empty-${i}`} index={i} />
             ))}
-            {editorRequest && (
-              <EditorPanel
-                request={editorRequest}
-                onDone={closeEditor}
-                rect={paneRect(
-                  splitMode,
-                  Math.max(0, panes.slice(0, slots).indexOf(editorRequest.tab_id ?? "") ),
-                )}
-              />
-            )}
+            {PLUGINS.filter((p) => p.Overlay && enabledPlugins.includes(p.manifest.id)).map((p) => {
+              const Overlay = p.Overlay!;
+              return <Overlay key={p.manifest.id} host={pluginHost} />;
+            })}
             {searchTabId && paneOf(searchTabId) !== -1 && (
               <TerminalSearch
                 key={searchTabId}

@@ -8,6 +8,7 @@ mod install;
 mod mcp;
 mod paths;
 mod permissions;
+mod plugins;
 mod pty;
 mod sessions;
 
@@ -28,7 +29,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .manage(pty::PtyState::default())
         .manage(permissions::Permissions::default())
-        .manage(mcp::Editors::default())
+        .manage(plugins::editor::Editors::default())
         .setup(|app| {
             // Before anything opens the data folder.
             paths::migrate_legacy_data();
@@ -78,8 +79,9 @@ pub fn run() {
             install::package_update_check,
             install::package_update_install,
             install::restart_app,
-            mcp::editor_submit,
-            mcp::editor_cancel,
+            plugins::editor::editor_submit,
+            plugins::editor::editor_cancel,
+            plugins::plugins_set_enabled,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

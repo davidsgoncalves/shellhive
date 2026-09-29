@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { CsvGrid } from "./editors/CsvGrid";
-import { format as reformat, validate } from "../lib/editorFormat";
-import type { EditorFormat, EditorRequest } from "../lib/types";
-import { LABELS } from "../lib/shortcuts";
+import { CsvGrid } from "./CsvGrid";
+import { format as reformat, validate } from "./format";
+import type { EditorFormat, EditorRequest } from "./types";
+import { LABELS } from "../../src/lib/shortcuts";
 
 const FORMATS: Array<{ value: EditorFormat; label: string }> = [
   { value: "text", label: "Texto" },
