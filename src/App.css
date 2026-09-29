@@ -979,9 +979,16 @@ button.ghost.danger { border-color: var(--danger); color: var(--danger); }
 }
 .announce.up .announce-panel { top: auto; bottom: calc(100% + 8px); transform-origin: bottom right; }
 .announce-panel > header {
-  padding: 10px 14px; font-size: 11px; font-weight: 600; color: var(--muted);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 8px 8px 14px; font-size: 11px; font-weight: 600; color: var(--muted);
   text-transform: uppercase; letter-spacing: .05em; border-bottom: 1px solid var(--border);
 }
+.announce-close, .announce-dismiss { width: 20px; height: 20px; font-size: 14px; }
+.announce-panel li { position: relative; }
+.announce-dismiss { position: absolute; top: 8px; right: 8px; opacity: .55; }
+.announce-dismiss:hover { opacity: 1; }
+.announce-panel li h4 { padding-right: 22px; }
+.announce-empty { margin: 0; padding: 18px 14px; font-size: 12px; color: var(--muted); text-align: center; }
 .announce-panel ul { list-style: none; margin: 0; padding: 0; max-height: 60vh; overflow-y: auto; }
 .announce-panel li { padding: 14px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
 .announce-panel li + li { border-top: 1px solid var(--border); }

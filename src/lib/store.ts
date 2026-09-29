@@ -128,6 +128,8 @@ interface Store {
   betaChannel: boolean;
   /** Official plugins turned on. */
   enabledPlugins: string[];
+  /** Ids of the Novidades removed from the list for good. */
+  dismissedAnnouncements: string[];
   /** Ids of the Novidades already shown. */
   seenAnnouncements: string[];
   /** The one-time question about sending error reports was answered. */
@@ -219,6 +221,7 @@ interface Store {
   setTerminalFont: (f: Partial<TerminalFont>) => void;
   resetTerminalFont: () => void;
   markAnnouncementsSeen: (ids: string[]) => void;
+  dismissAnnouncement: (id: string) => void;
   setPluginEnabled: (id: string, on: boolean) => void;
   setBetaChannel: (on: boolean) => void;
   setMiniPanel: (on: boolean) => void;
@@ -266,6 +269,7 @@ export const useStore = create<Store>()(
       theme: "classic",
       terminalFont: THEME_FONT,
       seenAnnouncements: [],
+      dismissedAnnouncements: [],
       enabledPlugins: defaultEnabledPlugins(),
       betaChannel: false,
       miniPanel: false,
@@ -609,6 +613,8 @@ export const useStore = create<Store>()(
         set((s) => ({
           enabledPlugins: on ? [...new Set([...s.enabledPlugins, id])] : s.enabledPlugins.filter((p) => p !== id),
         })),
+      dismissAnnouncement: (id) =>
+        set((s) => ({ dismissedAnnouncements: [...new Set([...s.dismissedAnnouncements, id])] })),
       markAnnouncementsSeen: (ids) =>
         set((s) => ({ seenAnnouncements: [...new Set([...s.seenAnnouncements, ...ids])] })),
       setMiniPanel: (miniPanel) => set({ miniPanel }),
@@ -716,6 +722,7 @@ export const useStore = create<Store>()(
         theme: s.theme,
         terminalFont: s.terminalFont,
         seenAnnouncements: s.seenAnnouncements,
+        dismissedAnnouncements: s.dismissedAnnouncements,
         enabledPlugins: s.enabledPlugins,
         betaChannel: s.betaChannel,
         miniPanel: s.miniPanel,
