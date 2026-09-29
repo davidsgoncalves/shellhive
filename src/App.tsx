@@ -17,6 +17,7 @@ import { ErrorReportsPrompt } from "./components/ErrorReportsPrompt";
 import { PaneOverlay } from "./components/PaneOverlay";
 import { EmptyPane } from "./components/EmptyPane";
 import { PLUGINS, type PluginHost } from "./lib/plugins";
+import { reportError } from "./lib/errors";
 import { TerminalSearch } from "./components/TerminalSearch";
 import { CommandCard, typeCommand } from "./components/CommandCard";
 import { applyLook, shareLook } from "./lib/theme";
@@ -439,6 +440,32 @@ function useSessionGroups() {
   }, []);
 }
 
+/** Answers agent tools whose handlers live in a plugin's interface. */
+function usePluginToolCalls() {
+  useEffect(() => {
+    const p = listen<{ call_id: string; plugin: string; tool: string; tab_id: string | null; args: Record<string, unknown> }>(
+      "plugin-tool-call",
+      async ({ payload }) => {
+        const reply = (text: string, isError: boolean) =>
+          invoke("plugin_tool_result", { callId: payload.call_id, text, isError }).catch(console.error);
+        const on = useStore.getState().enabledPlugins.includes(payload.plugin);
+        const handler = on ? PLUGINS.find((x) => x.manifest.id === payload.plugin)?.tools?.[payload.tool] : undefined;
+        if (!handler) return void reply(`O plugin ${payload.plugin} não trata ${payload.tool}.`, true);
+        try {
+          const out = await handler(payload.args ?? {}, { tabId: payload.tab_id });
+          void reply(out.text, !!out.isError);
+        } catch (err) {
+          reportError("plugin", err);
+          void reply(`Falha em ${payload.tool}: ${err instanceof Error ? err.message : String(err)}`, true);
+        }
+      },
+    );
+    return () => {
+      void p.then((un) => un());
+    };
+  }, []);
+}
+
 /** Tells the backend which plugins' agent tools to offer. */
 function usePluginSync() {
   const enabled = useStore((s) => s.enabledPlugins);
@@ -469,6 +496,7 @@ function App() {
   useMiniPanel();
   useLook();
   usePluginSync();
+  usePluginToolCalls();
   const tabs = useStore((s) => s.tabs);
 
   useEffect(() => {

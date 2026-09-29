@@ -172,7 +172,10 @@ pub fn handle_rpc(
                 "suggest_command" => call_suggest_command(app, tab_id, &args),
                 other => match crate::plugins::tool_owner(other).as_deref() {
                     Some("editor") => crate::plugins::editor::call(app, tab_id, &args),
-                    _ => text_result(format!("Ferramenta desconhecida: {other}"), true),
+                    Some(plugin) => {
+                        crate::plugins::call_frontend(app, plugin, other, tab_id, &args)
+                    }
+                    None => text_result(format!("Ferramenta desconhecida: {other}"), true),
                 },
             }
         }

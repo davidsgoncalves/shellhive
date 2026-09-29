@@ -135,3 +135,9 @@ pub fn drop_save(request: Request<'_>) -> Result<String, String> {
     std::fs::write(&path, bytes).map_err(|e| e.to_string())?;
     Ok(path.to_string_lossy().into_owned())
 }
+
+/// Writes text to a path the user picked in a save dialog.
+#[tauri::command]
+pub fn save_text_file(path: String, contents: String) -> Result<(), String> {
+    std::fs::write(&path, contents).map_err(|e| format!("não consegui salvar {path}: {e}"))
+}

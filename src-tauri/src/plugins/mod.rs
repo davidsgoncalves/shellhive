@@ -6,10 +6,19 @@
 
 pub mod editor;
 
-use std::collections::HashSet;
-use std::sync::{Mutex, OnceLock};
+use std::collections::{HashMap, HashSet};
+use std::sync::{Condvar, Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
-const MANIFESTS: &[&str] = &[include_str!("../../../plugins/editor/plugin.json")];
+use tauri::{AppHandle, Emitter};
+
+const MANIFESTS: &[&str] = &[
+    include_str!("../../../plugins/editor/plugin.json"),
+    include_str!("../../../plugins/mermaid/plugin.json"),
+];
+
+/// How long a tool answered by a plugin's interface may take.
+const FRONTEND_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -86,6 +95,67 @@ pub fn all_tool_names() -> Vec<String> {
         .collect()
 }
 
+#[derive(Clone, serde::Serialize)]
+struct ToolCall {
+    call_id: String,
+    plugin: String,
+    tool: String,
+    tab_id: Option<String>,
+    args: serde_json::Value,
+}
+
+/// Replies of plugin interfaces to tool calls, by call id.
+static REPLIES: Mutex<Option<HashMap<String, serde_json::Value>>> = Mutex::new(None);
+static REPLIED: Condvar = Condvar::new();
+
+/// Runs a tool whose handler lives in the plugin's interface: the call goes
+/// to the frontend as `plugin-tool-call`, and the reply comes back through
+/// `plugin_tool_result` as an MCP tool result.
+pub fn call_frontend(
+    app: &AppHandle,
+    plugin: &str,
+    tool: &str,
+    tab_id: Option<String>,
+    args: &serde_json::Value,
+) -> serde_json::Value {
+    let call_id = format!("pc-{}", crate::hooks::next_public_id());
+    let _ = app.emit(
+        "plugin-tool-call",
+        ToolCall {
+            call_id: call_id.clone(),
+            plugin: plugin.to_string(),
+            tool: tool.to_string(),
+            tab_id,
+            args: args.clone(),
+        },
+    );
+    let deadline = Instant::now() + FRONTEND_TIMEOUT;
+    let mut guard = REPLIES.lock().unwrap();
+    loop {
+        if let Some(reply) = guard.as_mut().and_then(|r| r.remove(&call_id)) {
+            return reply;
+        }
+        let left = deadline.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            return crate::mcp::text_result(
+                format!("O plugin {plugin} não respondeu a {tool}."),
+                true,
+            );
+        }
+        guard = REPLIED.wait_timeout(guard, left).unwrap().0;
+    }
+}
+
+/// A plugin interface's reply to a tool call.
+#[tauri::command]
+pub fn plugin_tool_result(call_id: String, text: String, is_error: bool) {
+    let mut guard = REPLIES.lock().unwrap();
+    guard
+        .get_or_insert_with(HashMap::new)
+        .insert(call_id, crate::mcp::text_result(text, is_error));
+    REPLIED.notify_all();
+}
+
 #[tauri::command]
 pub fn plugins_set_enabled(app: tauri::AppHandle, ids: Vec<String>) {
     let ids: HashSet<String> = ids.into_iter().collect();
@@ -103,6 +173,11 @@ mod tests {
     fn every_manifest_parses() {
         assert_eq!(manifests().len(), MANIFESTS.len());
         assert!(manifests().iter().all(|m| !m.id.is_empty()));
+    }
+
+    #[test]
+    fn mermaid_offers_show_diagram() {
+        assert_eq!(tool_owner("show_diagram").as_deref(), Some("mermaid"));
     }
 
     #[test]

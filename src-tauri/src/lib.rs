@@ -82,6 +82,8 @@ pub fn run() {
             plugins::editor::editor_submit,
             plugins::editor::editor_cancel,
             plugins::plugins_set_enabled,
+            plugins::plugin_tool_result,
+            files::save_text_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

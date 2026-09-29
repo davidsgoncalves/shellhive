@@ -26,7 +26,9 @@ shell, então `.zshrc`, aliases e tudo mais continuam valendo.
 - **Plugins oficiais.** Recursos extras que vêm com o app e se ligam em
   Configurações > Plugins. O primeiro é o **Editor em painel**: o Claude abre um
   editor embaixo do terminal para você preencher ou revisar algo, em texto,
-  planilha, JSON ou XML, e recebe de volta o que você escreveu.
+  planilha, JSON ou XML, e recebe de volta o que você escreveu. O segundo é
+  **Diagramas Mermaid**: fluxogramas, sequências e modelos de dados num painel
+  abaixo do terminal, que dá para copiar como imagem ou salvar em SVG.
 - **Limites de uso.** Consumo das janelas de 5 horas e 7 dias no topo, contexto
   e custo por aba.
 - **Avisos do sistema.** Notificação quando uma sessão termina ou pede
@@ -120,6 +122,7 @@ Sessões abertas fora do app não são afetadas.
 | Ferramenta | Para quê |
 | --- | --- |
 | `open_editor` | Do plugin Editor em painel. Abre o editor e devolve o texto final. Salva o arquivo quando recebe um caminho. Detecta planilha, JSON e XML pela extensão |
+| `show_diagram` | Do plugin Diagramas Mermaid. Mostra um diagrama Mermaid no painel abaixo do terminal; um erro de sintaxe volta para o Claude corrigir |
 | `list_sessions` | Lista as sessões gravadas na máquina, com título e pasta |
 | `suggest_command` | Mostra um comando de shell como botão na fila. Ao clicar em Executar, ele roda na sessão como `! comando` |
 

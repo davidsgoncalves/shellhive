@@ -1,0 +1,22 @@
+{
+  "id": "mermaid",
+  "name": "Diagramas Mermaid",
+  "description": "O agente mostra fluxogramas, diagramas de sequência, de banco de dados, de estados e cronogramas num painel abaixo do terminal, sem abrir o navegador.",
+  "defaultEnabled": true,
+  "agentContext": "Quando um diagrama ajudar a explicar algo (fluxo, arquitetura, sequencia de chamadas, modelo de dados, estados), chame show_diagram com o codigo Mermaid: ele aparece num painel logo abaixo do terminal. Se voltar um erro de sintaxe, corrija o codigo e chame de novo.",
+  "tools": [
+    {
+      "name": "show_diagram",
+      "description": "Mostra um diagrama Mermaid num painel logo abaixo do terminal desta sessão. Aceita fluxograma (flowchart), sequência (sequenceDiagram), banco de dados (erDiagram), estados (stateDiagram-v2), classes, cronograma (gantt) e os demais tipos do Mermaid 11. Um diagrama novo substitui o que estiver aberto. Se o código tiver erro de sintaxe, o resultado traz a mensagem para você corrigir e chamar de novo.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "source": { "type": "string", "description": "Código Mermaid do diagrama, sem cercas de markdown." },
+          "title": { "type": "string", "description": "Título curto do painel." }
+        },
+        "required": ["source"],
+        "additionalProperties": false
+      }
+    }
+  ]
+}
