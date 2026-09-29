@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.2.0-beta.1",
+    "date": "2026-09-29",
+    "items": [
+      "Plugin Diagramas Mermaid: o Claude mostra fluxogramas, sequências, modelos de dados, estados e cronogramas num painel abaixo do terminal, com opções de copiar como imagem, salvar em SVG e editar o código.",
+      "Plugins podem responder às ferramentas do agente pela própria interface."
+    ]
+  },
+  {
     "version": "1.1.0",
     "date": "2026-09-29",
     "items": [

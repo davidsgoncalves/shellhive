@@ -1,10 +1,22 @@
 [
   {
+    "id": "mermaid-beta",
+    "date": "2026-09-29",
+    "beta": true,
+    "highlight": true,
+    "title": "Beta: diagramas dentro do Shellhive",
+    "body": "Peça ao Claude um fluxograma, um diagrama de sequência ou o modelo de dados de uma feature: ele aparece num painel logo abaixo do terminal, sem abrir o navegador. Dá para copiar como imagem ou salvar em SVG.",
+    "note": "É o primeiro plugin novo. Ele liga e desliga em Configurações > Plugins."
+  },
+  {
     "id": "glass-theme",
     "date": "2026-09-28",
     "title": "Nova aparência: Glass",
     "body": "Camadas de vidro sobre o seu papel de parede, terminais em placas escuras e a fonte Geist. No macOS, a janela fica translúcida de verdade.",
-    "action": { "label": "Experimentar", "theme": "glass" },
+    "action": {
+      "label": "Experimentar",
+      "theme": "glass"
+    },
     "note": "Dá para voltar ao Clássico em Configurações.",
     "highlight": true
   }
