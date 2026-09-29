@@ -1189,3 +1189,25 @@ button.ghost.danger { border-color: var(--danger); color: var(--danger); }
 :is([data-theme="glow"], [data-theme="glow-amber"]) .term-pane { box-shadow: 0 10px 30px rgba(0,0,0,.35), 0 0 0 1px #262a36; }
 :is([data-theme="glow"], [data-theme="glow-amber"]) .mini,
 :is([data-theme="glow"], [data-theme="glow-amber"]) .detached-bar { background: var(--panel); }
+
+/* ---------- selection and hover in the layered themes ----------
+   The layered list and card rules reset borders and fills, which hid the
+   accent of selected and hovered items; these restore a clear state. */
+[data-layers] { --selected: color-mix(in srgb, var(--accent) 22%, transparent); --hovered: rgba(255,255,255,.09); }
+[data-layers] :is(.session-list li, .folder-choice li, .chip, .perm-actions button, button.ghost):hover:not(:disabled) {
+  background: var(--hovered); border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+}
+[data-layers] .chip { background: rgba(255,255,255,.05); border-color: rgba(255,255,255,.14); }
+[data-layers] :is(.chip.on, .folder-choice li.on, .modal-tabs button.on, .switcher-row.on) {
+  background: var(--selected); border-color: var(--accent); color: var(--fg);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+[data-layers] .panel-tabs > button.active { background: var(--selected); color: var(--fg); }
+[data-layers] :is(.menu-item, .hidden-row):hover { background: rgba(255,255,255,.12); }
+[data-layers] .tab-row:hover,
+[data-layers] .sidebar:not(.tint-none) .group:not(.fixed) .tab-row:hover { background: rgba(255,255,255,.09); }
+[data-layers] .session-list li.open { border-left: 3px solid var(--c-waiting); }
+[data-layers] .session-list li.pinned { border-left: 3px solid var(--accent); }
+[data-layers] :is(.sessions-search input, .modal input, .term-search input, .prompt-text):focus {
+  border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent);
+}
