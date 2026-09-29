@@ -21,8 +21,17 @@ const ALL = announcements as Announcement[];
 
 /** News the app wants people to see, behind a button in the top bar. */
 export function Announcements() {
-  const { seenAnnouncements, markAnnouncementsSeen, theme, setTheme, barPosition, betaChannel } = useStore();
-  const ITEMS = ALL.filter((a) => betaChannel || !a.beta);
+  const {
+    seenAnnouncements,
+    markAnnouncementsSeen,
+    dismissedAnnouncements,
+    dismissAnnouncement,
+    theme,
+    setTheme,
+    barPosition,
+    betaChannel,
+  } = useStore();
+  const ITEMS = ALL.filter((a) => (betaChannel || !a.beta) && !dismissedAnnouncements.includes(a.id));
   const unseen = ITEMS.filter((a) => !seenAnnouncements.includes(a.id));
   const [open, setOpen] = useState(() => unseen.some((a) => a.highlight));
   const ref = useRef<HTMLDivElement>(null);
@@ -46,8 +55,6 @@ export function Announcements() {
     };
   }, [open]);
 
-  if (ITEMS.length === 0) return null;
-
   return (
     <div className={`announce ${barPosition === "bottom" ? "up" : ""}`} ref={ref}>
       <button className="icon-btn announce-btn" title="Novidades" onClick={() => setOpen((o) => !o)}>
@@ -55,13 +62,26 @@ export function Announcements() {
       </button>
       {open && (
         <div className="announce-panel">
-          <header>Novidades</header>
+          <header>
+            <span>Novidades</span>
+            <button className="icon-btn announce-close" title="Fechar" onClick={() => setOpen(false)}>
+              ×
+            </button>
+          </header>
+          {ITEMS.length === 0 && <p className="announce-empty">Nenhuma novidade.</p>}
           <ul>
             {ITEMS.map((a) => {
               const target = a.action?.theme;
               const applied = isThemeId(target) && theme === target;
               return (
                 <li key={a.id}>
+                  <button
+                    className="icon-btn announce-dismiss"
+                    title="Remover esta novidade"
+                    onClick={() => dismissAnnouncement(a.id)}
+                  >
+                    ×
+                  </button>
                   <h4>{a.title}</h4>
                   <p>{a.body}</p>
                   {a.action && (
