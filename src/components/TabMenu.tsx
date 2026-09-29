@@ -4,7 +4,8 @@ import { closeDetachedWindow } from "../lib/detach";
 
 /** Right-click menu for a tab or a terminal pane. */
 export function TabMenu() {
-  const { tabMenu, openTabMenu, startPaneAssign, closeTab, closePane, tabs, detached, detachTab, panes } = useStore();
+  const { tabMenu, openTabMenu, startPaneAssign, closeTab, closePane, tabs, detached, detachTab, panes, pinned, togglePinned } =
+    useStore();
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -61,6 +62,17 @@ export function TabMenu() {
             </button>
           )}
         </>
+      )}
+      {tab.claudeSessionId && (
+        <button
+          className="menu-item"
+          onClick={() => {
+            togglePinned(tab.claudeSessionId!);
+            openTabMenu(null);
+          }}
+        >
+          {pinned.includes(tab.claudeSessionId) ? "Desafixar sessão" : "Fixar sessão"}
+        </button>
       )}
       <div className="menu-sep" />
       {inPane && !isDetached && (
