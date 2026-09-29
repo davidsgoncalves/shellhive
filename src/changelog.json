@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.3.0-beta.2",
+    "date": "2026-09-29",
+    "items": [
+      "Plugins podem pedir a permissão de ver o que o agente faz em cada aba: os arquivos que ele editou ou leu, os comandos e as pastas em que rodou."
+    ]
+  },
+  {
     "version": "1.3.0-beta.1",
     "date": "2026-09-29",
     "items": [
