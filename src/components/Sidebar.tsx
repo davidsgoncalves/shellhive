@@ -119,6 +119,7 @@ function TabRow({ tab, active }: { tab: Tab; active: boolean }) {
   const wrap = useStore((s) => s.tabTitleWrap === "wrap");
   const git = useStore((s) => s.gitByTab[tab.id]);
   const agents = useStore((s) => s.subagentsByTab[tab.id]);
+  const pinned = useStore((s) => !!tab.claudeSessionId && s.pinned.includes(tab.claudeSessionId));
   return (
     <li
       className={`tab-row state-${tab.state} ${active ? "active" : ""} ${stale ? "stale" : ""} ${wrap ? "wrap" : ""}`}
@@ -136,6 +137,11 @@ function TabRow({ tab, active }: { tab: Tab; active: boolean }) {
       title={tab.pendingMessage ?? STATE_LABEL[tab.state]}
     >
       <span className="dot" />
+      {pinned && (
+        <span className="tab-pin" title="Sessão fixada">
+          ★
+        </span>
+      )}
       <span className="tab-main">
         <InlineName value={tab.title} onCommit={(v) => renameTab(tab.id, v)} className="tab-title" />
         {git && <GitLine git={git} />}

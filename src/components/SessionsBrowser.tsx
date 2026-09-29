@@ -44,6 +44,14 @@ export function SessionsBrowser({ onlyPinned = false }: { onlyPinned?: boolean }
 
   useEffect(load, []);
 
+  // A session pinned from its tab may be newer than the list; reload so it
+  // shows up in Fixadas right away.
+  useEffect(() => {
+    if (pinned.some((id) => !sessions.some((s) => s.id === id))) load();
+    // Only a change in the pins should trigger this.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pinned]);
+
   useEffect(() => {
     const q = query.trim();
     if (q.length < 2) {

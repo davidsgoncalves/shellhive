@@ -147,6 +147,8 @@ button.ghost:disabled { opacity: .4; cursor: default; }
 .tab-row.wrap { align-items: flex-start; }
 .tab-row.wrap .tab-title { white-space: normal; overflow-wrap: anywhere; line-height: 16px; }
 .tab-row.wrap .dot { margin-top: 4px; }
+.tab-pin { color: var(--accent); font-size: 10px; line-height: 1; flex-shrink: 0; margin-left: -3px; }
+.tab-row.wrap .tab-pin { margin-top: 3px; }
 
 /* Per-tab context gauge: conic ring + percentage, hidden until a session reports. */
 .ctx-gauge { display: inline-flex; transition: opacity .12s; align-items: center; gap: 4px; flex-shrink: 0; font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
