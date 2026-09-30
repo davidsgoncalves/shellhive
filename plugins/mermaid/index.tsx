@@ -9,7 +9,7 @@ const plugin: ShellhivePlugin = {
   manifest,
   Overlay: DiagramPanel,
   tools: {
-    // Checked before it is shown, so a syntax error goes back to the agent to fix.
+    // Drawn once before it is shown, so any error goes back to the agent to fix.
     show_diagram: async (args, { tabId }) => {
       const source = typeof args.source === "string" ? args.source.trim() : "";
       if (!source) return { text: "Informe o código Mermaid em `source`.", isError: true };

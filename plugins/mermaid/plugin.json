@@ -6,7 +6,7 @@
   "tools": [
     {
       "name": "show_diagram",
-      "description": "Mostra um diagrama Mermaid num painel logo abaixo do terminal desta sessão. Aceita fluxograma (flowchart), sequência (sequenceDiagram), banco de dados (erDiagram), estados (stateDiagram-v2), classes, cronograma (gantt) e os demais tipos do Mermaid 11. Um diagrama novo substitui o que estiver aberto. Se o código tiver erro de sintaxe, o resultado traz a mensagem para você corrigir e chamar de novo.",
+      "description": "Mostra um diagrama Mermaid num painel logo abaixo do terminal desta sessão. Aceita fluxograma (flowchart), sequência (sequenceDiagram), banco de dados (erDiagram), estados (stateDiagram-v2), classes, cronograma (gantt) e os demais tipos do Mermaid 11. Um diagrama novo substitui o que estiver aberto. Se o diagrama não puder ser desenhado, o resultado traz o erro para você corrigir e chamar de novo.",
       "inputSchema": {
         "type": "object",
         "properties": {
