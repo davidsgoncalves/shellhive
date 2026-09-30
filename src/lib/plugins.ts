@@ -10,8 +10,12 @@ export interface PaneRect {
 
 /** What the app hands a plugin's interface. */
 export interface PluginHost {
-  /** The pane showing a tab, or the first pane when the tab is not on screen. */
-  paneRect(tabId: string | null): PaneRect;
+  /**
+   * The pane showing a tab, or null while the tab is not on screen. A panel
+   * belongs to the tab that asked for it: while null it stays hidden, and
+   * mounted, so it comes back as it was.
+   */
+  paneRect(tabId: string | null): PaneRect | null;
 }
 
 /** A plugin's `plugin.json`. The backend reads the same file. */

@@ -525,7 +525,12 @@ function App() {
   const slots = paneCount(splitMode);
   const paneOf = (tabId: string) => panes.slice(0, slots).indexOf(tabId);
   const pluginHost: PluginHost = {
-    paneRect: (tabId) => paneRect(splitMode, Math.max(0, tabId ? paneOf(tabId) : 0)),
+    paneRect: (tabId) => {
+      // Only a call from outside any tab has no tab to follow.
+      if (!tabId) return paneRect(splitMode, focusedPane);
+      const slot = paneOf(tabId);
+      return slot === -1 || detached.includes(tabId) ? null : paneRect(splitMode, slot);
+    },
   };
   const colorOf = (tab: (typeof tabs)[number]) =>
     groups.find((g) => g.id === tab.groupId)?.color ?? "transparent";
