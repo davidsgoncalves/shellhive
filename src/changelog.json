@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.2.2",
+    "date": "2026-09-30",
+    "items": [
+      "Diagramas: um erro ao desenhar volta para o Claude corrigir, e o erro do Mermaid não é mais pintado fora do painel.",
+      "Editor e diagramas só aparecem sobre a aba que os pediu, e esperam escondidos enquanto você está em outra aba."
+    ]
+  },
+  {
     "version": "1.2.1",
     "date": "2026-09-29",
     "items": [
