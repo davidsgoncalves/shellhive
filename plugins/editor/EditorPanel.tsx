@@ -20,8 +20,9 @@ const EXIT_MS = 170;
 interface Props {
   request: EditorRequest;
   onDone: () => void;
-  /** Pane the request came from; the panel covers its lower part. */
-  rect: { left: string; top: string; width: string; height: string };
+  /** Pane the request came from, which the panel covers the lower part of;
+   *  null while that tab is not on screen, when the panel waits hidden. */
+  rect: { left: string; top: string; width: string; height: string } | null;
 }
 
 /** Slides up under the terminal so Claude can ask for text without an external editor. */
@@ -96,13 +97,17 @@ export function EditorPanel({ request, onDone, rect }: Props) {
   return (
     <section
       className={`editor-panel ${closing ? "closing" : ""}`}
-      style={{
-        left: rect.left,
-        width: rect.width,
-        bottom: `calc(100% - ${rect.top} - ${rect.height})`,
-        height,
-        maxHeight: `calc(${rect.height} - 24px)`,
-      }}
+      style={
+        rect
+          ? {
+              left: rect.left,
+              width: rect.width,
+              bottom: `calc(100% - ${rect.top} - ${rect.height})`,
+              height,
+              maxHeight: `calc(${rect.height} - 24px)`,
+            }
+          : { display: "none" }
+      }
     >
       <div
         className="editor-grip"
