@@ -68,12 +68,17 @@ export function DiagramPanel({ host }: { host: PluginHost }) {
   return (
     <section
       className="diagram-panel"
-      style={{
-        left: rect.left,
-        width: rect.width,
-        bottom: `calc(100% - ${rect.top} - ${rect.height})`,
-        maxHeight: `calc(${rect.height} - 24px)`,
-      }}
+      // Hidden, not dropped, while its tab is off screen.
+      style={
+        rect
+          ? {
+              left: rect.left,
+              width: rect.width,
+              bottom: `calc(100% - ${rect.top} - ${rect.height})`,
+              maxHeight: `calc(${rect.height} - 24px)`,
+            }
+          : { display: "none" }
+      }
     >
       <header>
         <span className="diagram-title">{diagram.title}</span>

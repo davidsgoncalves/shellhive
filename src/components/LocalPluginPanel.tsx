@@ -160,12 +160,17 @@ export function LocalPluginPanel({ host }: { host: PluginHost }) {
   return (
     <section
       className="plugin-panel"
-      style={{
-        left: rect.left,
-        width: rect.width,
-        bottom: `calc(100% - ${rect.top} - ${rect.height})`,
-        height: `calc(${rect.height} * 0.45)`,
-      }}
+      // Hidden, not dropped, while its tab is off screen, so the frame keeps its state.
+      style={
+        rect
+          ? {
+              left: rect.left,
+              width: rect.width,
+              bottom: `calc(100% - ${rect.top} - ${rect.height})`,
+              height: `calc(${rect.height} * 0.45)`,
+            }
+          : { display: "none" }
+      }
     >
       <header>
         <span className="plugin-panel-title">{plugin.panel.title}</span>
