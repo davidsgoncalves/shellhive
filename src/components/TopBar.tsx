@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Announcements } from "./Announcements";
+import { openSurface } from "../lib/pluginEffects";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useStore } from "../lib/store";
 import { SPLIT_MODES, type RateWindow, type TabState } from "../lib/types";
@@ -129,10 +130,36 @@ export function TopBar() {
         )}
       </div>
 
+      <PluginStatus />
       <Announcements />
       <button className="icon-btn" title={`Configurações (${shortcutLabel("settings")})`} onClick={() => openModal({ kind: "settings" })}>
         ⚙
       </button>
     </header>
+  );
+}
+
+/** Indicators local plugins put in the bar; a click shows the plugin's side tab or view. */
+function PluginStatus() {
+  const status = useStore((s) => s.pluginStatus);
+  const localPlugins = useStore((s) => s.localPlugins);
+  const activeTabId = useStore((s) => s.activeTabId);
+  const entries = Object.entries(status)
+    .map(([id, st]) => ({ plugin: localPlugins.find((p) => p.id === id), st }))
+    .filter((e) => e.plugin);
+  if (!entries.length) return null;
+  return (
+    <div className="plugin-status">
+      {entries.map(({ plugin, st }) => (
+        <button
+          key={plugin!.id}
+          className="plugin-status-chip"
+          title={st.title ?? plugin!.name}
+          onClick={() => openSurface(plugin!, plugin!.sidePanel ? "side" : plugin!.view ? "view" : "window", activeTabId, null)}
+        >
+          {st.text}
+        </button>
+      ))}
+    </div>
   );
 }

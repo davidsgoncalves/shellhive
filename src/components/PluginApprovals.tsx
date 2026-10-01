@@ -2,6 +2,7 @@ import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useStore } from "../lib/store";
 import { PERMISSION_LABEL, type LocalPlugin } from "../lib/localPlugins";
+import { pluginShortcutLabel } from "../lib/shortcuts";
 
 /** Plugins waiting for approval that the user has not put off for this version of their files. */
 export function pendingApprovals(list: LocalPlugin[], deferred: Record<string, string>): LocalPlugin[] {
@@ -57,6 +58,13 @@ function ApprovalCard({ plugin }: { plugin: LocalPlugin }) {
       {plugin.schedule.length > 0 && (
         <p className="plugin-approval-label">
           Roda sozinho: {plugin.schedule.map((j) => `${j.tool} a cada ${j.every}s`).join(", ")}
+        </p>
+      )}
+      {plugin.view && <p className="plugin-approval-label">Vista "{plugin.view.title}" num espaço da tela dividida</p>}
+      {plugin.window && <p className="plugin-approval-label">Janela própria "{plugin.window.title}"</p>}
+      {plugin.shortcuts.length > 0 && (
+        <p className="plugin-approval-label">
+          Atalhos: {plugin.shortcuts.map((k) => `${pluginShortcutLabel(k.key)} (${k.tool ?? `abrir ${k.open}`})`).join(", ")}
         </p>
       )}
       {!plugin.panel && plugin.permissions.length > 0 && (

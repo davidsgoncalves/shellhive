@@ -74,6 +74,27 @@ pub struct Schedule {
     every: u64,
 }
 
+/// A key combination the plugin claims: the platform's main modifier plus
+/// Alt plus `key` (a KeyboardEvent code), which no app shortcut uses.
+#[derive(Clone, serde::Serialize)]
+pub struct Shortcut {
+    key: String,
+    /// Runs this tool, with `{ tab }`, when set.
+    tool: Option<String>,
+    /// Or opens one of the plugin's surfaces: panel, side, view or window.
+    open: Option<String>,
+}
+
+/// A window of the plugin's own, with its size in logical pixels.
+#[derive(Clone, serde::Serialize)]
+pub struct WindowInfo {
+    title: String,
+    #[serde(skip)]
+    entry: String,
+    width: u32,
+    height: u32,
+}
+
 /// The shortest interval a schedule may ask for.
 const SCHEDULE_MIN_SECS: u64 = 15;
 
@@ -95,6 +116,10 @@ pub struct LocalPlugin {
     side_panel: Option<PanelInfo>,
     menu: Vec<MenuItem>,
     schedule: Vec<Schedule>,
+    /// Takes a whole pane of the split, like a terminal.
+    view: Option<PanelInfo>,
+    window: Option<WindowInfo>,
+    shortcuts: Vec<Shortcut>,
     permissions: Vec<String>,
     #[serde(skip)]
     agent_context: Option<String>,
@@ -204,6 +229,9 @@ fn read_plugin(dir: &Path, id: &str, approved: &HashMap<String, String>) -> Loca
         side_panel: None,
         menu: Vec::new(),
         schedule: Vec::new(),
+        view: None,
+        window: None,
+        shortcuts: Vec::new(),
         permissions: Vec::new(),
         agent_context: None,
         definitions: Vec::new(),
@@ -222,7 +250,7 @@ fn read_plugin(dir: &Path, id: &str, approved: &HashMap<String, String>) -> Loca
 }
 
 const PERMISSIONS: &[&str] = &[
-    "tab", "tools", "prompt", "storage", "events", "badge", "notify",
+    "tab", "tools", "prompt", "storage", "events", "badge", "notify", "status",
 ];
 
 fn parse(dir: &Path, id: &str, plugin: &mut LocalPlugin) -> Result<(), String> {
@@ -303,6 +331,22 @@ fn parse(dir: &Path, id: &str, plugin: &mut LocalPlugin) -> Result<(), String> {
     };
     plugin.panel = panel_spec("panel", "panel.html")?;
     plugin.side_panel = panel_spec("sidePanel", "side.html")?;
+    plugin.view = panel_spec("view", "view.html")?;
+    if let Some(w) = panel_spec("window", "window.html")? {
+        let spec = &m["window"];
+        let size = |k: &str, d: u64| {
+            spec.get(k)
+                .and_then(|v| v.as_u64())
+                .unwrap_or(d)
+                .clamp(240, 4000) as u32
+        };
+        plugin.window = Some(WindowInfo {
+            title: w.title,
+            entry: w.entry,
+            width: size("width", 720),
+            height: size("height", 520),
+        });
+    }
 
     let own = |tool: &str| plugin.tools.iter().any(|t| t.name == tool);
     for item in m
@@ -356,7 +400,42 @@ fn parse(dir: &Path, id: &str, plugin: &mut LocalPlugin) -> Result<(), String> {
         }
         plugin.permissions.push(p.to_string());
     }
-    if plugin.tools.is_empty() && plugin.panel.is_none() && plugin.side_panel.is_none() {
+    for item in m
+        .get("shortcuts")
+        .and_then(|v| v.as_array())
+        .into_iter()
+        .flatten()
+    {
+        let key = text(item, "key").ok_or("um atalho está sem key")?;
+        let ok = (key.len() == 4
+            && key.starts_with("Key")
+            && key.as_bytes()[3].is_ascii_uppercase())
+            || (key.len() == 6 && key.starts_with("Digit") && key.as_bytes()[5].is_ascii_digit());
+        if !ok {
+            return Err(format!(
+                "o atalho {key} precisa ser KeyA a KeyZ ou Digit0 a Digit9"
+            ));
+        }
+        let tool = text(item, "tool");
+        let open = text(item, "open");
+        match (&tool, &open) {
+            (Some(t), None) if plugin.tools.iter().any(|x| &x.name == t) => {}
+            (None, Some(o)) if matches!(o.as_str(), "panel" | "side" | "view" | "window") => {}
+            _ => {
+                return Err(format!(
+                    "o atalho {key} precisa de tool (uma ferramenta deste plugin) ou open (panel, side, view ou window)"
+                ))
+            }
+        }
+        plugin.shortcuts.push(Shortcut { key, tool, open });
+    }
+
+    if plugin.tools.is_empty()
+        && plugin.panel.is_none()
+        && plugin.side_panel.is_none()
+        && plugin.view.is_none()
+        && plugin.window.is_none()
+    {
         return Err("o plugin precisa de ao menos uma ferramenta ou um painel".into());
     }
     Ok(())
@@ -490,12 +569,16 @@ pub fn local_plugin_remove(app: AppHandle, id: String) -> Result<(), String> {
 
 /// The HTML of an approved plugin's panel.
 #[tauri::command]
-pub fn local_plugin_panel(id: String, side: Option<bool>) -> Result<String, String> {
+pub fn local_plugin_panel(id: String, kind: Option<String>) -> Result<String, String> {
     let plugin = approved(&id).ok_or("plugin não aprovado")?;
-    let panel = if side.unwrap_or(false) {
-        plugin.side_panel
-    } else {
-        plugin.panel
+    let panel = match kind.as_deref().unwrap_or("panel") {
+        "side" => plugin.side_panel,
+        "view" => plugin.view,
+        "window" => plugin.window.map(|w| PanelInfo {
+            title: w.title,
+            entry: w.entry,
+        }),
+        _ => plugin.panel,
     }
     .ok_or("o plugin não tem esse painel")?;
     fs::read_to_string(Path::new(&plugin.dir).join(panel.entry)).map_err(|e| e.to_string())
@@ -699,6 +782,15 @@ fn run_tool(
     if let Some(notify) = reply.get("notify").filter(|_| allowed("notify")) {
         effects.insert("notify".into(), notify.clone());
     }
+    if let Some(status) = reply.get("status").filter(|_| allowed("status")) {
+        effects.insert("status".into(), status.clone());
+    }
+    if let Some(view) = reply.get("view").filter(|_| plugin.view.is_some()) {
+        effects.insert("view".into(), view.clone());
+    }
+    if let Some(window) = reply.get("window").filter(|_| plugin.window.is_some()) {
+        effects.insert("window".into(), window.clone());
+    }
     let effects = (!effects.is_empty()).then_some(serde_json::Value::Object(effects));
     let result = text_result(
         reply["text"].as_str().unwrap_or_default().to_string(),
@@ -820,6 +912,38 @@ mod tests {
             .error
             .unwrap()
             .contains("15"));
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn shortcuts_take_a_letter_or_digit_and_an_action() {
+        let tmp = std::env::temp_dir().join(format!("shellhive-keys-{}", std::process::id()));
+        let dir = tmp.join("demo");
+        let base = r#""id":"demo","name":"Demo","tools":[{"name":"demo_x","description":"d","run":["true"]}]"#;
+        write(
+            &dir,
+            &[(
+                "plugin.json",
+                &format!(r#"{{{base},"shortcuts":[{{"key":"KeyJ","tool":"demo_x"}}]}}"#),
+            )],
+        );
+        assert!(read_plugin(&dir, "demo", &HashMap::new()).error.is_none());
+        write(
+            &dir,
+            &[(
+                "plugin.json",
+                &format!(r#"{{{base},"shortcuts":[{{"key":"Enter","tool":"demo_x"}}]}}"#),
+            )],
+        );
+        assert!(read_plugin(&dir, "demo", &HashMap::new()).error.is_some());
+        write(
+            &dir,
+            &[(
+                "plugin.json",
+                &format!(r#"{{{base},"shortcuts":[{{"key":"KeyJ","open":"nowhere"}}]}}"#),
+            )],
+        );
+        assert!(read_plugin(&dir, "demo", &HashMap::new()).error.is_some());
         let _ = fs::remove_dir_all(&tmp);
     }
 

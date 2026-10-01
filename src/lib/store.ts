@@ -6,7 +6,7 @@ import { markPendingResume } from "./restored";
 import { sameRule } from "./permRules";
 import type { MiniBounds } from "./mini";
 import { THEME_FONT, THEMES, type TerminalFont, type ThemeId } from "./theme";
-import type { LocalPlugin, PluginPanel } from "./localPlugins";
+import { isView, viewOf, type LocalPlugin, type PluginPanel } from "./localPlugins";
 import { closeDetachedWindow, focusDetachedWindow, openDetachedWindow } from "./detach";
 import {
   DEFAULT_TAB_TITLE,
@@ -50,10 +50,17 @@ interface ClosedTab {
   customTitle: boolean;
 }
 
+/** The tab a pane holds, or null for an empty pane or a plugin view. */
+function tabIn(id: string | null | undefined): string | null {
+  return id && !isView(id) ? id : null;
+}
+
 /** First visible pane with nothing running in it, if the split has one. */
 function freePane(s: Pick<Store, "panes" | "tabs" | "splitMode">): number | null {
   for (let i = 0; i < paneCount(s.splitMode); i++) {
     const id = s.panes[i];
+    // A plugin view holds its pane like a running terminal.
+    if (isView(id)) continue;
     const tab = id ? s.tabs.find((t) => t.id === id) : undefined;
     if (!tab || tab.state === "dormant") return i;
   }
@@ -128,6 +135,12 @@ interface Store {
   localPlugins: LocalPlugin[];
   /** Approval cards the user put off, by plugin id and the hash they saw. */
   deferredApprovals: Record<string, string>;
+  /** Indicators plugins show in the top bar, by plugin id. */
+  pluginStatus: Record<string, { text: string; title?: string }>;
+  /** Data handed to each plugin view, by plugin id. */
+  viewData: Record<string, unknown>;
+  /** The tab shown in the right column. */
+  rightPanelTab: string;
   /** Badges plugins put under tab names: tab id -> plugin id -> text. */
   pluginBadges: Record<string, Record<string, string>>;
   /** The local plugin panel on screen. */
@@ -237,6 +250,11 @@ interface Store {
   deferApproval: (id: string, hash: string) => void;
   openPluginPanel: (panel: PluginPanel | null) => void;
   setPluginBadge: (tabId: string, pluginId: string, text: string | null) => void;
+  setPluginStatus: (pluginId: string, status: { text: string; title?: string } | null) => void;
+  setRightPanelTab: (tab: string) => void;
+  /** Shows a plugin's view in a pane: its own if open, else a free one, else the focused one. */
+  openPluginView: (pluginId: string, data: unknown) => void;
+  closePluginView: (pluginId: string) => void;
   setMiniPanel: (on: boolean) => void;
   setShowEvents: (on: boolean) => void;
   setErrorReportsAsked: (asked: boolean) => void;
@@ -289,6 +307,9 @@ export const useStore = create<Store>()(
       deferredApprovals: {},
       pluginPanel: null,
       pluginBadges: {},
+      pluginStatus: {},
+      viewData: {},
+      rightPanelTab: "queue",
       miniPanel: false,
       showEvents: false,
       errorReportsAsked: false,
@@ -348,7 +369,7 @@ export const useStore = create<Store>()(
           const gone = new Set(s.tabs.filter((t) => t.groupId === id).map((t) => t.id));
           const panes = s.panes.map((p) => (p && gone.has(p) ? null : p));
           const activeTabId =
-            s.activeTabId && gone.has(s.activeTabId) ? (panes.find((p) => p != null) ?? null) : s.activeTabId;
+            s.activeTabId && gone.has(s.activeTabId) ? (panes.map(tabIn).find((p) => p != null) ?? null) : s.activeTabId;
           return { groups, panes, activeTabId };
         }),
       addGroupRule: (id, rule) =>
@@ -431,7 +452,7 @@ export const useStore = create<Store>()(
           if (slot === -1) return {};
           const panes = [...s.panes];
           panes[slot] = null;
-          return { panes, activeTabId: s.activeTabId === id ? (panes[s.focusedPane] ?? null) : s.activeTabId };
+          return { panes, activeTabId: s.activeTabId === id ? tabIn(panes[s.focusedPane]) : s.activeTabId };
         }),
       activateTab: (id) => {
         if (get().detached.includes(id)) return focusDetachedWindow(id);
@@ -643,6 +664,24 @@ export const useStore = create<Store>()(
         }),
       deferApproval: (id, hash) => set((s) => ({ deferredApprovals: { ...s.deferredApprovals, [id]: hash } })),
       openPluginPanel: (pluginPanel) => set({ pluginPanel }),
+      setPluginStatus: (pluginId, status) =>
+        set((s) => {
+          const { [pluginId]: _old, ...rest } = s.pluginStatus;
+          return { pluginStatus: status ? { ...rest, [pluginId]: status } : rest };
+        }),
+      setRightPanelTab: (rightPanelTab) => set({ rightPanelTab, eventsOpen: true }),
+      openPluginView: (pluginId, data) =>
+        set((s) => {
+          const id = viewOf(pluginId);
+          const panes = [...s.panes];
+          const at = panes.indexOf(id);
+          const target = at !== -1 && at < paneCount(s.splitMode) ? at : (freePane(s) ?? s.focusedPane);
+          if (at !== -1) panes[at] = null;
+          panes[target] = id;
+          return { panes, focusedPane: target, viewData: { ...s.viewData, [pluginId]: data } };
+        }),
+      closePluginView: (pluginId) =>
+        set((s) => ({ panes: s.panes.map((p) => (p === viewOf(pluginId) ? null : p)) })),
       setPluginBadge: (tabId, pluginId, text) =>
         set((s) => {
           const { [pluginId]: _old, ...rest } = s.pluginBadges[tabId] ?? {};
@@ -662,6 +701,8 @@ export const useStore = create<Store>()(
                 ]),
               ),
           pluginPanel: !on && s.pluginPanel?.plugin === id ? null : s.pluginPanel,
+          pluginStatus: on ? s.pluginStatus : Object.fromEntries(Object.entries(s.pluginStatus).filter(([p]) => p !== id)),
+          panes: on ? s.panes : s.panes.map((p) => (p === viewOf(id) ? null : p)),
         })),
       dismissAnnouncement: (id) =>
         set((s) => ({ dismissedAnnouncements: [...new Set([...s.dismissedAnnouncements, id])] })),
@@ -678,17 +719,17 @@ export const useStore = create<Store>()(
           const shown = new Set(panes.filter(Boolean) as string[]);
           const spare = s.tabs.filter((t) => t.state !== "dormant" && !shown.has(t.id));
           for (let i = 0; i < paneCount(splitMode); i++) {
-            if (!panes[i] || !s.tabs.some((t) => t.id === panes[i])) {
+            if (!panes[i] || (!isView(panes[i]) && !s.tabs.some((t) => t.id === panes[i]))) {
               const next = spare.shift();
               panes[i] = next ? next.id : null;
               if (next) shown.add(next.id);
             }
           }
           const focusedPane = Math.min(s.focusedPane, paneCount(splitMode) - 1);
-          return { splitMode, panes, focusedPane, activeTabId: panes[focusedPane] ?? s.activeTabId };
+          return { splitMode, panes, focusedPane, activeTabId: tabIn(panes[focusedPane]) ?? s.activeTabId };
         }),
       focusPane: (index) =>
-        set((s) => ({ focusedPane: index, activeTabId: s.panes[index] ?? s.activeTabId })),
+        set((s) => ({ focusedPane: index, activeTabId: tabIn(s.panes[index]) ?? s.activeTabId })),
       openTabMenu: (tabMenu) => set({ tabMenu }),
       startPaneAssign: (paneAssign) => set({ paneAssign, tabMenu: null }),
       assignToPane: (tabId, index) => {
