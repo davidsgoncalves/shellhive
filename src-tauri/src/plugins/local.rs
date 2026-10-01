@@ -60,6 +60,23 @@ pub struct PanelInfo {
     entry: String,
 }
 
+/// An item the plugin adds to a tab's context menu; it runs one of its tools.
+#[derive(Clone, serde::Serialize)]
+pub struct MenuItem {
+    label: String,
+    tool: String,
+}
+
+/// A tool the app runs on its own every `every` seconds while the plugin is on.
+#[derive(Clone, serde::Serialize)]
+pub struct Schedule {
+    tool: String,
+    every: u64,
+}
+
+/// The shortest interval a schedule may ask for.
+const SCHEDULE_MIN_SECS: u64 = 15;
+
 /// A plugin found in the folder, as the interface shows it.
 #[derive(Clone, serde::Serialize)]
 pub struct LocalPlugin {
@@ -73,6 +90,11 @@ pub struct LocalPlugin {
     dir: String,
     tools: Vec<ToolInfo>,
     panel: Option<PanelInfo>,
+    /// A tab of its own in the right column, visible from any session.
+    #[serde(rename = "sidePanel")]
+    side_panel: Option<PanelInfo>,
+    menu: Vec<MenuItem>,
+    schedule: Vec<Schedule>,
     permissions: Vec<String>,
     #[serde(skip)]
     agent_context: Option<String>,
@@ -179,6 +201,9 @@ fn read_plugin(dir: &Path, id: &str, approved: &HashMap<String, String>) -> Loca
         dir: dir.to_string_lossy().to_string(),
         tools: Vec::new(),
         panel: None,
+        side_panel: None,
+        menu: Vec::new(),
+        schedule: Vec::new(),
         permissions: Vec::new(),
         agent_context: None,
         definitions: Vec::new(),
@@ -196,7 +221,9 @@ fn read_plugin(dir: &Path, id: &str, approved: &HashMap<String, String>) -> Loca
     plugin
 }
 
-const PERMISSIONS: &[&str] = &["tab", "tools", "prompt", "storage", "events"];
+const PERMISSIONS: &[&str] = &[
+    "tab", "tools", "prompt", "storage", "events", "badge", "notify",
+];
 
 fn parse(dir: &Path, id: &str, plugin: &mut LocalPlugin) -> Result<(), String> {
     if !valid_id(id) {
@@ -258,16 +285,60 @@ fn parse(dir: &Path, id: &str, plugin: &mut LocalPlugin) -> Result<(), String> {
         });
     }
 
-    if let Some(panel) = m.get("panel") {
-        let entry = text(panel, "entry").unwrap_or_else(|| "panel.html".into());
+    let panel_spec = |key: &str, default_entry: &str| -> Result<Option<PanelInfo>, String> {
+        let Some(panel) = m.get(key) else {
+            return Ok(None);
+        };
+        let entry = text(panel, "entry").unwrap_or_else(|| default_entry.into());
         if entry.contains(['/', '\\']) || entry.starts_with('.') {
-            return Err("panel.entry precisa ser um arquivo na pasta do plugin".into());
+            return Err(format!(
+                "{key}.entry precisa ser um arquivo na pasta do plugin"
+            ));
         }
         if !dir.join(&entry).is_file() {
-            return Err(format!("o painel aponta para {entry}, que não existe"));
+            return Err(format!("{key} aponta para {entry}, que não existe"));
         }
         let title = text(panel, "title").unwrap_or_else(|| plugin.name.clone());
-        plugin.panel = Some(PanelInfo { title, entry });
+        Ok(Some(PanelInfo { title, entry }))
+    };
+    plugin.panel = panel_spec("panel", "panel.html")?;
+    plugin.side_panel = panel_spec("sidePanel", "side.html")?;
+
+    let own = |tool: &str| plugin.tools.iter().any(|t| t.name == tool);
+    for item in m
+        .get("menu")
+        .and_then(|v| v.as_array())
+        .into_iter()
+        .flatten()
+    {
+        let label = text(item, "label").ok_or("um item de menu está sem label")?;
+        let tool = text(item, "tool").ok_or(format!("o item {label} está sem tool"))?;
+        if !own(&tool) {
+            return Err(format!(
+                "o item {label} chama {tool}, que não é uma ferramenta deste plugin"
+            ));
+        }
+        plugin.menu.push(MenuItem { label, tool });
+    }
+    for item in m
+        .get("schedule")
+        .and_then(|v| v.as_array())
+        .into_iter()
+        .flatten()
+    {
+        let tool = text(item, "tool").ok_or("uma rotina está sem tool")?;
+        if !own(&tool) {
+            return Err(format!(
+                "a rotina chama {tool}, que não é uma ferramenta deste plugin"
+            ));
+        }
+        let every = item.get("every").and_then(|e| e.as_u64()).unwrap_or(60);
+        if every < SCHEDULE_MIN_SECS {
+            return Err(format!(
+                "a rotina de {tool} precisa de every de ao menos {SCHEDULE_MIN_SECS} segundos"
+            ));
+        }
+        plugin.schedule.push(Schedule { tool, every });
     }
 
     for p in m
@@ -285,7 +356,7 @@ fn parse(dir: &Path, id: &str, plugin: &mut LocalPlugin) -> Result<(), String> {
         }
         plugin.permissions.push(p.to_string());
     }
-    if plugin.tools.is_empty() && plugin.panel.is_none() {
+    if plugin.tools.is_empty() && plugin.panel.is_none() && plugin.side_panel.is_none() {
         return Err("o plugin precisa de ao menos uma ferramenta ou um painel".into());
     }
     Ok(())
@@ -419,9 +490,14 @@ pub fn local_plugin_remove(app: AppHandle, id: String) -> Result<(), String> {
 
 /// The HTML of an approved plugin's panel.
 #[tauri::command]
-pub fn local_plugin_panel(id: String) -> Result<String, String> {
+pub fn local_plugin_panel(id: String, side: Option<bool>) -> Result<String, String> {
     let plugin = approved(&id).ok_or("plugin não aprovado")?;
-    let panel = plugin.panel.ok_or("o plugin não tem painel")?;
+    let panel = if side.unwrap_or(false) {
+        plugin.side_panel
+    } else {
+        plugin.panel
+    }
+    .ok_or("o plugin não tem esse painel")?;
     fs::read_to_string(Path::new(&plugin.dir).join(panel.entry)).map_err(|e| e.to_string())
 }
 
@@ -492,11 +568,11 @@ pub fn call(
     let Some(plugin) = approved(id) else {
         return text_result(format!("O plugin {id} não está aprovado."), true);
     };
-    let (result, panel) = run_tool(&plugin, tool, tab_id.as_deref(), args);
-    if let Some(data) = panel {
+    let (result, effects) = run_tool(&plugin, tool, tab_id.as_deref(), args);
+    if let Some(effects) = effects {
         let _ = app.emit(
-            "plugin-panel-open",
-            serde_json::json!({ "plugin": id, "tab_id": tab_id, "data": data }),
+            "plugin-effects",
+            serde_json::json!({ "plugin": id, "tab_id": tab_id, "effects": effects }),
         );
     }
     result
@@ -512,7 +588,7 @@ pub async fn local_plugin_run(
     args: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
     let plugin = approved(&id).ok_or("plugin não aprovado")?;
-    let (result, _) = tauri::async_runtime::spawn_blocking(move || {
+    let (result, effects) = tauri::async_runtime::spawn_blocking(move || {
         run_tool(&plugin, &tool, tab_id.as_deref(), &args)
     })
     .await
@@ -520,11 +596,14 @@ pub async fn local_plugin_run(
     Ok(serde_json::json!({
         "text": result["content"][0]["text"],
         "isError": result["isError"],
+        "effects": effects,
     }))
 }
 
-/// Runs the program and returns the tool result, plus the data for the
-/// plugin's panel when the reply asks to open it.
+/// Runs the program and returns the tool result, plus what the reply asks
+/// the app to do: open the panel, set tab badges, notify. Each effect is
+/// kept only when the plugin has what it needs (a panel, the permission);
+/// the interface applies them.
 fn run_tool(
     plugin: &LocalPlugin,
     tool: &str,
@@ -605,10 +684,22 @@ fn run_tool(
     let Some(reply) = reply else {
         return (text_result(stdout.trim().to_string(), false), None);
     };
-    let panel = reply
-        .get("panel")
-        .filter(|_| plugin.panel.is_some())
-        .cloned();
+    let allowed = |p: &str| plugin.permissions.iter().any(|x| x == p);
+    let mut effects = serde_json::Map::new();
+    if let Some(panel) = reply.get("panel").filter(|_| plugin.panel.is_some()) {
+        effects.insert("panel".into(), panel.clone());
+    }
+    if allowed("badge") {
+        for key in ["badge", "badges"] {
+            if let Some(v) = reply.get(key) {
+                effects.insert(key.into(), v.clone());
+            }
+        }
+    }
+    if let Some(notify) = reply.get("notify").filter(|_| allowed("notify")) {
+        effects.insert("notify".into(), notify.clone());
+    }
+    let effects = (!effects.is_empty()).then_some(serde_json::Value::Object(effects));
     let result = text_result(
         reply["text"].as_str().unwrap_or_default().to_string(),
         reply
@@ -616,7 +707,7 @@ fn run_tool(
             .and_then(|e| e.as_bool())
             .unwrap_or(false),
     );
-    (result, panel)
+    (result, effects)
 }
 
 #[cfg(test)]
@@ -651,7 +742,7 @@ mod tests {
         let dir = tmp.join("exemplo");
         write(&dir, EXAMPLE);
         let p = read_plugin(&dir, "exemplo", &HashMap::new());
-        let (result, panel) = run_tool(
+        let (result, effects) = run_tool(
             &p,
             "exemplo_ola",
             None,
@@ -663,7 +754,10 @@ mod tests {
             .as_str()
             .unwrap()
             .contains("Ana"));
-        assert!(panel.unwrap()["mensagem"].as_str().unwrap().contains("Ana"));
+        assert!(effects.unwrap()["panel"]["mensagem"]
+            .as_str()
+            .unwrap()
+            .contains("Ana"));
     }
 
     #[test]
@@ -682,6 +776,50 @@ mod tests {
         assert!(read_plugin(&dir, "demo", &approved).status == Status::Approved);
         fs::write(dir.join("extra.js"), "changed").unwrap();
         assert!(read_plugin(&dir, "demo", &approved).status == Status::Pending);
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn menus_and_schedules_must_use_own_tools() {
+        let tmp = std::env::temp_dir().join(format!("shellhive-menu-{}", std::process::id()));
+        let dir = tmp.join("demo");
+        let tool = r#"{"name":"demo_x","description":"d","run":["true"]}"#;
+        write(
+            &dir,
+            &[(
+                "plugin.json",
+                &format!(
+                    r#"{{"id":"demo","name":"Demo","tools":[{tool}],"menu":[{{"label":"X","tool":"demo_x"}}],"schedule":[{{"tool":"demo_x","every":30}}]}}"#
+                ),
+            )],
+        );
+        assert!(read_plugin(&dir, "demo", &HashMap::new()).error.is_none());
+        write(
+            &dir,
+            &[(
+                "plugin.json",
+                &format!(
+                    r#"{{"id":"demo","name":"Demo","tools":[{tool}],"menu":[{{"label":"X","tool":"open_editor"}}]}}"#
+                ),
+            )],
+        );
+        assert!(read_plugin(&dir, "demo", &HashMap::new())
+            .error
+            .unwrap()
+            .contains("open_editor"));
+        write(
+            &dir,
+            &[(
+                "plugin.json",
+                &format!(
+                    r#"{{"id":"demo","name":"Demo","tools":[{tool}],"schedule":[{{"tool":"demo_x","every":2}}]}}"#
+                ),
+            )],
+        );
+        assert!(read_plugin(&dir, "demo", &HashMap::new())
+            .error
+            .unwrap()
+            .contains("15"));
         let _ = fs::remove_dir_all(&tmp);
     }
 

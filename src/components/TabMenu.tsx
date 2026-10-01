@@ -1,6 +1,9 @@
 import { useEffect, useRef } from "react";
 import { useStore } from "../lib/store";
 import { closeDetachedWindow } from "../lib/detach";
+import { runPluginTool } from "../lib/pluginEffects";
+import { pluginTab } from "../lib/localPlugins";
+import { notify } from "../lib/notify";
 
 /** Right-click menu for a tab or a terminal pane. */
 export function TabMenu() {
@@ -19,6 +22,7 @@ export function TabMenu() {
     localPlugins,
     enabledPlugins,
     openPluginPanel,
+    groups,
   } = useStore();
   const ref = useRef<HTMLDivElement>(null);
 
@@ -77,6 +81,26 @@ export function TabMenu() {
           )}
         </>
       )}
+      {localPlugins
+        .filter((p) => p.status === "approved" && enabledPlugins.includes(p.id))
+        .flatMap((p) => p.menu.map((item) => ({ p, item })))
+        .map(({ p, item }) => (
+          <button
+            key={`${p.id}:${item.label}`}
+            className="menu-item"
+            title={p.name}
+            onClick={() => {
+              openTabMenu(null);
+              void runPluginTool(p, item.tool, tab.id, { tab: pluginTab(tab, groups) })
+                .then((r) => {
+                  if (r.isError) void notify(p.name, r.text, true);
+                })
+                .catch((err) => notify(p.name, String(err), true));
+            }}
+          >
+            {item.label}
+          </button>
+        ))}
       {localPlugins
         .filter((p) => p.status === "approved" && p.panel && enabledPlugins.includes(p.id))
         .map((p) => (

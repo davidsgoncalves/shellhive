@@ -128,6 +128,8 @@ interface Store {
   localPlugins: LocalPlugin[];
   /** Approval cards the user put off, by plugin id and the hash they saw. */
   deferredApprovals: Record<string, string>;
+  /** Badges plugins put under tab names: tab id -> plugin id -> text. */
+  pluginBadges: Record<string, Record<string, string>>;
   /** The local plugin panel on screen. */
   pluginPanel: PluginPanel | null;
   /** Follows the beta channel for updates. */
@@ -234,6 +236,7 @@ interface Store {
   setLocalPlugins: (list: LocalPlugin[]) => void;
   deferApproval: (id: string, hash: string) => void;
   openPluginPanel: (panel: PluginPanel | null) => void;
+  setPluginBadge: (tabId: string, pluginId: string, text: string | null) => void;
   setMiniPanel: (on: boolean) => void;
   setShowEvents: (on: boolean) => void;
   setErrorReportsAsked: (asked: boolean) => void;
@@ -285,6 +288,7 @@ export const useStore = create<Store>()(
       localPlugins: [],
       deferredApprovals: {},
       pluginPanel: null,
+      pluginBadges: {},
       miniPanel: false,
       showEvents: false,
       errorReportsAsked: false,
@@ -639,9 +643,25 @@ export const useStore = create<Store>()(
         }),
       deferApproval: (id, hash) => set((s) => ({ deferredApprovals: { ...s.deferredApprovals, [id]: hash } })),
       openPluginPanel: (pluginPanel) => set({ pluginPanel }),
+      setPluginBadge: (tabId, pluginId, text) =>
+        set((s) => {
+          const { [pluginId]: _old, ...rest } = s.pluginBadges[tabId] ?? {};
+          const next = text ? { ...rest, [pluginId]: text } : rest;
+          return { pluginBadges: { ...s.pluginBadges, [tabId]: next } };
+        }),
       setPluginEnabled: (id, on) =>
         set((s) => ({
           enabledPlugins: on ? [...new Set([...s.enabledPlugins, id])] : s.enabledPlugins.filter((p) => p !== id),
+          // A plugin turned off takes its badges and panel with it.
+          pluginBadges: on
+            ? s.pluginBadges
+            : Object.fromEntries(
+                Object.entries(s.pluginBadges).map(([tab, b]) => [
+                  tab,
+                  Object.fromEntries(Object.entries(b).filter(([p]) => p !== id)),
+                ]),
+              ),
+          pluginPanel: !on && s.pluginPanel?.plugin === id ? null : s.pluginPanel,
         })),
       dismissAnnouncement: (id) =>
         set((s) => ({ dismissedAnnouncements: [...new Set([...s.dismissedAnnouncements, id])] })),

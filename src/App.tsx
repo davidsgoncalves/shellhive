@@ -20,6 +20,7 @@ import { PLUGINS, type PluginHost } from "./lib/plugins";
 import { reportError } from "./lib/errors";
 import { LocalPluginPanel } from "./components/LocalPluginPanel";
 import type { LocalPlugin } from "./lib/localPlugins";
+import { allTabs, applyEffects, runPluginTool, type PluginEffects } from "./lib/pluginEffects";
 import { TerminalSearch } from "./components/TerminalSearch";
 import { CommandCard, typeCommand } from "./components/CommandCard";
 import { applyLook, shareLook } from "./lib/theme";
@@ -475,13 +476,41 @@ function useLocalPlugins() {
     invoke<LocalPlugin[]>("local_plugins").then(store().setLocalPlugins).catch(console.error);
     const subs = [
       listen<LocalPlugin[]>("local-plugins", (ev) => store().setLocalPlugins(ev.payload)),
-      listen<{ plugin: string; tab_id: string | null; data: unknown }>("plugin-panel-open", ({ payload }) => {
-        if (!store().enabledPlugins.includes(payload.plugin)) return;
-        store().openPluginPanel({ plugin: payload.plugin, tabId: payload.tab_id, data: payload.data });
+      // What a tool the agent called asks the app to do: panel, badges, notification.
+      listen<{ plugin: string; tab_id: string | null; effects: PluginEffects }>("plugin-effects", ({ payload }) => {
+        const plugin = store().localPlugins.find((p) => p.id === payload.plugin);
+        if (plugin) applyEffects(plugin, payload.tab_id, payload.effects);
       }),
     ];
     return () => subs.forEach((p) => void p.then((un) => un()));
   }, []);
+}
+
+/** Runs the tools plugins scheduled, while each plugin is on. */
+function usePluginSchedules() {
+  const localPlugins = useStore((s) => s.localPlugins);
+  const enabled = useStore((s) => s.enabledPlugins);
+  const key = JSON.stringify(
+    localPlugins
+      .filter((p) => p.status === "approved" && enabled.includes(p.id) && p.schedule.length)
+      .map((p) => [p.id, p.hash, p.schedule]),
+  );
+  useEffect(() => {
+    const timers: ReturnType<typeof setInterval>[] = [];
+    const store = useStore.getState;
+    for (const plugin of store().localPlugins) {
+      if (plugin.status !== "approved" || !store().enabledPlugins.includes(plugin.id)) continue;
+      for (const job of plugin.schedule) {
+        const run = () =>
+          void runPluginTool(plugin, job.tool, null, { tabs: allTabs() }).catch((err) =>
+            reportError("plugin", `${plugin.id}/${job.tool}: ${err}`),
+          );
+        run();
+        timers.push(setInterval(run, job.every * 1000));
+      }
+    }
+    return () => timers.forEach(clearInterval);
+  }, [key]);
 }
 
 /** Tells the backend which plugins' agent tools to offer. */
@@ -516,6 +545,7 @@ function App() {
   usePluginSync();
   usePluginToolCalls();
   useLocalPlugins();
+  usePluginSchedules();
   const tabs = useStore((s) => s.tabs);
 
   useEffect(() => {

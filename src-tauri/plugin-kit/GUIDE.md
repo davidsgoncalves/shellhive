@@ -1,6 +1,12 @@
 # Plugins do Shellhive
 
-Um plugin acrescenta ferramentas que o agente pode chamar e, se quiser, um painel que abre abaixo do terminal. Cada plugin é uma pasta dentro desta pasta (`plugins/`), com um `plugin.json`. A pasta `_exemplo/` tem um plugin completo para copiar.
+Um plugin acrescenta ferramentas que o agente pode chamar e pedaços de interface:
+- um painel abaixo do terminal de uma aba;
+- uma aba própria na coluna da direita, visível em qualquer sessão;
+- etiquetas embaixo do nome das abas;
+- itens no menu de clique direito das abas;
+- notificações do sistema;
+- ferramentas que rodam sozinhas de tempos em tempos. Cada plugin é uma pasta dentro desta pasta (`plugins/`), com um `plugin.json`. A pasta `_exemplo/` tem um plugin completo para copiar.
 
 ## Criar um plugin
 
@@ -32,7 +38,10 @@ Qualquer alteração em um arquivo da pasta pede aprovação de novo. Se o plugi
     }
   ],
   "panel": { "entry": "panel.html", "title": "Deploy" },
-  "permissions": ["tab", "tools", "prompt", "storage", "events"]
+  "sidePanel": { "entry": "side.html", "title": "Deploy" },
+  "menu": [{ "label": "Ver status do deploy", "tool": "deploy_status" }],
+  "schedule": [{ "tool": "deploy_status", "every": 60 }],
+  "permissions": ["tab", "tools", "prompt", "storage", "events", "badge", "notify"]
 }
 ```
 
@@ -40,8 +49,11 @@ Qualquer alteração em um arquivo da pasta pede aprovação de novo. Se o plugi
 - `name`: obrigatório.
 - `description` e `agentContext`: opcionais.
 - `tools`: opcional. Cada ferramenta precisa de `name`, que começa com `<id>_`, de `description` e de `run`. O `inputSchema` é JSON Schema; sem ele, a ferramenta aceita qualquer objeto.
-- `panel`: opcional.
-- `permissions`: opcional. Vale para o painel; `events` também libera os eventos para os programas das ferramentas.
+- `panel`: opcional. Painel abaixo do terminal da aba.
+- `sidePanel`: opcional. Aba do plugin na coluna da direita, ao lado de Fila e Histórico; trabalha sobre a aba ativa.
+- `menu`: opcional. Itens no menu de clique direito das abas; cada um chama uma ferramenta do próprio plugin, com `{ "tab": { … } }` como argumentos.
+- `schedule`: opcional. Ferramentas que o app roda sozinho enquanto o plugin está ligado, a cada `every` segundos (mínimo 15), com `{ "tabs": [ … ] }` como argumentos.
+- `permissions`: opcional. Vale para os painéis; `events` também libera os eventos para os programas, e `badge` e `notify` também valem para as respostas das ferramentas.
 - Um plugin precisa de ao menos uma ferramenta ou um painel.
 
 ## Ferramentas
@@ -58,7 +70,14 @@ Qualquer alteração em um arquivo da pasta pede aprovação de novo. Se o plugi
 A resposta sai no stdout, de uma de duas formas:
 
 - **Texto puro:** volta para o agente como está.
-- **Um objeto JSON com `text`:** também pode ter `isError` (booleano) e `panel`. Quando `panel` existe e o plugin tem painel, o painel abre na aba que chamou e recebe esse valor em `shellhive.onData`.
+- **Um objeto JSON com `text`:** também pode ter:
+  - `isError` (booleano);
+  - `panel`: abre o painel na aba que chamou, com esse valor em `shellhive.onData`;
+  - `badge`: texto da etiqueta da aba que chamou, ou `null` para tirar (permissão `badge`);
+  - `badges`: objeto `{ "<id da aba>": "texto" | null }`, para várias abas de uma vez, útil numa rotina (permissão `badge`);
+  - `notify`: `{ "title": "…", "body": "…" }`, uma notificação do sistema (permissão `notify`).
+
+Cada aba chega como `{ id, title, cwd, sessionId, group, state }`. O `sessionId` é a sessão do agente; ele continua o mesmo quando a sessão é fechada e reaberta, então serve para ligar dados a uma sessão (o `id` da aba muda ao reabrir).
 
 Saída de erro com código diferente de zero vira erro para o agente. Uma chamada tem até 60 segundos, e a saída acima de 256 KB é cortada.
 
@@ -72,14 +91,18 @@ Saída de erro com código diferente de zero vira erro para o agente. Uma chamad
 | --- | --- | --- |
 | `shellhive.onData(fn)` | nenhuma | Recebe o `panel` enviado por uma ferramenta; também é chamada com `null` quando o usuário abre o painel pelo menu da aba |
 | `shellhive.close()` | nenhuma | Fecha o painel |
-| `shellhive.tab()` | `tab` | Devolve `{ id, title, cwd }` da aba |
+| `shellhive.tab()` | `tab` | Devolve a aba do painel; na aba lateral, a aba ativa |
+| `shellhive.onTab(fn)` | nenhuma | Chama `fn` com a aba quando ela muda; na aba lateral, a cada troca de aba |
+| `shellhive.tabs()` | `tab` | Devolve todas as abas |
+| `shellhive.setBadge(texto, idDaAba)` | `badge` | Põe ou tira (`null`) a etiqueta do plugin numa aba; sem id, na aba do painel |
+| `shellhive.notify(título, texto)` | `notify` | Mostra uma notificação do sistema |
 | `shellhive.tool(nome, args)` | `tools` | Chama uma ferramenta do próprio plugin e devolve `{ text, isError }` |
 | `shellhive.prompt(texto, { submit })` | `prompt` | Escreve no prompt do agente da aba; envia só com `submit: true` |
 | `shellhive.storage.get()` / `.set(valor)` | `storage` | Guarda um valor JSON do plugin, até 256 KB |
 | `shellhive.events()` | `events` | Devolve os eventos recentes do agente em todas as abas, do mais antigo ao mais novo |
 | `shellhive.onEvent(fn)` | `events` | Chama `fn` com cada evento novo, de qualquer aba, enquanto o painel está aberto |
 
-Todas devolvem Promise. O usuário também abre o painel pelo menu de clique direito da aba, em "Abrir painel".
+Todas devolvem Promise. O usuário também abre o painel pelo menu de clique direito da aba, em "Abrir painel". A aba lateral usa o mesmo formato de arquivo e as mesmas funções.
 
 ## Eventos do agente
 
