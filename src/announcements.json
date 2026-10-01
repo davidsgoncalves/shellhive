@@ -2,10 +2,9 @@
   {
     "id": "local-plugins-beta",
     "date": "2026-09-29",
-    "beta": true,
     "highlight": true,
-    "title": "Beta: crie seus próprios plugins",
-    "body": "Peça ao Claude um plugin do Shellhive, com ferramentas novas para ele e um painel seu abaixo do terminal. Ele escreve os arquivos a partir do guia do app; você aprova na Fila e liga em Configurações > Plugins.",
+    "title": "Crie seus próprios plugins",
+    "body": "Peça ao Claude um plugin do Shellhive, com ferramentas novas para ele e telas suas no app. Ele escreve os arquivos a partir do guia do app; você aprova na Fila e liga em Configurações > Plugins.",
     "note": "Um plugin roda com as suas permissões. Confira o que ele faz antes de aprovar."
   },
   {
@@ -13,7 +12,7 @@
     "date": "2026-09-29",
     "highlight": true,
     "title": "Diagramas dentro do Shellhive",
-    "body": "Peça ao Claude um fluxograma, um diagrama de sequência ou o modelo de dados de uma feature: ele aparece num painel logo abaixo do terminal, sem abrir o navegador. Dá para copiar como imagem ou salvar em SVG.",
+    "body": "Peça ao Claude um fluxograma, um diagrama de sequência ou o modelo de dados de uma feature: ele abre numa janela com zoom e fica salvo na aba Diagramas, sem abrir o navegador. Dá para copiar como imagem ou salvar em SVG.",
     "note": "É o primeiro plugin novo e vem desligado: ligue em Configurações > Plugins."
   },
   {

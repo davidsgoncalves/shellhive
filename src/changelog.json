@@ -1,65 +1,13 @@
 [
   {
-    "version": "1.3.0-beta.8",
+    "version": "1.3.0",
     "date": "2026-10-01",
     "items": [
-      "No macOS, o Shellhive pede acesso ao microfone, e o modo de voz do Claude Code passa a funcionar dentro dele.",
-      "Os diagramas do Claude ficam salvos numa aba Diagramas, na coluna da direita, e abrem numa janela própria com zoom e arrastar."
-    ]
-  },
-  {
-    "version": "1.3.0-beta.7",
-    "date": "2026-10-01",
-    "items": [
-      "Plugins podem ocupar um espaço inteiro da tela dividida, no lugar de um terminal, e abrir janelas próprias.",
-      "Plugins podem mostrar um indicador na barra de cima e declarar atalhos de teclado (⌘⌥ + tecla no macOS, Ctrl+Alt+Shift + tecla no Linux e no Windows)."
-    ]
-  },
-  {
-    "version": "1.3.0-beta.6",
-    "date": "2026-10-01",
-    "items": [
-      "Plugins ganharam mais lugares na interface: uma aba própria na coluna da direita, etiquetas embaixo do nome das abas, itens no menu de clique direito e notificações.",
-      "Plugins podem rodar ferramentas sozinhos de tempos em tempos, para manter etiquetas e avisos em dia.",
-      "Plugins recebem o identificador da sessão do agente, que continua o mesmo quando a sessão é reaberta."
-    ]
-  },
-  {
-    "version": "1.3.0-beta.5",
-    "date": "2026-10-01",
-    "items": [
-      "Linux: a janela parou de piscar e travar. O desfoque dos temas Glass e Glow fica só no macOS, as animações ficaram mais leves e pausam com a janela escondida, e o modo de desenho que falhava em várias placas de vídeo vem desligado."
-    ]
-  },
-  {
-    "version": "1.3.0-beta.4",
-    "date": "2026-09-30",
-    "items": [
-      "Editor, diagramas e painéis de plugins só aparecem sobre a aba que os pediu, e esperam escondidos enquanto você está em outra aba."
-    ]
-  },
-  {
-    "version": "1.3.0-beta.3",
-    "date": "2026-09-30",
-    "items": [
-      "Diagramas: um erro ao desenhar volta para o Claude corrigir, em vez de aparecer só no painel.",
-      "Diagramas: o erro do Mermaid não é mais pintado fora do painel, embaixo da janela."
-    ]
-  },
-  {
-    "version": "1.3.0-beta.2",
-    "date": "2026-09-29",
-    "items": [
-      "Plugins podem pedir a permissão de ver o que o agente faz em cada aba: os arquivos que ele editou ou leu, os comandos e as pastas em que rodou."
-    ]
-  },
-  {
-    "version": "1.3.0-beta.1",
-    "date": "2026-09-29",
-    "items": [
-      "Plugins seus: peça ao Claude um plugin do Shellhive e ele escreve os arquivos a partir do guia do app. O plugin aparece na Fila para você aprovar e liga em Configurações > Plugins.",
-      "Plugins podem ter um painel próprio abaixo do terminal, isolado do app e sem acesso à rede.",
-      "Qualquer mudança nos arquivos de um plugin pede aprovação de novo."
+      "Plugins seus: peça ao Claude um plugin do Shellhive e ele escreve os arquivos a partir do guia do app. O plugin aparece na Fila para você aprovar e liga em Configurações > Plugins. Qualquer mudança nos arquivos pede aprovação de novo.",
+      "Plugins podem ter painel abaixo do terminal, aba própria na coluna da direita, espaço inteiro da tela dividida, janela própria, indicador na barra de cima, etiquetas embaixo do nome das abas, itens no menu de clique direito, notificações e atalhos de teclado (⌘⌥ + tecla no macOS, Ctrl+Alt+Shift + tecla no Linux e no Windows).",
+      "Plugins podem pedir para ver o que o agente faz em cada aba (arquivos editados ou lidos, comandos e pastas), rodar ferramentas sozinhos de tempos em tempos e recebem o identificador da sessão do agente.",
+      "Os diagramas do Claude ficam salvos numa aba Diagramas, na coluna da direita, e abrem numa janela própria com zoom e arrastar.",
+      "No macOS, o Shellhive pede acesso ao microfone, e o modo de voz do Claude Code passa a funcionar dentro dele."
     ]
   },
   {
@@ -92,14 +40,6 @@
       "Plugin Diagramas Mermaid para todos: o Claude mostra fluxogramas, sequências, modelos de dados, estados e cronogramas num painel abaixo do terminal.",
       "Plugins começam desligados e só ligam quando você quiser; a escolha fica entre atualizações.",
       "Novidades com × para fechar o painel e para remover cada anúncio."
-    ]
-  },
-  {
-    "version": "1.2.0-beta.1",
-    "date": "2026-09-29",
-    "items": [
-      "Plugin Diagramas Mermaid: o Claude mostra fluxogramas, sequências, modelos de dados, estados e cronogramas num painel abaixo do terminal, com opções de copiar como imagem, salvar em SVG e editar o código.",
-      "Plugins podem responder às ferramentas do agente pela própria interface."
     ]
   },
   {
