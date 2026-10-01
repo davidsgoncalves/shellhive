@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.2.3",
+    "date": "2026-10-01",
+    "items": [
+      "Linux: a janela parou de piscar e travar. O desfoque dos temas Glass e Glow fica só no macOS, as animações ficaram mais leves e pausam com a janela escondida, e o modo de desenho que falhava em várias placas de vídeo vem desligado."
+    ]
+  },
+  {
     "version": "1.2.2",
     "date": "2026-09-30",
     "items": [
