@@ -5,8 +5,9 @@ import { PluginSidePanel } from "./LocalPluginPanel";
 import { SessionsBrowser } from "./SessionsBrowser";
 import { EventsList } from "./EventsPanel";
 import { shortcutLabel } from "../lib/shortcuts";
+import { PLUGINS } from "../lib/plugins";
 
-type PanelTab = "queue" | "sessions" | "pinned" | "events" | `plugin:${string}`;
+type PanelTab = "queue" | "sessions" | "pinned" | "events" | `plugin:${string}` | `official:${string}`;
 
 export function RightPanel() {
   const { eventsOpen, toggleEvents, permissions, questions, commands, showEvents } = useStore();
@@ -17,6 +18,7 @@ export function RightPanel() {
   const sidePlugins = localPlugins.filter(
     (p) => p.status === "approved" && p.sidePanel && enabledPlugins.includes(p.id),
   );
+  const officialTabs = PLUGINS.filter((p) => p.SideTab && enabledPlugins.includes(p.manifest.id));
   // In the store, so a plugin can bring its own tab forward.
   const panel = useStore((s) => s.rightPanelTab) as PanelTab;
   const setPanel = useStore((s) => s.setRightPanelTab);
@@ -40,11 +42,13 @@ export function RightPanel() {
     { key: "pinned", label: "Fixadas" },
     // Raw hook traffic, only for diagnosing the app; switched on under Sobre.
     ...(showEvents ? [{ key: "events" as const, label: "Eventos" }] : []),
+    ...officialTabs.map((p) => ({ key: `official:${p.manifest.id}` as const, label: p.SideTab!.title })),
     ...sidePlugins.map((p) => ({ key: `plugin:${p.id}` as const, label: p.sidePanel!.title })),
   ];
   // A tab whose plugin was turned off or hid its panel falls back to the queue.
   const current = TABS.some((t) => t.key === panel) ? panel : "queue";
   const sidePlugin = sidePlugins.find((p) => `plugin:${p.id}` === current);
+  const OfficialTab = officialTabs.find((p) => `official:${p.manifest.id}` === current)?.SideTab?.Component;
 
   return (
     <aside className="events-panel">
@@ -77,6 +81,11 @@ export function RightPanel() {
       {current === "pinned" && (
         <div className="panel-body">
           <SessionsBrowser onlyPinned />
+        </div>
+      )}
+      {OfficialTab && (
+        <div className="panel-body">
+          <OfficialTab />
         </div>
       )}
       {sidePlugin && (
