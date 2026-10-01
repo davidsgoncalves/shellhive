@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.0-beta.8",
+    "date": "2026-10-01",
+    "items": [
+      "No macOS, o Shellhive pede acesso ao microfone, e o modo de voz do Claude Code passa a funcionar dentro dele.",
+      "Os diagramas do Claude ficam salvos numa aba Diagramas, na coluna da direita, e abrem numa janela própria com zoom e arrastar."
+    ]
+  },
+  {
     "version": "1.3.0-beta.7",
     "date": "2026-10-01",
     "items": [
