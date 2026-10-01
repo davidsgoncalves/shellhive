@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useStore } from "../lib/store";
 import { PermissionQueue } from "./PermissionQueue";
 import { pendingApprovals } from "./PluginApprovals";
@@ -18,7 +17,9 @@ export function RightPanel() {
   const sidePlugins = localPlugins.filter(
     (p) => p.status === "approved" && p.sidePanel && enabledPlugins.includes(p.id),
   );
-  const [panel, setPanel] = useState<PanelTab>("queue");
+  // In the store, so a plugin can bring its own tab forward.
+  const panel = useStore((s) => s.rightPanelTab) as PanelTab;
+  const setPanel = useStore((s) => s.setRightPanelTab);
 
   if (!eventsOpen) {
     return (

@@ -14,8 +14,20 @@ export interface LocalPlugin {
   sidePanel: { title: string } | null;
   menu: Array<{ label: string; tool: string }>;
   schedule: Array<{ tool: string; every: number }>;
+  /** Takes a whole pane of the split, like a terminal. */
+  view: { title: string } | null;
+  window: { title: string; width: number; height: number } | null;
+  shortcuts: Array<{ key: string; tool: string | null; open: Surface | null }>;
   permissions: string[];
 }
+
+/** The places a plugin can show itself. */
+export type Surface = "panel" | "side" | "view" | "window";
+
+/** Panes hold tab ids, or this prefix plus a plugin id for a plugin view. */
+export const VIEW_PREFIX = "view:";
+export const isView = (id: string | null | undefined): id is string => !!id && id.startsWith(VIEW_PREFIX);
+export const viewOf = (pluginId: string) => `${VIEW_PREFIX}${pluginId}`;
 
 /** What a plugin sees of a tab. */
 export interface PluginTab {
@@ -59,4 +71,5 @@ export const PERMISSION_LABEL: Record<string, string> = {
   events: "ver o que o agente faz em cada aba (arquivos e comandos)",
   badge: "escrever uma etiqueta embaixo do nome das abas",
   notify: "mandar notificações do sistema",
+  status: "mostrar um indicador na barra de cima",
 };

@@ -3,6 +3,10 @@
 Um plugin acrescenta ferramentas que o agente pode chamar e pedaços de interface:
 - um painel abaixo do terminal de uma aba;
 - uma aba própria na coluna da direita, visível em qualquer sessão;
+- uma vista do tamanho de um terminal, ocupando um espaço da tela dividida;
+- uma janela própria;
+- um indicador na barra de cima;
+- atalhos de teclado;
 - etiquetas embaixo do nome das abas;
 - itens no menu de clique direito das abas;
 - notificações do sistema;
@@ -41,7 +45,10 @@ Qualquer alteração em um arquivo da pasta pede aprovação de novo. Se o plugi
   "sidePanel": { "entry": "side.html", "title": "Deploy" },
   "menu": [{ "label": "Ver status do deploy", "tool": "deploy_status" }],
   "schedule": [{ "tool": "deploy_status", "every": 60 }],
-  "permissions": ["tab", "tools", "prompt", "storage", "events", "badge", "notify"]
+  "view": { "entry": "view.html", "title": "Deploy" },
+  "window": { "entry": "window.html", "title": "Deploy", "width": 720, "height": 520 },
+  "shortcuts": [{ "key": "KeyD", "open": "side" }, { "key": "KeyS", "tool": "deploy_status" }],
+  "permissions": ["tab", "tools", "prompt", "storage", "events", "badge", "notify", "status"]
 }
 ```
 
@@ -52,6 +59,9 @@ Qualquer alteração em um arquivo da pasta pede aprovação de novo. Se o plugi
 - `panel`: opcional. Painel abaixo do terminal da aba.
 - `sidePanel`: opcional. Aba do plugin na coluna da direita, ao lado de Fila e Histórico; trabalha sobre a aba ativa.
 - `menu`: opcional. Itens no menu de clique direito das abas; cada um chama uma ferramenta do próprio plugin, com `{ "tab": { … } }` como argumentos.
+- `view`: opcional. Vista que ocupa um espaço inteiro da tela dividida, no lugar de um terminal; trabalha sobre a aba ativa.
+- `window`: opcional. Janela própria do plugin, com `width` e `height` em pixels.
+- `shortcuts`: opcional. Cada atalho é `key` (`KeyA` a `KeyZ` ou `Digit0` a `Digit9`) mais `tool` (roda essa ferramenta com `{ "tab": { … } }`) ou `open` (`panel`, `side`, `view` ou `window`). No macOS a combinação é ⌘⌥ + tecla; no Linux e no Windows, Ctrl+Alt+Shift + tecla.
 - `schedule`: opcional. Ferramentas que o app roda sozinho enquanto o plugin está ligado, a cada `every` segundos (mínimo 15), com `{ "tabs": [ … ] }` como argumentos.
 - `permissions`: opcional. Vale para os painéis; `events` também libera os eventos para os programas, e `badge` e `notify` também valem para as respostas das ferramentas.
 - Um plugin precisa de ao menos uma ferramenta ou um painel.
@@ -75,7 +85,10 @@ A resposta sai no stdout, de uma de duas formas:
   - `panel`: abre o painel na aba que chamou, com esse valor em `shellhive.onData`;
   - `badge`: texto da etiqueta da aba que chamou, ou `null` para tirar (permissão `badge`);
   - `badges`: objeto `{ "<id da aba>": "texto" | null }`, para várias abas de uma vez, útil numa rotina (permissão `badge`);
-  - `notify`: `{ "title": "…", "body": "…" }`, uma notificação do sistema (permissão `notify`).
+  - `notify`: `{ "title": "…", "body": "…" }`, uma notificação do sistema (permissão `notify`);
+  - `status`: texto do indicador do plugin na barra de cima, ou `{ "text": "…", "title": "dica" }`, ou `null` para tirar (permissão `status`). Clicar no indicador abre a aba lateral, a vista ou a janela do plugin, nessa ordem de preferência;
+  - `view`: abre a vista com esse valor em `shellhive.onData`;
+  - `window`: abre a janela com esse valor em `shellhive.onData`.
 
 Cada aba chega como `{ id, title, cwd, sessionId, group, state }`. O `sessionId` é a sessão do agente; ele continua o mesmo quando a sessão é fechada e reaberta, então serve para ligar dados a uma sessão (o `id` da aba muda ao reabrir).
 
@@ -96,13 +109,15 @@ Saída de erro com código diferente de zero vira erro para o agente. Uma chamad
 | `shellhive.tabs()` | `tab` | Devolve todas as abas |
 | `shellhive.setBadge(texto, idDaAba)` | `badge` | Põe ou tira (`null`) a etiqueta do plugin numa aba; sem id, na aba do painel |
 | `shellhive.notify(título, texto)` | `notify` | Mostra uma notificação do sistema |
+| `shellhive.setStatus(texto, dica)` | `status` | Põe ou tira (`null`) o indicador do plugin na barra de cima |
+| `shellhive.open(lugar, dados)` | nenhuma | Abre `panel`, `side`, `view` ou `window` do plugin, com `dados` em `onData` |
 | `shellhive.tool(nome, args)` | `tools` | Chama uma ferramenta do próprio plugin e devolve `{ text, isError }` |
 | `shellhive.prompt(texto, { submit })` | `prompt` | Escreve no prompt do agente da aba; envia só com `submit: true` |
 | `shellhive.storage.get()` / `.set(valor)` | `storage` | Guarda um valor JSON do plugin, até 256 KB |
 | `shellhive.events()` | `events` | Devolve os eventos recentes do agente em todas as abas, do mais antigo ao mais novo |
 | `shellhive.onEvent(fn)` | `events` | Chama `fn` com cada evento novo, de qualquer aba, enquanto o painel está aberto |
 
-Todas devolvem Promise. O usuário também abre o painel pelo menu de clique direito da aba, em "Abrir painel". A aba lateral usa o mesmo formato de arquivo e as mesmas funções.
+Todas devolvem Promise. O usuário também abre o painel pelo menu de clique direito da aba, em "Abrir painel". A aba lateral, a vista e a janela usam o mesmo formato de arquivo e as mesmas funções. Na janela própria, `tab()` e `prompt()` não têm aba para trabalhar: use a vista ou a aba lateral quando precisar delas.
 
 ## Eventos do agente
 

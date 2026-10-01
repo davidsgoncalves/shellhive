@@ -18,9 +18,10 @@ import { PaneOverlay } from "./components/PaneOverlay";
 import { EmptyPane } from "./components/EmptyPane";
 import { PLUGINS, type PluginHost } from "./lib/plugins";
 import { reportError } from "./lib/errors";
-import { LocalPluginPanel } from "./components/LocalPluginPanel";
-import type { LocalPlugin } from "./lib/localPlugins";
-import { allTabs, applyEffects, runPluginTool, type PluginEffects } from "./lib/pluginEffects";
+import { LocalPluginPanel, PluginViewPane } from "./components/LocalPluginPanel";
+import { isView, pluginTab, viewOf, type LocalPlugin } from "./lib/localPlugins";
+import { allTabs, applyEffects, openSurface, runPluginTool, type PluginEffects } from "./lib/pluginEffects";
+import { pluginKeyOf, setClaimedPluginKeys } from "./lib/shortcuts";
 import { TerminalSearch } from "./components/TerminalSearch";
 import { CommandCard, typeCommand } from "./components/CommandCard";
 import { applyLook, shareLook } from "./lib/theme";
@@ -243,7 +244,7 @@ function useShortcuts() {
         case "switcher":
           return s.openModal(s.modal?.kind === "switcher" ? null : { kind: "switcher" });
         case "search": {
-          const target = s.panes[s.focusedPane] ?? s.activeTabId;
+          const target = (isView(s.panes[s.focusedPane]) ? null : s.panes[s.focusedPane]) ?? s.activeTabId;
           return void (target && !s.detached.includes(target) && s.openSearch(target));
         }
         case "sidebar":
@@ -486,6 +487,38 @@ function useLocalPlugins() {
   }, []);
 }
 
+/** Keyboard shortcuts enabled plugins declared. */
+function usePluginShortcuts() {
+  const localPlugins = useStore((s) => s.localPlugins);
+  const enabled = useStore((s) => s.enabledPlugins);
+  useEffect(() => {
+    const active = localPlugins.filter((p) => p.status === "approved" && enabled.includes(p.id));
+    setClaimedPluginKeys(active.flatMap((p) => p.shortcuts.map((k) => k.key)));
+    const onKey = (e: KeyboardEvent) => {
+      const key = pluginKeyOf(e);
+      if (!key) return;
+      for (const plugin of active) {
+        const hit = plugin.shortcuts.find((k) => k.key === key);
+        if (!hit) continue;
+        e.preventDefault();
+        const s = useStore.getState();
+        const tab = s.tabs.find((t) => t.id === s.activeTabId);
+        if (hit.open) openSurface(plugin, hit.open, tab?.id ?? null, null);
+        else if (hit.tool)
+          void runPluginTool(plugin, hit.tool, tab?.id ?? null, { tab: tab ? pluginTab(tab, s.groups) : null }).catch(
+            (err) => reportError("plugin", `${plugin.id}/${hit.tool}: ${err}`),
+          );
+        return;
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      setClaimedPluginKeys([]);
+    };
+  }, [localPlugins, enabled]);
+}
+
 /** Runs the tools plugins scheduled, while each plugin is on. */
 function usePluginSchedules() {
   const localPlugins = useStore((s) => s.localPlugins);
@@ -546,6 +579,7 @@ function App() {
   usePluginToolCalls();
   useLocalPlugins();
   usePluginSchedules();
+  usePluginShortcuts();
   const tabs = useStore((s) => s.tabs);
 
   useEffect(() => {
@@ -571,6 +605,7 @@ function App() {
   const borderWidth = useStore((s) => s.terminalBorder);
   const { splitMode, panes, focusedPane, focusPane, detached, searchTabId, openSearch, commands, questions, enabledPlugins } =
     useStore();
+  const localPlugins = useStore((s) => s.localPlugins);
   const slots = paneCount(splitMode);
   const paneOf = (tabId: string) => panes.slice(0, slots).indexOf(tabId);
   const pluginHost: PluginHost = {
@@ -584,8 +619,14 @@ function App() {
   const colorOf = (tab: (typeof tabs)[number]) =>
     groups.find((g) => g.id === tab.groupId)?.color ?? "transparent";
   // A slot is empty when nothing is assigned or its tab is no longer running.
+  // A pane may hold a plugin's view instead of a terminal, while that plugin is on.
+  const viewIn = (i: number) => {
+    const id = panes[i];
+    if (!isView(id)) return null;
+    return localPlugins.find((p) => viewOf(p.id) === id && p.view && p.status === "approved" && enabledPlugins.includes(p.id)) ?? null;
+  };
   const emptySlots = Array.from({ length: slots }, (_, i) => i).filter(
-    (i) => !panes[i] || !live.some((t) => t.id === panes[i]),
+    (i) => !viewIn(i) && (!panes[i] || !live.some((t) => t.id === panes[i])),
   );
 
   return (
@@ -629,6 +670,18 @@ function App() {
             {emptySlots.map((i) => (
               <EmptyPane key={`empty-${i}`} index={i} />
             ))}
+            {Array.from({ length: slots }, (_, i) => i).map((i) => {
+              const plugin = viewIn(i);
+              return plugin ? (
+                <PluginViewPane
+                  key={`view-${plugin.id}`}
+                  plugin={plugin}
+                  rect={paneRect(splitMode, i)}
+                  focused={focusedPane === i}
+                  onFocus={() => focusPane(i)}
+                />
+              ) : null;
+            })}
             {PLUGINS.filter((p) => p.Overlay && enabledPlugins.includes(p.manifest.id)).map((p) => {
               const Overlay = p.Overlay!;
               return <Overlay key={p.manifest.id} host={pluginHost} />;

@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { emit, listen } from "@tauri-apps/api/event";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { PLUGIN_WINDOW_DATA, PLUGIN_WINDOW_READY } from "../lib/pluginWindow";
 import { useStore } from "../lib/store";
 import type { PluginHost } from "../lib/plugins";
 import { submit, typeText } from "../lib/typing";
 import { notify } from "../lib/notify";
-import { allTabs, applyEffects, runPluginTool } from "../lib/pluginEffects";
-import { pluginTab, type LocalPlugin } from "../lib/localPlugins";
+import { allTabs, dispatchEffects, openSurface, runPluginTool } from "../lib/pluginEffects";
+import { pluginTab, type LocalPlugin, type Surface } from "../lib/localPlugins";
 
 /** Theme variables handed to a panel, so it can match the app. */
 const THEME_VARS = ["--bg", "--panel", "--panel-2", "--border", "--fg", "--muted", "--accent", "--danger", "--success", "--font-ui", "--font-mono"];
@@ -56,6 +58,8 @@ function frameDocument(html: string): string {
     onTab(fn) { onTab = fn; if (lastTab !== undefined) fn(lastTab); },
     setBadge: (text, tabId) => call("badge", { text, tabId }),
     notify: (title, body) => call("notify", { title, body }),
+    setStatus: (text, title) => call("status", { text, title }),
+    open: (surface, data) => call("open", { surface, data }),
     tool: (name, args) => call("tool", { name, args }),
     prompt: (text, opts) => call("prompt", { text, submit: !!(opts && opts.submit) }),
     storage: { get: () => call("storage.get"), set: (value) => call("storage.set", { value }) },
@@ -73,13 +77,13 @@ function frameDocument(html: string): string {
  */
 export function PluginFrame({
   plugin,
-  side,
+  kind,
   tabId,
   data,
   onClose,
 }: {
   plugin: LocalPlugin;
-  side: boolean;
+  kind: Surface;
   tabId: string | null;
   data: unknown;
   onClose: () => void;
@@ -99,10 +103,10 @@ export function PluginFrame({
     subscribed.current = false;
     setHtml(null);
     setError(null);
-    invoke<string>("local_plugin_panel", { id: plugin.id, side })
+    invoke<string>("local_plugin_panel", { id: plugin.id, kind })
       .then((h) => setHtml(frameDocument(h)))
       .catch((e) => setError(String(e)));
-  }, [plugin.id, plugin.hash, side]);
+  }, [plugin.id, plugin.hash, kind]);
 
   // What the agent does, for a frame that subscribed with the permission.
   useEffect(() => {
@@ -161,7 +165,22 @@ export function PluginFrame({
             need("badge");
             const target = typeof m.params?.tabId === "string" ? m.params.tabId : tabId;
             if (!target) throw new Error("não há aba para a etiqueta");
-            applyEffects(plugin, target, { badge: (m.params?.text as string | null) ?? null });
+            await dispatchEffects(plugin, target, { badge: (m.params?.text as string | null) ?? null });
+            return reply(null);
+          }
+          case "status":
+            need("status");
+            await dispatchEffects(plugin, tabId, {
+              status: m.params?.text ? { text: String(m.params.text), title: m.params?.title as string | undefined } : null,
+            });
+            return reply(null);
+          case "open": {
+            const surface = String(m.params?.surface ?? "");
+            if (!["panel", "side", "view", "window"].includes(surface)) throw new Error(`lugar desconhecido: ${surface}`);
+            await dispatchEffects(plugin, tabId, surface === "side"
+              ? {}
+              : { [surface === "panel" ? "panel" : surface]: m.params?.data ?? null });
+            if (surface === "side") openSurface(plugin, "side", tabId, null);
             return reply(null);
           }
           case "notify":
@@ -198,7 +217,7 @@ export function PluginFrame({
       {html && (
         <iframe
           ref={frame}
-          title={(side ? plugin.sidePanel?.title : plugin.panel?.title) ?? plugin.name}
+          title={plugin.name}
           // Scripts only: no same-origin, so the frame cannot reach the app.
           sandbox="allow-scripts"
           srcDoc={html}
@@ -241,7 +260,7 @@ export function LocalPluginPanel({ host }: { host: PluginHost }) {
           ×
         </button>
       </header>
-      <PluginFrame plugin={plugin} side={false} tabId={panel.tabId} data={panel.data} onClose={() => openPluginPanel(null)} />
+      <PluginFrame plugin={plugin} kind="panel" tabId={panel.tabId} data={panel.data} onClose={() => openPluginPanel(null)} />
     </section>
   );
 }
@@ -251,7 +270,62 @@ export function PluginSidePanel({ plugin, onClose }: { plugin: LocalPlugin; onCl
   const activeTabId = useStore((s) => s.activeTabId);
   return (
     <div className="plugin-side">
-      <PluginFrame plugin={plugin} side tabId={activeTabId} data={null} onClose={onClose} />
+      <PluginFrame plugin={plugin} kind="side" tabId={activeTabId} data={null} onClose={onClose} />
+    </div>
+  );
+}
+
+/** A plugin's view, filling one pane of the split like a terminal. */
+export function PluginViewPane({
+  plugin,
+  rect,
+  focused,
+  onFocus,
+}: {
+  plugin: LocalPlugin;
+  rect: { left: string; top: string; width: string; height: string };
+  focused: boolean;
+  onFocus: () => void;
+}) {
+  const data = useStore((s) => s.viewData[plugin.id]);
+  const activeTabId = useStore((s) => s.activeTabId);
+  const closePluginView = useStore((s) => s.closePluginView);
+  return (
+    <section className={`plugin-view ${focused ? "focused" : ""}`} style={rect} onMouseDown={onFocus}>
+      <header>
+        <span className="plugin-panel-title">{plugin.view?.title ?? plugin.name}</span>
+        <span className="plugin-panel-tag">plugin</span>
+        <button className="icon-btn" title="Fechar" onClick={() => closePluginView(plugin.id)}>
+          ×
+        </button>
+      </header>
+      <PluginFrame plugin={plugin} kind="view" tabId={activeTabId} data={data ?? null} onClose={() => closePluginView(plugin.id)} />
+    </section>
+  );
+}
+
+/** Content of a plugin's own window, which only knows the plugin itself. */
+export function PluginWindow({ pluginId }: { pluginId: string }) {
+  const [plugin, setPlugin] = useState<LocalPlugin | null>(null);
+  const [data, setData] = useState<unknown>(null);
+  useEffect(() => {
+    void invoke<LocalPlugin[]>("local_plugins").then((list) => setPlugin(list.find((p) => p.id === pluginId) ?? null));
+    const un = listen<unknown>(PLUGIN_WINDOW_DATA, (ev) => setData(ev.payload));
+    void emit(PLUGIN_WINDOW_READY, pluginId);
+    return () => {
+      void un.then((u) => u());
+    };
+  }, [pluginId]);
+  if (!plugin) return <p className="hint pad">Carregando…</p>;
+  return (
+    <div className="plugin-window">
+      <PluginFrame
+        plugin={plugin}
+        kind="window"
+        tabId={null}
+        data={data}
+        onClose={() => void getCurrentWebviewWindow().close()}
+      />
     </div>
   );
 }

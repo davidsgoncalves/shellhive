@@ -91,7 +91,34 @@ export function tabNumberOf(e: KeyboardEvent): number | null {
 
 /** True for any key press the app handles, so the terminal lets it through. */
 export function isAppShortcut(e: KeyboardEvent): boolean {
-  return actionOf(e) !== null || tabNumberOf(e) !== null;
+  return actionOf(e) !== null || tabNumberOf(e) !== null || claimed.has(pluginKeyOf(e) ?? "");
+}
+
+/**
+ * Plugin shortcuts: Cmd+Option on macOS, Ctrl+Alt+Shift elsewhere, plus a
+ * letter or digit. No app shortcut uses these. Plain Ctrl+Alt is left alone
+ * because AltGr reads as Ctrl+Alt and types characters on many layouts.
+ */
+export function pluginKeyOf(e: KeyboardEvent): string | null {
+  if (!/^(Key[A-Z]|Digit[0-9])$/.test(e.code)) return null;
+  if (e.getModifierState?.("AltGraph")) return null;
+  const ok = IS_MAC
+    ? e.metaKey && e.altKey && !e.ctrlKey && !e.shiftKey
+    : e.ctrlKey && e.altKey && e.shiftKey && !e.metaKey;
+  return ok ? e.code : null;
+}
+
+/** Keys some enabled plugin claims; only these are kept from the terminal. */
+const claimed = new Set<string>();
+export function setClaimedPluginKeys(keys: string[]): void {
+  claimed.clear();
+  for (const k of keys) claimed.add(k);
+}
+
+/** How a plugin shortcut reads on this platform, e.g. "⌘⌥J". */
+export function pluginShortcutLabel(code: string): string {
+  const key = code.replace(/^Key|^Digit/, "");
+  return IS_MAC ? `⌘⌥${key}` : `Ctrl+Alt+Shift+${key}`;
 }
 
 /** Modifier for "open the link" and "send right away": Cmd on macOS, Ctrl on Linux. */
