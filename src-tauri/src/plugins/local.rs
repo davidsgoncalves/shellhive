@@ -22,6 +22,7 @@ const SCAN_EVERY: Duration = Duration::from_secs(2);
 const RUN_TIMEOUT: Duration = Duration::from_secs(60);
 /// Output past this is cut, so a runaway program cannot flood the agent.
 const OUTPUT_MAX: usize = 256 * 1024;
+const OFFICIAL_STORAGE_MAX: usize = 4 * 1024 * 1024;
 /// Files past this are hashed by size alone.
 const HASH_FILE_MAX: u64 = 4 * 1024 * 1024;
 
@@ -613,7 +614,10 @@ pub fn plugin_storage_get(id: String) -> serde_json::Value {
 
 #[tauri::command]
 pub fn plugin_storage_set(id: String, value: serde_json::Value) -> Result<(), String> {
-    if approved(&id).is_none() {
+    // Official plugins ship with the app and keep more, like a list of
+    // diagrams.
+    let official = super::is_official(&id);
+    if !official && approved(&id).is_none() {
         return Err("plugin não aprovado".into());
     }
     let path = storage_path(&id).ok_or("no config dir")?;
@@ -621,7 +625,7 @@ pub fn plugin_storage_set(id: String, value: serde_json::Value) -> Result<(), St
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
     let body = serde_json::to_string(&value).map_err(|e| e.to_string())?;
-    if body.len() > OUTPUT_MAX {
+    if body.len() > if official { OFFICIAL_STORAGE_MAX } else { OUTPUT_MAX } {
         return Err("dados grandes demais para o armazenamento do plugin".into());
     }
     fs::write(path, body).map_err(|e| e.to_string())

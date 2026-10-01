@@ -1,12 +1,12 @@
 {
   "id": "mermaid",
   "name": "Diagramas Mermaid",
-  "description": "O agente mostra fluxogramas, diagramas de sequência, de banco de dados, de estados e cronogramas num painel abaixo do terminal, sem abrir o navegador.",
-  "agentContext": "Quando um diagrama ajudar a explicar algo (fluxo, arquitetura, sequencia de chamadas, modelo de dados, estados), chame show_diagram com o codigo Mermaid: ele aparece num painel logo abaixo do terminal. Se voltar um erro de sintaxe, corrija o codigo e chame de novo.",
+  "description": "O agente cria fluxogramas, diagramas de sequência, de banco de dados, de estados e cronogramas. Ficam salvos na aba Diagramas, na coluna da direita, e abrem numa janela com zoom.",
+  "agentContext": "Quando um diagrama ajudar a explicar algo (fluxo, arquitetura, sequencia de chamadas, modelo de dados, estados), chame show_diagram com o codigo Mermaid: ele abre numa janela propria e fica salvo na aba Diagramas. Se voltar um erro de sintaxe, corrija o codigo e chame de novo.",
   "tools": [
     {
       "name": "show_diagram",
-      "description": "Mostra um diagrama Mermaid num painel logo abaixo do terminal desta sessão. Aceita fluxograma (flowchart), sequência (sequenceDiagram), banco de dados (erDiagram), estados (stateDiagram-v2), classes, cronograma (gantt) e os demais tipos do Mermaid 11. Um diagrama novo substitui o que estiver aberto. Se o diagrama não puder ser desenhado, o resultado traz o erro para você corrigir e chamar de novo.",
+      "description": "Mostra um diagrama Mermaid numa janela própria, com zoom, e o salva na aba Diagramas da coluna da direita. Aceita fluxograma (flowchart), sequência (sequenceDiagram), banco de dados (erDiagram), estados (stateDiagram-v2), classes, cronograma (gantt) e os demais tipos do Mermaid 11. Se o diagrama não puder ser desenhado, o resultado traz o erro para você corrigir e chamar de novo.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -16,7 +16,7 @@
           },
           "title": {
             "type": "string",
-            "description": "Título curto do painel."
+            "description": "Título curto do diagrama, mostrado na lista e na janela."
           }
         },
         "required": [

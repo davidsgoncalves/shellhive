@@ -1,27 +1,40 @@
-/* Sits over the lower part of the pane whose session asked for it. */
-.diagram-panel {
-  position: absolute; z-index: 51; display: flex; flex-direction: column;
-  margin: 0 6px 6px; background: var(--panel); overflow: hidden;
-  border: 1px solid var(--accent); border-radius: 8px;
-  box-shadow: 0 -8px 24px rgba(0,0,0,.45);
-  animation: slide-up .19s cubic-bezier(.22,.9,.3,1);
+/* List in the right column. */
+.diagram-list { list-style: none; margin: 0; padding: 6px; display: flex; flex-direction: column; gap: 2px; }
+.diagram-list li { display: flex; align-items: center; gap: 4px; border-radius: 6px; }
+.diagram-list li:hover { background: var(--panel-2); }
+.diagram-list li .icon-btn { opacity: 0; }
+.diagram-list li:hover .icon-btn { opacity: 1; }
+.diagram-item {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; text-align: left;
+  padding: 7px 8px; background: none; border: 0; color: var(--fg); cursor: pointer;
 }
-.diagram-panel > header { display: flex; align-items: center; gap: 6px; padding: 8px 10px 6px 12px; flex-shrink: 0; }
-.diagram-title { font-size: 12px; font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.diagram-panel > header .ghost { padding: 3px 8px; font-size: 11px; }
-.diagram-panel > header .ghost.on { border-color: var(--accent); color: var(--accent); }
-.diagram-note { margin: 0 12px 6px; }
-.diagram-code { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; margin: 0 12px 8px; }
+.diagram-item-title { font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.diagram-item-meta { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* The diagram's own window. */
+.diagram-window { height: 100vh; display: flex; flex-direction: column; background: var(--bg); color: var(--fg); }
+.diagram-window > header {
+  display: flex; align-items: center; gap: 6px; padding: 8px 12px; flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+}
+.diagram-title { font-size: 13px; font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.diagram-window > header .ghost { padding: 3px 8px; font-size: 11px; }
+.diagram-window > header .ghost.on { border-color: var(--accent); color: var(--accent); }
+.diagram-zoom { font-size: 11px; color: var(--muted); min-width: 38px; text-align: center; font-variant-numeric: tabular-nums; }
+.diagram-sep { width: 1px; height: 16px; background: var(--border); margin: 0 4px; }
+.diagram-note { margin: 6px 12px 0; }
+.diagram-body { flex: 1; min-height: 0; display: flex; }
+.diagram-stage { flex: 1; min-width: 0; position: relative; overflow: hidden; cursor: grab; }
+.diagram-stage.dragging { cursor: grabbing; }
+.diagram-content { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.diagram-content svg { display: block; }
+.diagram-code {
+  width: 40%; min-width: 260px; display: flex; flex-direction: column; gap: 8px; align-items: flex-end;
+  padding: 10px; border-left: 1px solid var(--border);
+}
 .diagram-code textarea {
-  width: 100%; height: 140px; resize: vertical; outline: none; padding: 8px; user-select: text;
-  background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: 6px;
+  width: 100%; flex: 1; resize: none; outline: none; padding: 8px; user-select: text;
+  background: var(--panel); color: var(--fg); border: 1px solid var(--border); border-radius: 6px;
   font-family: var(--font-mono); font-size: 12px; line-height: 1.5;
 }
 .diagram-code textarea:focus { border-color: var(--accent); }
-.diagram-view { flex: 1; min-height: 120px; overflow: auto; padding: 8px 12px 12px; display: flex; justify-content: center; }
-.diagram-view svg { max-width: 100%; height: auto; }
-[data-layers] .diagram-panel {
-  background: var(--overlay); backdrop-filter: var(--glass-blur); border-radius: 14px;
-  box-shadow: var(--glass-edge), 0 20px 50px rgba(0,0,0,.45);
-}
-@media (prefers-reduced-motion: reduce) { .diagram-panel { animation: none; } }

@@ -9,6 +9,7 @@ import { MiniPanel } from "./components/MiniPanel";
 import { MINI_LABEL } from "./lib/mini";
 import { pluginOfWindow } from "./lib/pluginWindow";
 import { PluginWindow } from "./components/LocalPluginPanel";
+import { PLUGINS } from "./lib/plugins";
 import { watchUncaughtErrors } from "./lib/errors";
 import { applyLook, followSharedLook } from "./lib/theme";
 
@@ -29,7 +30,9 @@ const detachedTab = tabIdOfLabel(label);
 // save state.
 const pluginWindow = pluginOfWindow(label);
 if (label === MINI_LABEL || detachedTab || pluginWindow) followSharedLook();
-if (pluginWindow) root.render(<PluginWindow pluginId={pluginWindow} />);
+const OfficialWindow = PLUGINS.find((p) => p.manifest.id === pluginWindow)?.Window;
+if (OfficialWindow) root.render(<OfficialWindow />);
+else if (pluginWindow) root.render(<PluginWindow pluginId={pluginWindow} />);
 else if (label === MINI_LABEL) root.render(<MiniPanel />);
 else if (detachedTab) root.render(<DetachedTerminal tabId={detachedTab} />);
 else useStore.persist
