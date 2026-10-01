@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.0-beta.7",
+    "date": "2026-10-01",
+    "items": [
+      "Plugins podem ocupar um espaço inteiro da tela dividida, no lugar de um terminal, e abrir janelas próprias.",
+      "Plugins podem mostrar um indicador na barra de cima e declarar atalhos de teclado (⌘⌥ + tecla no macOS, Ctrl+Alt+Shift + tecla no Linux e no Windows)."
+    ]
+  },
+  {
     "version": "1.3.0-beta.6",
     "date": "2026-10-01",
     "items": [
