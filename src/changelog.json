@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.3.0-beta.6",
+    "date": "2026-10-01",
+    "items": [
+      "Plugins ganharam mais lugares na interface: uma aba própria na coluna da direita, etiquetas embaixo do nome das abas, itens no menu de clique direito e notificações.",
+      "Plugins podem rodar ferramentas sozinhos de tempos em tempos, para manter etiquetas e avisos em dia.",
+      "Plugins recebem o identificador da sessão do agente, que continua o mesmo quando a sessão é reaberta."
+    ]
+  },
+  {
     "version": "1.3.0-beta.5",
     "date": "2026-10-01",
     "items": [
