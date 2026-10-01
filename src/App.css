@@ -778,13 +778,17 @@ button.star.on { color: var(--accent); }
 .pane-commands .perm-item.overlay { background: var(--panel-2); }
 
 /* A session waiting on the user: the pane frame pulses until it is handled. */
-@keyframes attention-pulse {
-  0%, 100% { border-color: color-mix(in srgb, var(--c-permission) 45%, transparent); box-shadow: inset 0 0 0 0 transparent; }
-  50% { border-color: var(--c-permission); box-shadow: inset 0 0 18px 2px color-mix(in srgb, var(--c-permission) 35%, transparent); }
+/* Only opacity animates: a moving border or shadow repaints the whole pane
+   every frame, which WebKitGTK on Linux could not keep up with. */
+@keyframes attention-fade {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .35; }
 }
 .term-pane.attention::after {
   border-width: max(2px, var(--terminal-border, 1px));
-  animation: attention-pulse 1.4s ease-in-out infinite;
+  border-color: var(--c-permission);
+  box-shadow: inset 0 0 18px 2px color-mix(in srgb, var(--c-permission) 35%, transparent);
+  animation: attention-fade 1.4s ease-in-out infinite;
 }
 .term-pane.attention::before { background: var(--c-permission); }
 @media (prefers-reduced-motion: reduce) {
@@ -819,7 +823,10 @@ button.ghost.danger { border-color: var(--danger); color: var(--danger); }
   --on-color: #0d1016;
   --font-ui: "Geist Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "Geist Mono", Menlo, Monaco, monospace;
-  --glass-blur: blur(32px) saturate(170%);
+  /* Blur only over the system's vibrancy (macOS, below). Elsewhere the
+     layers sit on a solid backdrop, and WebKitGTK redrawing a blur on every
+     terminal frame made the window flicker and freeze on Linux. */
+  --glass-blur: none;
   --glass-edge: inset 0 1px 0 rgba(255,255,255,.14);
   --glass-shadow: 0 10px 30px rgba(0,0,0,.25);
   /* Menus, modals and cards over the terminal need to stay readable over it. */
@@ -829,6 +836,7 @@ button.ghost.danger { border-color: var(--danger); color: var(--danger); }
 :root[data-theme="glass"] body,
 :root[data-theme="glass"] #root { background: #161a24; }
 [data-layers] body { font-size: 12.5px; }
+:root[data-theme="glass"][data-vibrancy="on"] { --glass-blur: blur(32px) saturate(170%); }
 :root[data-theme="glass"][data-vibrancy="on"],
 :root[data-theme="glass"][data-vibrancy="on"] body,
 :root[data-theme="glass"][data-vibrancy="on"] #root { background: rgba(16,19,28,.32); }
@@ -950,12 +958,10 @@ button.ghost.danger { border-color: var(--danger); color: var(--danger); }
   border: max(1px, var(--terminal-border, 1px)) solid color-mix(in srgb, var(--group-color) 40%, transparent);
 }
 [data-layers] .term-pane.focused::after { border-width: max(2px, var(--terminal-border, 1px)); border-color: var(--group-color); }
-@keyframes glass-attention {
-  0%, 100% { box-shadow: inset 0 0 0 2px var(--c-permission), inset 0 0 40px -6px var(--c-permission); }
-  50% { box-shadow: inset 0 0 0 2px var(--c-permission), inset 0 0 0 0 transparent; }
-}
 [data-layers] .term-pane.attention::after {
-  border-color: transparent; animation: glass-attention 2s ease-in-out infinite;
+  border-color: transparent;
+  box-shadow: inset 0 0 0 2px var(--c-permission), inset 0 0 40px -6px var(--c-permission);
+  animation: attention-fade 2s ease-in-out infinite;
 }
 [data-layers] .term-pane.attention::before { background: var(--c-permission); }
 @media (prefers-reduced-motion: reduce) {
@@ -1148,3 +1154,6 @@ button.ghost.danger { border-color: var(--danger); color: var(--danger); }
 [data-layers] :is(.sessions-search input, .modal input, .term-search input):focus {
   border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent);
 }
+
+/* Nothing on screen to animate while the window is hidden. */
+[data-hidden] *, [data-hidden] *::before, [data-hidden] *::after { animation-play-state: paused !important; }

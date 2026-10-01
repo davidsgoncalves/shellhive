@@ -8,5 +8,11 @@ fn main() {
         let kind = args.get(2).map(String::as_str).unwrap_or("");
         std::process::exit(shellhive_lib::hook_client(kind));
     }
+    // WebKitGTK's DMABUF renderer makes the window flicker and freeze on many
+    // Linux setups (NVIDIA drivers, Wayland). Off unless the user chose.
+    #[cfg(target_os = "linux")]
+    if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
+        std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+    }
     shellhive_lib::run()
 }

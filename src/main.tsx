@@ -13,6 +13,13 @@ import { applyLook, followSharedLook } from "./lib/theme";
 // State lives in a file, so it loads before the first render. Rendering first
 // would let early writes persist an empty layout over the saved one.
 watchUncaughtErrors();
+// Infinite animations keep the renderer busy even when nobody can see them.
+const markHidden = () => {
+  if (document.hidden) document.documentElement.dataset.hidden = "on";
+  else delete document.documentElement.dataset.hidden;
+};
+document.addEventListener("visibilitychange", markHidden);
+markHidden();
 const root = ReactDOM.createRoot(document.getElementById("root") as HTMLElement);
 const label = getCurrentWebviewWindow().label;
 const detachedTab = tabIdOfLabel(label);
