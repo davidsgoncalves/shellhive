@@ -50,6 +50,20 @@ function ApprovalCard({ plugin }: { plugin: LocalPlugin }) {
             : ""}
         </p>
       )}
+      {plugin.sidePanel && <p className="plugin-approval-label">Aba "{plugin.sidePanel.title}" na coluna da direita</p>}
+      {plugin.menu.length > 0 && (
+        <p className="plugin-approval-label">No menu das abas: {plugin.menu.map((m) => m.label).join(", ")}</p>
+      )}
+      {plugin.schedule.length > 0 && (
+        <p className="plugin-approval-label">
+          Roda sozinho: {plugin.schedule.map((j) => `${j.tool} a cada ${j.every}s`).join(", ")}
+        </p>
+      )}
+      {!plugin.panel && plugin.permissions.length > 0 && (
+        <p className="plugin-approval-label">
+          Pode {plugin.permissions.map((p) => PERMISSION_LABEL[p] ?? p).join(", ")}
+        </p>
+      )}
       <p className="hint">Roda com as suas permissões, a partir de {plugin.dir}.</p>
       {error && <p className="error">{error}</p>}
       <div className="perm-actions">

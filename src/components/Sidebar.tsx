@@ -120,6 +120,8 @@ function TabRow({ tab, active }: { tab: Tab; active: boolean }) {
   const git = useStore((s) => s.gitByTab[tab.id]);
   const agents = useStore((s) => s.subagentsByTab[tab.id]);
   const pinned = useStore((s) => !!tab.claudeSessionId && s.pinned.includes(tab.claudeSessionId));
+  const badges = useStore((s) => s.pluginBadges[tab.id]);
+  const badgeList = badges ? Object.entries(badges) : [];
   return (
     <li
       className={`tab-row state-${tab.state} ${active ? "active" : ""} ${stale ? "stale" : ""} ${wrap ? "wrap" : ""}`}
@@ -145,6 +147,15 @@ function TabRow({ tab, active }: { tab: Tab; active: boolean }) {
       <span className="tab-main">
         <InlineName value={tab.title} onCommit={(v) => renameTab(tab.id, v)} className="tab-title" />
         {git && <GitLine git={git} />}
+        {badgeList.length > 0 && (
+          <span className="tab-badges">
+            {badgeList.map(([plugin, text]) => (
+              <span key={plugin} className="tab-badge" title={`${text} · ${plugin}`}>
+                {text}
+              </span>
+            ))}
+          </span>
+        )}
         {agents && agents.length > 0 && <SubagentLines agents={agents} />}
       </span>
       <span className="tab-trailing">

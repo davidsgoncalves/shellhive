@@ -208,7 +208,11 @@ button.ghost:disabled { opacity: .4; cursor: default; }
 .panel-tabs {
   height: 40px; display: flex; align-items: center; gap: 2px; padding: 0 6px 0 8px;
   border-bottom: 1px solid var(--border);
+  /* Plugin tabs can outgrow the column; it scrolls sideways instead of wrapping. */
+  overflow-x: auto; scrollbar-width: none; flex-shrink: 0;
 }
+.panel-tabs::-webkit-scrollbar { display: none; }
+.panel-tabs > button { flex-shrink: 0; white-space: nowrap; }
 .panel-tabs > button:not(.icon-btn) {
   background: transparent; border: none; color: var(--muted); cursor: pointer;
   padding: 5px 8px; border-radius: 5px; font-size: 12px; display: inline-flex; align-items: center; gap: 5px;
@@ -1180,3 +1184,13 @@ button.ghost.danger { border-color: var(--danger); color: var(--danger); }
 
 /* Nothing on screen to animate while the window is hidden. */
 [data-hidden] *, [data-hidden] *::before, [data-hidden] *::after { animation-play-state: paused !important; }
+
+/* ---------- plugin surfaces ---------- */
+.plugin-side { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.plugin-side iframe { flex: 1; min-height: 0; width: 100%; border: 0; background: transparent; }
+.tab-badges { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+.tab-badge {
+  font-size: 10px; line-height: 14px; padding: 0 5px; border-radius: 4px; max-width: 100%;
+  color: var(--fg); background: color-mix(in srgb, var(--accent) 18%, transparent);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}

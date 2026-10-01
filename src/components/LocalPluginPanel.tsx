@@ -4,6 +4,9 @@ import { listen } from "@tauri-apps/api/event";
 import { useStore } from "../lib/store";
 import type { PluginHost } from "../lib/plugins";
 import { submit, typeText } from "../lib/typing";
+import { notify } from "../lib/notify";
+import { allTabs, applyEffects, runPluginTool } from "../lib/pluginEffects";
+import { pluginTab, type LocalPlugin } from "../lib/localPlugins";
 
 /** Theme variables handed to a panel, so it can match the app. */
 const THEME_VARS = ["--bg", "--panel", "--panel-2", "--border", "--fg", "--muted", "--accent", "--danger", "--success", "--font-ui", "--font-mono"];
@@ -19,7 +22,7 @@ function frameDocument(html: string): string {
   const head = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:">
 <style>:root { ${vars} color-scheme: dark; }</style>
 <script>(() => {
-  let seq = 0, onData = null, last;
+  let seq = 0, onData = null, last, onTab = null, lastTab;
   const eventFns = [];
   const waiting = new Map();
   addEventListener("message", (e) => {
@@ -35,6 +38,9 @@ function frameDocument(html: string): string {
       if (onData) onData(m.value);
     } else if (m.type === "event") {
       for (const fn of eventFns) fn(m.value);
+    } else if (m.type === "tab") {
+      lastTab = m.value;
+      if (onTab) onTab(m.value);
     }
   });
   const call = (method, params) => new Promise((resolve, reject) => {
@@ -46,6 +52,10 @@ function frameDocument(html: string): string {
     onData(fn) { onData = fn; if (last !== undefined) fn(last); },
     close: () => call("close"),
     tab: () => call("tab"),
+    tabs: () => call("tabs"),
+    onTab(fn) { onTab = fn; if (lastTab !== undefined) fn(lastTab); },
+    setBadge: (text, tabId) => call("badge", { text, tabId }),
+    notify: (title, body) => call("notify", { title, body }),
     tool: (name, args) => call("tool", { name, args }),
     prompt: (text, opts) => call("prompt", { text, submit: !!(opts && opts.submit) }),
     storage: { get: () => call("storage.get"), set: (value) => call("storage.set", { value }) },
@@ -56,46 +66,61 @@ function frameDocument(html: string): string {
   return /<head[^>]*>/i.test(html) ? html.replace(/<head[^>]*>/i, (m) => `${m}${head}`) : `${head}${html}`;
 }
 
-/** A local plugin's panel, in a frame with no access to the app but its bridge. */
-export function LocalPluginPanel({ host }: { host: PluginHost }) {
-  const panel = useStore((s) => s.pluginPanel);
-  const plugin = useStore((s) => s.localPlugins.find((p) => p.id === panel?.plugin));
-  const tabs = useStore((s) => s.tabs);
-  const openPluginPanel = useStore((s) => s.openPluginPanel);
+/**
+ * A plugin's HTML in a frame with no access to the app but its bridge. Used
+ * for the panel under a tab and for the plugin's tab in the right column;
+ * `tabId` is the tab the frame works on: the asking tab, or the active one.
+ */
+export function PluginFrame({
+  plugin,
+  side,
+  tabId,
+  data,
+  onClose,
+}: {
+  plugin: LocalPlugin;
+  side: boolean;
+  tabId: string | null;
+  data: unknown;
+  onClose: () => void;
+}) {
   const frame = useRef<HTMLIFrameElement>(null);
   const [html, setHtml] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const pluginId = panel?.plugin;
-  // Set once the panel asks for live events and holds the permission.
+  // Set once the frame asks for live events and holds the permission.
   const subscribed = useRef(false);
+  const tabs = useStore((s) => s.tabs);
+  const groups = useStore((s) => s.groups);
+  const tab = tabs.find((t) => t.id === tabId);
+  const tabInfo = tab ? pluginTab(tab, groups) : null;
+  const post = (msg: unknown) => frame.current?.contentWindow?.postMessage(msg, "*");
 
   useEffect(() => {
     subscribed.current = false;
     setHtml(null);
     setError(null);
-    if (!pluginId) return;
-    invoke<string>("local_plugin_panel", { id: pluginId })
+    invoke<string>("local_plugin_panel", { id: plugin.id, side })
       .then((h) => setHtml(frameDocument(h)))
       .catch((e) => setError(String(e)));
-  }, [pluginId]);
+  }, [plugin.id, plugin.hash, side]);
 
-  // What the agent does, for a panel that subscribed with the permission.
+  // What the agent does, for a frame that subscribed with the permission.
   useEffect(() => {
     const p = listen("plugin-event", (ev) => {
-      if (subscribed.current) frame.current?.contentWindow?.postMessage({ type: "event", value: ev.payload }, "*");
+      if (subscribed.current) post({ type: "event", value: ev.payload });
     });
     return () => {
       void p.then((un) => un());
     };
   }, []);
 
-  // New data from a tool reaches a panel that is already open.
-  useEffect(() => {
-    frame.current?.contentWindow?.postMessage({ type: "data", value: panel?.data ?? null }, "*");
-  }, [panel]);
+  // New data from a tool reaches a frame that is already open.
+  useEffect(() => post({ type: "data", value: data ?? null }), [data]);
+  // The side panel follows the active tab.
+  const tabKey = JSON.stringify(tabInfo);
+  useEffect(() => post({ type: "tab", value: tabInfo }), [tabKey]);
 
   useEffect(() => {
-    if (!panel || !plugin) return;
     const allowed = (p: string) => plugin.permissions.includes(p);
     const onMessage = async (e: MessageEvent) => {
       const win = frame.current?.contentWindow;
@@ -107,30 +132,42 @@ export function LocalPluginPanel({ host }: { host: PluginHost }) {
         if (!allowed(p)) throw new Error(`o plugin não pediu a permissão ${p}`);
       };
       try {
-        const tab = tabs.find((t) => t.id === panel.tabId);
         switch (m.method) {
           case "close":
-            openPluginPanel(null);
+            onClose();
             return reply(null);
           case "tab":
             need("tab");
-            return reply(tab ? { id: tab.id, title: tab.title, cwd: tab.cwd } : null);
+            return reply(tabInfo);
+          case "tabs":
+            need("tab");
+            return reply(allTabs());
           case "tool": {
             need("tools");
             const name = String(m.params?.name ?? "");
             if (!plugin.tools.some((t) => t.name === name)) throw new Error(`${name} não é uma ferramenta deste plugin`);
-            return reply(
-              await invoke("local_plugin_run", { id: plugin.id, tool: name, tabId: panel.tabId, args: m.params?.args ?? {} }),
-            );
+            const out = await runPluginTool(plugin, name, tabId, (m.params?.args as Record<string, unknown>) ?? {});
+            return reply({ text: out.text, isError: out.isError });
           }
           case "prompt": {
             need("prompt");
-            if (!panel.tabId) throw new Error("o painel não está ligado a uma aba");
+            if (!tabId) throw new Error("não há aba para escrever");
             // A line break would send the prompt halfway.
-            await typeText(panel.tabId, String(m.params?.text ?? "").replace(/\s*\n\s*/g, " "));
-            if (m.params?.submit) await submit(panel.tabId);
+            await typeText(tabId, String(m.params?.text ?? "").replace(/\s*\n\s*/g, " "));
+            if (m.params?.submit) await submit(tabId);
             return reply(null);
           }
+          case "badge": {
+            need("badge");
+            const target = typeof m.params?.tabId === "string" ? m.params.tabId : tabId;
+            if (!target) throw new Error("não há aba para a etiqueta");
+            applyEffects(plugin, target, { badge: (m.params?.text as string | null) ?? null });
+            return reply(null);
+          }
+          case "notify":
+            need("notify");
+            await notify(String(m.params?.title ?? plugin.name), String(m.params?.body ?? ""), true);
+            return reply(null);
           case "events":
             need("events");
             return reply(await invoke("plugin_events", { id: plugin.id }));
@@ -153,8 +190,33 @@ export function LocalPluginPanel({ host }: { host: PluginHost }) {
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [panel, plugin, tabs, openPluginPanel]);
+  }, [plugin, tabId, tabInfo, onClose]);
 
+  return (
+    <>
+      {error && <p className="error plugin-panel-error">{error}</p>}
+      {html && (
+        <iframe
+          ref={frame}
+          title={(side ? plugin.sidePanel?.title : plugin.panel?.title) ?? plugin.name}
+          // Scripts only: no same-origin, so the frame cannot reach the app.
+          sandbox="allow-scripts"
+          srcDoc={html}
+          onLoad={() => {
+            post({ type: "data", value: data ?? null });
+            post({ type: "tab", value: tabInfo });
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+/** A local plugin's panel under the terminal of the tab it belongs to. */
+export function LocalPluginPanel({ host }: { host: PluginHost }) {
+  const panel = useStore((s) => s.pluginPanel);
+  const plugin = useStore((s) => s.localPlugins.find((p) => p.id === panel?.plugin));
+  const openPluginPanel = useStore((s) => s.openPluginPanel);
   if (!panel || !plugin?.panel) return null;
   const rect = host.paneRect(panel.tabId);
   return (
@@ -179,17 +241,17 @@ export function LocalPluginPanel({ host }: { host: PluginHost }) {
           ×
         </button>
       </header>
-      {error && <p className="error plugin-panel-error">{error}</p>}
-      {html && (
-        <iframe
-          ref={frame}
-          title={plugin.panel.title}
-          // Scripts only: no same-origin, so the frame cannot reach the app.
-          sandbox="allow-scripts"
-          srcDoc={html}
-          onLoad={() => frame.current?.contentWindow?.postMessage({ type: "data", value: panel.data ?? null }, "*")}
-        />
-      )}
+      <PluginFrame plugin={plugin} side={false} tabId={panel.tabId} data={panel.data} onClose={() => openPluginPanel(null)} />
     </section>
+  );
+}
+
+/** A local plugin's tab in the right column, working on the active tab. */
+export function PluginSidePanel({ plugin, onClose }: { plugin: LocalPlugin; onClose: () => void }) {
+  const activeTabId = useStore((s) => s.activeTabId);
+  return (
+    <div className="plugin-side">
+      <PluginFrame plugin={plugin} side tabId={activeTabId} data={null} onClose={onClose} />
+    </div>
   );
 }
