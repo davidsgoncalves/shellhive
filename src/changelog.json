@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3.1",
+    "date": "2026-10-02",
+    "items": [
+      "Coluna da direita: as abas que não cabem vão para um menu ⋯, e a aba aberta fica sempre à vista.",
+      "As colunas da esquerda e da direita podem ser redimensionadas arrastando a borda; duplo clique volta à largura padrão."
+    ]
+  },
+  {
     "version": "1.3.0",
     "date": "2026-10-01",
     "items": [

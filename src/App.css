@@ -91,6 +91,15 @@ html, body, #root {
 }
 .sidebar { width: 240px; border-right: 1px solid var(--border); }
 .events-panel { width: 300px; border-left: 1px solid var(--border); }
+/* Drag handle on each column's inner edge. */
+.sidebar:not(.collapsed), .events-panel:not(.collapsed) { position: relative; }
+.column-resizer { position: absolute; top: 0; bottom: 0; width: 6px; z-index: 5; cursor: col-resize; }
+.column-resizer.sidebar { right: 0; }
+.column-resizer.events { left: 0; }
+.column-resizer:hover, [data-resizing] .column-resizer { background: color-mix(in srgb, var(--accent) 35%, transparent); }
+[data-resizing], [data-resizing] * { cursor: col-resize !important; user-select: none !important; }
+[data-resizing] :is(.sidebar, .events-panel) { transition: none; }
+[data-resizing] iframe { pointer-events: none; }
 .sidebar.collapsed, .events-panel.collapsed { width: 40px; align-items: center; padding-top: 8px; gap: 8px; }
 
 .sidebar-header {
@@ -206,20 +215,24 @@ button.ghost:disabled { opacity: .4; cursor: default; }
 
 /* ---------- right panel tabs ---------- */
 .panel-tabs {
-  height: 40px; display: flex; align-items: center; gap: 2px; padding: 0 6px 0 8px;
-  border-bottom: 1px solid var(--border);
-  /* Plugin tabs can outgrow the column; it scrolls sideways instead of wrapping. */
-  overflow-x: auto; scrollbar-width: none; flex-shrink: 0;
+  position: relative; height: 40px; display: flex; align-items: center; gap: 2px; padding: 0 6px 0 8px;
+  border-bottom: 1px solid var(--border); flex-shrink: 0; overflow: hidden;
 }
-.panel-tabs::-webkit-scrollbar { display: none; }
-.panel-tabs > button { flex-shrink: 0; white-space: nowrap; }
-.panel-tabs > button:not(.icon-btn) {
+/* Tabs that do not fit go into the "⋯" menu; this copy measures them. */
+.panel-tabs-measure {
+  position: absolute; left: 0; top: 0; visibility: hidden; pointer-events: none;
+  display: flex; gap: 2px; white-space: nowrap;
+}
+.panel-tabs-tail { margin-left: auto; display: flex; align-items: center; flex-shrink: 0; }
+.panel-tabs-menu { transform-origin: top right; }
+.panel-tabs-menu .menu-item { display: flex; align-items: center; gap: 6px; }
+.panel-tabs button { flex-shrink: 0; white-space: nowrap; }
+.panel-tabs > button:not(.icon-btn), .panel-tabs-measure > button {
   background: transparent; border: none; color: var(--muted); cursor: pointer;
   padding: 5px 8px; border-radius: 5px; font-size: 12px; display: inline-flex; align-items: center; gap: 5px;
 }
 .panel-tabs > button:not(.icon-btn):hover { background: var(--panel-2); color: var(--fg); }
-.panel-tabs > button.active { background: var(--panel-2); color: var(--fg); font-weight: 600; }
-.panel-tabs .icon-btn { margin-left: auto; }
+.panel-tabs > button.active, .panel-tabs-measure > button.active { background: var(--panel-2); color: var(--fg); font-weight: 600; }
 .panel-body { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .hint.pad { padding: 12px; }
 
@@ -869,7 +882,7 @@ button.ghost.danger { border-color: var(--danger); color: var(--danger); }
 [data-layers] .sidebar-footer,
 [data-layers] .sessions-search { border-color: transparent; }
 [data-layers] .sidebar-header h1 { text-transform: none; letter-spacing: 0; font-size: 13px; color: var(--fg); }
-[data-layers] .panel-tabs > button:not(.icon-btn) { font-size: 11px; font-weight: 500; border-radius: 8px; }
+[data-layers] :is(.panel-tabs > button:not(.icon-btn), .panel-tabs-measure > button) { font-size: 11px; font-weight: 500; border-radius: 8px; }
 [data-layers] .icon-btn { border-radius: 999px; }
 
 /* Limits bar */
