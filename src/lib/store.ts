@@ -93,6 +93,9 @@ interface Store {
   activeTabId: string | null;
   sidebarOpen: boolean;
   eventsOpen: boolean;
+  /** Widths the user dragged the side columns to; null is the default. */
+  columnWidths: { sidebar: number | null; events: number | null };
+  setColumnWidth: (column: "sidebar" | "events", width: number | null) => void;
   events: HookEvent[];
   setup: HookSetup | null;
   /** Latest statusline payload per tab: model, context, cost. */
@@ -279,6 +282,8 @@ export const useStore = create<Store>()(
       activeTabId: null,
       sidebarOpen: true,
       eventsOpen: true,
+      columnWidths: { sidebar: null, events: null },
+      setColumnWidth: (column, width) => set((s) => ({ columnWidths: { ...s.columnWidths, [column]: width } })),
       events: [],
       setup: null,
       statusByTab: {},
@@ -802,6 +807,7 @@ export const useStore = create<Store>()(
         activeTabId: s.activeTabId,
         sidebarOpen: s.sidebarOpen,
         eventsOpen: s.eventsOpen,
+        columnWidths: s.columnWidths,
         pinned: s.pinned,
         folders: s.folders,
         defaultFolderId: s.defaultFolderId,
