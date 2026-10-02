@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { CopyCommand } from "./UpdateBanner";
 import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -204,11 +205,15 @@ function AboutTab() {
           </button>
         </div>
       )}
-      {phase === "handed-off" && <p className="hint">O instalador do sistema foi aberto com o pacote novo.</p>}
       {phase === "restart-failed" && (
         <p className="hint">Atualização instalada. Feche e abra o app para concluir.{message ? ` (${message})` : ""}</p>
       )}
-      {phase === "error" && <p className="error">Falha ao atualizar: {message}</p>}
+      {phase === "error" && (
+        <div className="about-update">
+          <p className="error">Falha ao atualizar: {message}</p>
+          <CopyCommand message={message} />
+        </div>
+      )}
     </section>
 
     <section className="settings-section">

@@ -1,5 +1,5 @@
-import { useEffect } from "react";
-import { useUpdater } from "../lib/updater";
+import { useEffect, useState } from "react";
+import { manualCommand, useUpdater } from "../lib/updater";
 
 const CHECK_EVERY_MS = 6 * 60 * 60 * 1000;
 
@@ -45,14 +45,6 @@ export function UpdateBanner() {
           </button>
         </>
       )}
-      {phase === "handed-off" && (
-        <>
-          <span>O instalador do sistema foi aberto com o pacote novo.</span>
-          <button className="ghost auto" onClick={dismiss}>
-            Fechar
-          </button>
-        </>
-      )}
       {phase === "restart-failed" && (
         <>
           <span>
@@ -67,11 +59,27 @@ export function UpdateBanner() {
       {phase === "error" && (
         <>
           <span>Falha ao atualizar: {message}</span>
+          <CopyCommand message={message} />
           <button className="ghost auto" onClick={dismiss}>
             Fechar
           </button>
         </>
       )}
     </div>
+  );
+}
+
+/** Copies the command that finishes a failed Linux package update by hand. */
+export function CopyCommand({ message }: { message: string | null }) {
+  const [copied, setCopied] = useState(false);
+  const command = manualCommand(message);
+  if (!command) return null;
+  return (
+    <button
+      className="ghost auto"
+      onClick={() => void navigator.clipboard.writeText(command).then(() => setCopied(true))}
+    >
+      {copied ? "Copiado" : "Copiar comando"}
+    </button>
   );
 }

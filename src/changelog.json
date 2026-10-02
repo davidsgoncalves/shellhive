@@ -4,7 +4,8 @@
     "date": "2026-10-02",
     "items": [
       "Coluna da direita: as abas que não cabem vão para um menu ⋯, e a aba aberta fica sempre à vista.",
-      "As colunas da esquerda e da direita podem ser redimensionadas arrastando a borda; duplo clique volta à largura padrão."
+      "As colunas da esquerda e da direita podem ser redimensionadas arrastando a borda; duplo clique volta à largura padrão.",
+      "Linux: a atualização pelo pacote .deb volta a funcionar para quem estava numa beta, e espera outra instalação do sistema terminar em vez de falhar. Se ainda assim não der, o aviso traz o comando para copiar."
     ]
   },
   {
