@@ -5,7 +5,10 @@ import { relaunch } from "@tauri-apps/plugin-process";
 import { reportError } from "./errors";
 import { useStore } from "./store";
 
-export type Phase = "idle" | "found" | "working" | "ready" | "handed-off" | "restart-failed" | "error";
+export type Phase = "idle" | "found" | "working" | "ready" | "restart-failed" | "error";
+
+/** The install command a failed Linux package update asks the user to run. */
+export const manualCommand = (message: string | null) => message?.match(/sudo apt install '[^']+'/)?.[0] ?? null;
 
 interface Updater {
   /** Newer version found in the chosen channel. */
@@ -55,8 +58,8 @@ export const useUpdater = create<Updater>()((set, get) => ({
     set({ phase: "working", progress: 0, dismissed: false });
     const unlisten = await listen<number>("update-progress", (ev) => set({ progress: ev.payload }));
     try {
-      const result = await invoke<string>("update_install", { beta: beta() });
-      set({ phase: result === "installed" ? "ready" : "handed-off" });
+      await invoke<string>("update_install", { beta: beta() });
+      set({ phase: "ready" });
     } catch (err) {
       reportError("update", err);
       set({ phase: "error", message: errorText(err) });
@@ -82,7 +85,7 @@ export const useUpdater = create<Updater>()((set, get) => ({
 
   dismiss: () => {
     const { phase } = get();
-    // Closing an error or a handed-off notice ends it; closing an offer only
+    // Closing an error ends it; closing an offer only
     // hides the banner, and Sobre keeps it.
     if (phase === "found" || phase === "ready") set({ dismissed: true });
     else set({ version: null, phase: "idle", message: null, dismissed: false });
