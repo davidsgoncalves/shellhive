@@ -87,6 +87,18 @@ export type Modal =
   | { kind: "switcher" }
   | { kind: "pickFolder"; groupId: string };
 
+/** A plugin's band on one terminal. */
+export interface PluginBand {
+  data: unknown;
+  /** In pixels, as its page last asked. */
+  height: number;
+}
+
+/** Space between a band and its terminal, part of the band's height. */
+export const BAND_GAP = 4;
+/** A band starts one line tall. */
+export const BAND_HEIGHT = 28 + BAND_GAP;
+
 interface Store {
   groups: Group[];
   tabs: Tab[];
@@ -146,6 +158,8 @@ interface Store {
   rightPanelTab: string;
   /** Badges plugins put under tab names: tab id -> plugin id -> text. */
   pluginBadges: Record<string, Record<string, string>>;
+  /** Bands plugins attach to terminals: tab id -> plugin id -> data and height. */
+  pluginBands: Record<string, Record<string, PluginBand>>;
   /** The local plugin panel on screen. */
   pluginPanel: PluginPanel | null;
   /** Follows the beta channel for updates. */
@@ -254,6 +268,9 @@ interface Store {
   openPluginPanel: (panel: PluginPanel | null) => void;
   setPluginBadge: (tabId: string, pluginId: string, text: string | null) => void;
   setPluginStatus: (pluginId: string, status: { text: string; title?: string } | null) => void;
+  /** Shows a plugin's band on a tab's terminal with this data; null removes it. */
+  setPluginBand: (tabId: string, pluginId: string, data: unknown) => void;
+  setPluginBandHeight: (tabId: string, pluginId: string, height: number) => void;
   setRightPanelTab: (tab: string) => void;
   /** Shows a plugin's view in a pane: its own if open, else a free one, else the focused one. */
   openPluginView: (pluginId: string, data: unknown) => void;
@@ -312,6 +329,7 @@ export const useStore = create<Store>()(
       deferredApprovals: {},
       pluginPanel: null,
       pluginBadges: {},
+      pluginBands: {},
       pluginStatus: {},
       viewData: {},
       rightPanelTab: "queue",
@@ -669,6 +687,18 @@ export const useStore = create<Store>()(
         }),
       deferApproval: (id, hash) => set((s) => ({ deferredApprovals: { ...s.deferredApprovals, [id]: hash } })),
       openPluginPanel: (pluginPanel) => set({ pluginPanel }),
+      setPluginBand: (tabId, pluginId, data) =>
+        set((s) => {
+          const { [pluginId]: old, ...rest } = s.pluginBands[tabId] ?? {};
+          const next = data == null ? rest : { ...rest, [pluginId]: { data, height: old?.height ?? BAND_HEIGHT } };
+          return { pluginBands: { ...s.pluginBands, [tabId]: next } };
+        }),
+      setPluginBandHeight: (tabId, pluginId, height) =>
+        set((s) => {
+          const band = s.pluginBands[tabId]?.[pluginId];
+          if (!band || band.height === height) return {};
+          return { pluginBands: { ...s.pluginBands, [tabId]: { ...s.pluginBands[tabId], [pluginId]: { ...band, height } } } };
+        }),
       setPluginStatus: (pluginId, status) =>
         set((s) => {
           const { [pluginId]: _old, ...rest } = s.pluginStatus;
@@ -707,6 +737,14 @@ export const useStore = create<Store>()(
               ),
           pluginPanel: !on && s.pluginPanel?.plugin === id ? null : s.pluginPanel,
           pluginStatus: on ? s.pluginStatus : Object.fromEntries(Object.entries(s.pluginStatus).filter(([p]) => p !== id)),
+          pluginBands: on
+            ? s.pluginBands
+            : Object.fromEntries(
+                Object.entries(s.pluginBands).map(([tab, b]) => [
+                  tab,
+                  Object.fromEntries(Object.entries(b).filter(([p]) => p !== id)),
+                ]),
+              ),
           panes: on ? s.panes : s.panes.map((p) => (p === viewOf(id) ? null : p)),
         })),
       dismissAnnouncement: (id) =>

@@ -96,6 +96,19 @@ pub struct WindowInfo {
     height: u32,
 }
 
+/// A strip attached to the terminal of the tabs the plugin picks, above or
+/// below it; the terminal shrinks to make room. It starts one line tall and
+/// grows up to `max_height` when its page asks.
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BandInfo {
+    #[serde(skip)]
+    entry: String,
+    /// "top" or "bottom".
+    position: String,
+    max_height: u32,
+}
+
 /// The shortest interval a schedule may ask for.
 const SCHEDULE_MIN_SECS: u64 = 15;
 
@@ -120,6 +133,7 @@ pub struct LocalPlugin {
     /// Takes a whole pane of the split, like a terminal.
     view: Option<PanelInfo>,
     window: Option<WindowInfo>,
+    band: Option<BandInfo>,
     shortcuts: Vec<Shortcut>,
     permissions: Vec<String>,
     #[serde(skip)]
@@ -232,6 +246,7 @@ fn read_plugin(dir: &Path, id: &str, approved: &HashMap<String, String>) -> Loca
         schedule: Vec::new(),
         view: None,
         window: None,
+        band: None,
         shortcuts: Vec::new(),
         permissions: Vec::new(),
         agent_context: None,
@@ -349,6 +364,24 @@ fn parse(dir: &Path, id: &str, plugin: &mut LocalPlugin) -> Result<(), String> {
         });
     }
 
+    if let Some(b) = panel_spec("band", "band.html")? {
+        let spec = &m["band"];
+        let position = text(spec, "position").unwrap_or_else(|| "bottom".into());
+        if position != "top" && position != "bottom" {
+            return Err("band.position precisa ser top ou bottom".into());
+        }
+        let max_height = spec
+            .get("maxHeight")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(160)
+            .clamp(24, 400) as u32;
+        plugin.band = Some(BandInfo {
+            entry: b.entry,
+            position,
+            max_height,
+        });
+    }
+
     let own = |tool: &str| plugin.tools.iter().any(|t| t.name == tool);
     for item in m
         .get("menu")
@@ -436,6 +469,7 @@ fn parse(dir: &Path, id: &str, plugin: &mut LocalPlugin) -> Result<(), String> {
         && plugin.side_panel.is_none()
         && plugin.view.is_none()
         && plugin.window.is_none()
+        && plugin.band.is_none()
     {
         return Err("o plugin precisa de ao menos uma ferramenta ou um painel".into());
     }
@@ -579,6 +613,10 @@ pub fn local_plugin_panel(id: String, kind: Option<String>) -> Result<String, St
             title: w.title,
             entry: w.entry,
         }),
+        "band" => plugin.band.map(|b| PanelInfo {
+            title: String::new(),
+            entry: b.entry,
+        }),
         _ => plugin.panel,
     }
     .ok_or("o plugin não tem esse painel")?;
@@ -625,7 +663,13 @@ pub fn plugin_storage_set(id: String, value: serde_json::Value) -> Result<(), St
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
     let body = serde_json::to_string(&value).map_err(|e| e.to_string())?;
-    if body.len() > if official { OFFICIAL_STORAGE_MAX } else { OUTPUT_MAX } {
+    if body.len()
+        > if official {
+            OFFICIAL_STORAGE_MAX
+        } else {
+            OUTPUT_MAX
+        }
+    {
         return Err("dados grandes demais para o armazenamento do plugin".into());
     }
     fs::write(path, body).map_err(|e| e.to_string())
@@ -794,6 +838,13 @@ fn run_tool(
     }
     if let Some(window) = reply.get("window").filter(|_| plugin.window.is_some()) {
         effects.insert("window".into(), window.clone());
+    }
+    if plugin.band.is_some() {
+        for key in ["band", "bands"] {
+            if let Some(v) = reply.get(key) {
+                effects.insert(key.into(), v.clone());
+            }
+        }
     }
     let effects = (!effects.is_empty()).then_some(serde_json::Value::Object(effects));
     let result = text_result(
@@ -966,5 +1017,35 @@ mod tests {
         let _ = fs::remove_dir_all(&tmp);
         assert!(p.status == Status::Invalid);
         assert!(p.error.unwrap().contains("demo_"));
+    }
+
+    #[test]
+    fn a_band_needs_its_page_and_a_known_position() {
+        let tmp = std::env::temp_dir().join(format!("shellhive-band-{}", std::process::id()));
+        let dir = tmp.join("demo");
+        write(
+            &dir,
+            &[
+                (
+                    "plugin.json",
+                    r#"{"id":"demo","name":"Demo","band":{"maxHeight":9999}}"#,
+                ),
+                ("band.html", "<p>oi</p>"),
+            ],
+        );
+        let p = read_plugin(&dir, "demo", &HashMap::new());
+        assert_eq!(p.error, None);
+        let band = p.band.unwrap();
+        assert_eq!(band.position, "bottom");
+        assert_eq!(band.max_height, 400);
+        write(
+            &dir,
+            &[(
+                "plugin.json",
+                r#"{"id":"demo","name":"Demo","band":{"position":"left"}}"#,
+            )],
+        );
+        assert!(read_plugin(&dir, "demo", &HashMap::new()).error.is_some());
+        let _ = fs::remove_dir_all(&tmp);
     }
 }

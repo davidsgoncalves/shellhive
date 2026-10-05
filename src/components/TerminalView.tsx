@@ -100,11 +100,18 @@ export function TerminalView({
       fit.fit();
       invoke("pty_resize", { id: tab.id, cols: term.cols, rows: term.rows }).catch(() => {});
     };
-    const observer = new ResizeObserver(refit);
+    // Fitting changes layout; doing it on the next frame keeps the observer
+    // from looping within one.
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(refit);
+    });
     observer.observe(el);
     const untrack = trackTerminal(term, refit);
 
     return () => {
+      cancelAnimationFrame(frame);
       observer.disconnect();
       dataSub.dispose();
       terminals.delete(tab.id);

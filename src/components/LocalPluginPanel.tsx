@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { PLUGIN_WINDOW_DATA, PLUGIN_WINDOW_READY } from "../lib/pluginWindow";
-import { useStore } from "../lib/store";
+import { BAND_GAP, BAND_HEIGHT, useStore } from "../lib/store";
 import type { PluginHost } from "../lib/plugins";
 import { submit, typeText } from "../lib/typing";
 import { notify } from "../lib/notify";
@@ -60,6 +60,8 @@ function frameDocument(html: string): string {
     notify: (title, body) => call("notify", { title, body }),
     setStatus: (text, title) => call("status", { text, title }),
     open: (surface, data) => call("open", { surface, data }),
+    setBand: (data, tabId) => call("band", { data, tabId }),
+    setHeight: (px) => call("height", { px }),
     tool: (name, args) => call("tool", { name, args }),
     prompt: (text, opts) => call("prompt", { text, submit: !!(opts && opts.submit) }),
     storage: { get: () => call("storage.get"), set: (value) => call("storage.set", { value }) },
@@ -83,7 +85,7 @@ export function PluginFrame({
   onClose,
 }: {
   plugin: LocalPlugin;
-  kind: Surface;
+  kind: Surface | "band";
   tabId: string | null;
   data: unknown;
   onClose: () => void;
@@ -183,6 +185,19 @@ export function PluginFrame({
             if (surface === "side") openSurface(plugin, "side", tabId, null);
             return reply(null);
           }
+          case "band": {
+            if (!plugin.band) throw new Error("o plugin não declarou band");
+            const target = typeof m.params?.tabId === "string" ? m.params.tabId : tabId;
+            if (!target) throw new Error("não há aba para a faixa");
+            await dispatchEffects(plugin, target, { bands: { [target]: m.params?.data ?? null } });
+            return reply(null);
+          }
+          case "height": {
+            if (kind !== "band" || !tabId || !plugin.band) throw new Error("só a faixa muda de altura");
+            const px = Math.round(Number(m.params?.px) || 0) + BAND_GAP;
+            useStore.getState().setPluginBandHeight(tabId, plugin.id, Math.min(plugin.band.maxHeight + BAND_GAP, Math.max(BAND_HEIGHT, px)));
+            return reply(null);
+          }
           case "notify":
             need("notify");
             await notify(String(m.params?.title ?? plugin.name), String(m.params?.body ?? ""), true);
@@ -209,7 +224,7 @@ export function PluginFrame({
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [plugin, tabId, tabInfo, onClose]);
+  }, [plugin, kind, tabId, tabInfo, onClose]);
 
   return (
     <>
@@ -327,5 +342,24 @@ export function PluginWindow({ pluginId }: { pluginId: string }) {
         onClose={() => void getCurrentWebviewWindow().close()}
       />
     </div>
+  );
+}
+
+/** A plugin's band on one tab's terminal; the terminal makes room for it. */
+export function PluginBandFrame({
+  plugin,
+  tabId,
+  style,
+}: {
+  plugin: LocalPlugin;
+  tabId: string;
+  style: React.CSSProperties;
+}) {
+  const data = useStore((s) => s.pluginBands[tabId]?.[plugin.id]?.data);
+  const setPluginBand = useStore((s) => s.setPluginBand);
+  return (
+    <section className={`plugin-band ${plugin.band?.position ?? "bottom"}`} style={style}>
+      <PluginFrame plugin={plugin} kind="band" tabId={tabId} data={data ?? null} onClose={() => setPluginBand(tabId, plugin.id, null)} />
+    </section>
   );
 }
