@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.4.0",
+    "date": "2026-10-05",
+    "items": [
+      "Plugins podem prender uma faixa ao terminal de uma aba, em cima ou embaixo dele. O terminal encolhe para dar lugar a ela, e ela cresce quando o plugin precisa mostrar mais."
+    ]
+  },
+  {
     "version": "1.3.1",
     "date": "2026-10-02",
     "items": [

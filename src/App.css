@@ -1215,6 +1215,14 @@ button.ghost.danger { border-color: var(--danger); color: var(--danger); }
 .plugin-view > header { display: flex; align-items: center; gap: 8px; padding: 6px 10px; flex-shrink: 0; border-bottom: 1px solid var(--border); }
 .plugin-view > header .icon-btn { margin-left: auto; }
 .plugin-view iframe, .plugin-window iframe { flex: 1; min-height: 0; width: 100%; border: 0; background: transparent; }
+/* A plugin's strip on a terminal; the terminal shrinks to make room. */
+.plugin-band { position: absolute; display: flex; box-sizing: border-box; }
+.plugin-band.bottom { padding-top: 4px; }
+.plugin-band.top { padding-bottom: 4px; }
+.plugin-band iframe {
+  flex: 1; min-width: 0; width: 100%; border: 1px solid var(--border); border-radius: 6px; background: var(--panel);
+}
+[data-layers] .plugin-band iframe { border-radius: 10px; border-color: transparent; background: var(--overlay, var(--panel)); }
 .plugin-window { height: 100vh; display: flex; flex-direction: column; background: var(--bg); }
 [data-layers] .plugin-view { border-radius: 14px; }
 .plugin-status { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }

@@ -21,6 +21,10 @@ export interface PluginEffects {
   view?: unknown;
   /** Opens the plugin's window with this data. */
   window?: unknown;
+  /** The band on the calling tab's terminal; null removes it. */
+  band?: unknown;
+  /** Bands by tab id; null removes one. */
+  bands?: Record<string, unknown>;
 }
 
 const BADGE_MAX = 60;
@@ -52,6 +56,10 @@ export function applyEffects(plugin: LocalPlugin, tabId: string | null, effects:
       plugin.id,
       text && text.trim() ? { text: text.trim().slice(0, 40), title: typeof st === "object" ? st?.title : undefined } : null,
     );
+  }
+  if (plugin.band) {
+    if ("band" in effects && tabId) s.setPluginBand(tabId, plugin.id, effects.band ?? null);
+    for (const [tab, data] of Object.entries(effects.bands ?? {})) s.setPluginBand(tab, plugin.id, data ?? null);
   }
   if (effects.view !== undefined) openSurface(plugin, "view", tabId, effects.view);
   if (effects.window !== undefined) openSurface(plugin, "window", tabId, effects.window);

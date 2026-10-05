@@ -62,6 +62,11 @@ function ApprovalCard({ plugin }: { plugin: LocalPlugin }) {
       )}
       {plugin.view && <p className="plugin-approval-label">Vista "{plugin.view.title}" num espaço da tela dividida</p>}
       {plugin.window && <p className="plugin-approval-label">Janela própria "{plugin.window.title}"</p>}
+      {plugin.band && (
+        <p className="plugin-approval-label">
+          Faixa {plugin.band.position === "top" ? "em cima" : "embaixo"} do terminal das abas que ele escolher
+        </p>
+      )}
       {plugin.shortcuts.length > 0 && (
         <p className="plugin-approval-label">
           Atalhos: {plugin.shortcuts.map((k) => `${pluginShortcutLabel(k.key)} (${k.tool ?? `abrir ${k.open}`})`).join(", ")}

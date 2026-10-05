@@ -17,6 +17,8 @@ export interface LocalPlugin {
   /** Takes a whole pane of the split, like a terminal. */
   view: { title: string } | null;
   window: { title: string; width: number; height: number } | null;
+  /** A strip on the terminals of the tabs it picks. */
+  band: { position: "top" | "bottom"; maxHeight: number } | null;
   shortcuts: Array<{ key: string; tool: string | null; open: Surface | null }>;
   permissions: string[];
 }

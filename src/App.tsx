@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { Fragment, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { emitTo, listen } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
@@ -18,7 +18,7 @@ import { PaneOverlay } from "./components/PaneOverlay";
 import { EmptyPane } from "./components/EmptyPane";
 import { PLUGINS, type PluginHost } from "./lib/plugins";
 import { reportError } from "./lib/errors";
-import { LocalPluginPanel, PluginViewPane } from "./components/LocalPluginPanel";
+import { LocalPluginPanel, PluginBandFrame, PluginViewPane } from "./components/LocalPluginPanel";
 import { isView, pluginTab, viewOf, type LocalPlugin } from "./lib/localPlugins";
 import { allTabs, applyEffects, openSurface, runPluginTool, type PluginEffects } from "./lib/pluginEffects";
 import { pluginKeyOf, setClaimedPluginKeys } from "./lib/shortcuts";
@@ -625,6 +625,18 @@ function App() {
     if (!isView(id)) return null;
     return localPlugins.find((p) => viewOf(p.id) === id && p.view && p.status === "approved" && enabledPlugins.includes(p.id)) ?? null;
   };
+  // Bands plugins attached to each terminal, in plugin order, split by side.
+  const pluginBands = useStore((s) => s.pluginBands);
+  const bandsOf = (tabId: string) => {
+    const own = pluginBands[tabId] ?? {};
+    const on = localPlugins.filter(
+      (p) => p.band && p.status === "approved" && enabledPlugins.includes(p.id) && own[p.id],
+    );
+    const side = (pos: "top" | "bottom") =>
+      on.filter((p) => p.band!.position === pos).map((p) => ({ plugin: p, height: own[p.id].height }));
+    return { top: side("top"), bottom: side("bottom") };
+  };
+  const sum = (list: Array<{ height: number }>) => list.reduce((a, b) => a + b.height, 0);
   const emptySlots = Array.from({ length: slots }, (_, i) => i).filter(
     (i) => !viewIn(i) && (!panes[i] || !live.some((t) => t.id === panes[i])),
   );
@@ -644,13 +656,36 @@ function App() {
           >
             {live.map((t) => {
               const slot = paneOf(t.id);
+              const rect = paneRect(splitMode, slot === -1 ? 0 : slot);
+              const bands = bandsOf(t.id);
+              const above = sum(bands.top);
+              const below = sum(bands.bottom);
+              const visible = slot !== -1 && !detached.includes(t.id);
+              // Stacked from the edge of the pane they sit on.
+              const stack = (list: typeof bands.top, from: string) => {
+                let offset = 0;
+                return list.map((b) => {
+                  const top = `calc(${from} + ${offset}px)`;
+                  offset += b.height;
+                  return { ...b, style: { display: visible ? undefined : "none", left: rect.left, width: rect.width, top, height: b.height } };
+                });
+              };
+              const placed = [
+                ...stack(bands.top, rect.top),
+                ...stack(bands.bottom, `${rect.top} + ${rect.height} - ${below}px`),
+              ];
               return (
+                <Fragment key={t.id}>
                 <TerminalView
                   key={t.id}
                   tab={t}
-                  visible={slot !== -1 && !detached.includes(t.id)}
+                  visible={visible}
                   focused={slot === focusedPane}
-                  rect={paneRect(splitMode, slot === -1 ? 0 : slot)}
+                  rect={
+                    above || below
+                      ? { ...rect, top: `calc(${rect.top} + ${above}px)`, height: `calc(${rect.height} - ${above + below}px)` }
+                      : rect
+                  }
                   color={colorOf(t)}
                   onFocus={() => slot !== -1 && focusPane(slot)}
                   onDropTab={(id) => slot !== -1 && id !== t.id && useStore.getState().assignToPane(id, slot)}
@@ -665,6 +700,10 @@ function App() {
                     useStore.getState().openTabMenu({ x: e.clientX, y: e.clientY, tabId: t.id });
                   }}
                 />
+                {placed.map((b) => (
+                  <PluginBandFrame key={`band-${b.plugin.id}`} plugin={b.plugin} tabId={t.id} style={b.style} />
+                ))}
+                </Fragment>
               );
             })}
             {emptySlots.map((i) => (
