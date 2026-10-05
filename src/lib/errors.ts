@@ -8,7 +8,12 @@ export function reportError(source: string, err: unknown): void {
 
 /** Catches what nothing else handled in this window. */
 export function watchUncaughtErrors(): void {
-  window.addEventListener("error", (e) => reportError("ui", e.error ?? e.message));
+  window.addEventListener("error", (e) => {
+    // The browser's note that a resize handler changed layout; it retries on
+    // the next frame and nothing is lost.
+    if (/ResizeObserver loop/.test(String(e.message))) return;
+    reportError("ui", e.error ?? e.message);
+  });
   window.addEventListener("unhandledrejection", (e) => reportError("ui", e.reason));
 }
 

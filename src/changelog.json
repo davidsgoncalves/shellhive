@@ -3,7 +3,8 @@
     "version": "1.4.0",
     "date": "2026-10-05",
     "items": [
-      "Plugins podem prender uma faixa ao terminal de uma aba, em cima ou embaixo dele. O terminal encolhe para dar lugar a ela, e ela cresce quando o plugin precisa mostrar mais."
+      "Plugins podem prender uma faixa ao terminal de uma aba, em cima ou embaixo dele. O terminal encolhe para dar lugar a ela, e ela cresce quando o plugin precisa mostrar mais.",
+      "Arrastar um arquivo ou uma imagem para fora de um terminal não abre mais o arquivo por cima do app: ele vai para a aba ativa, como se tivesse sido solto nela."
     ]
   },
   {

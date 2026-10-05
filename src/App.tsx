@@ -23,6 +23,7 @@ import { isView, pluginTab, viewOf, type LocalPlugin } from "./lib/localPlugins"
 import { allTabs, applyEffects, openSurface, runPluginTool, type PluginEffects } from "./lib/pluginEffects";
 import { pluginKeyOf, setClaimedPluginKeys } from "./lib/shortcuts";
 import { TerminalSearch } from "./components/TerminalSearch";
+import { carriesFiles, pasteDroppedFiles } from "./lib/termExtras";
 import { CommandCard, typeCommand } from "./components/CommandCard";
 import { applyLook, shareLook } from "./lib/theme";
 import { defaultGroupId, ensureUngrouped, openSession, openSessionInGroup, useStore } from "./lib/store";
@@ -564,8 +565,37 @@ function useLook() {
   }, [theme, terminalFont]);
 }
 
+/**
+ * Files dropped anywhere outside a terminal go to the active one. Unhandled,
+ * the webview would navigate to the dropped file and leave the app behind it.
+ */
+function useDropAnywhere() {
+  useEffect(() => {
+    const onOver = (e: DragEvent) => {
+      if (e.dataTransfer && carriesFiles(e.dataTransfer)) e.preventDefault();
+    };
+    const onDrop = (e: DragEvent) => {
+      if (!e.dataTransfer || !carriesFiles(e.dataTransfer)) return;
+      // A terminal pane already pasted it.
+      if (e.defaultPrevented) return;
+      e.preventDefault();
+      const { activeTabId, tabs, detached } = useStore.getState();
+      const tab = tabs.find((t) => t.id === activeTabId);
+      if (!tab || tab.state === "dormant" || detached.includes(tab.id)) return;
+      void pasteDroppedFiles(tab.id, e.dataTransfer).then(() => terminals.get(tab.id)?.focus());
+    };
+    window.addEventListener("dragover", onOver);
+    window.addEventListener("drop", onDrop);
+    return () => {
+      window.removeEventListener("dragover", onOver);
+      window.removeEventListener("drop", onDrop);
+    };
+  }, []);
+}
+
 function App() {
   useBackendBridge();
+  useDropAnywhere();
   useTitlePoll();
   useSessionGroups();
   useQueuedCommands();
