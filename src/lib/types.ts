@@ -21,6 +21,8 @@ export interface Group {
   id: string;
   name: string;
   color: string;
+  /** Shown before the name, in place of the color dot. */
+  emoji?: string | null;
   collapsed: boolean;
   /** Optional base folder; new sessions in this group open there directly. */
   folderId: string | null;

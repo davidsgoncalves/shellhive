@@ -49,7 +49,7 @@ Qualquer alteração em um arquivo da pasta pede aprovação de novo. Se o plugi
   "window": { "entry": "window.html", "title": "Deploy", "width": 720, "height": 520 },
   "band": { "entry": "band.html", "position": "bottom", "maxHeight": 160 },
   "shortcuts": [{ "key": "KeyD", "open": "side" }, { "key": "KeyS", "tool": "deploy_status" }],
-  "permissions": ["tab", "tools", "prompt", "storage", "events", "badge", "notify", "status"]
+  "permissions": ["tab", "tools", "prompt", "storage", "events", "badge", "notify", "status", "sessions"]
 }
 ```
 
@@ -117,6 +117,8 @@ Saída de erro com código diferente de zero vira erro para o agente. Uma chamad
 | `shellhive.open(lugar, dados)` | nenhuma | Abre `panel`, `side`, `view` ou `window` do plugin, com `dados` em `onData` |
 | `shellhive.setBand(dados, idDaAba)` | nenhuma | Mostra ou tira (`null`) a faixa do plugin numa aba; sem id, na aba do painel |
 | `shellhive.setHeight(px)` | nenhuma | Só na faixa: muda a altura dela, entre 28 px e `maxHeight` |
+| `shellhive.openTab({ cwd, title, prompt, group })` | `sessions` | Abre uma aba nova na pasta `cwd` (sem ela, a da aba ativa), no grupo de nome `group` (sem ele, o da aba ativa), e inicia o agente com `prompt` como primeira mensagem. Devolve o id da aba |
+| `shellhive.focusTab(id)` | `sessions` | Traz a aba para a frente |
 | `shellhive.tool(nome, args)` | `tools` | Chama uma ferramenta do próprio plugin e devolve `{ text, isError }` |
 | `shellhive.prompt(texto, { submit })` | `prompt` | Escreve no prompt do agente da aba; envia só com `submit: true` |
 | `shellhive.storage.get()` / `.set(valor)` | `storage` | Guarda um valor JSON do plugin, até 256 KB |

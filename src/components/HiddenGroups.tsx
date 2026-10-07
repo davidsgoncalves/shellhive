@@ -50,7 +50,7 @@ export function HiddenGroups({ variant }: { variant: "sidebar" | "strip" }) {
             const waiting = gt.filter((t) => t.state === "permission").length;
             return (
               <div key={g.id} className="hidden-row">
-                <span className="pick-dot" style={{ background: g.color }} />
+                {g.emoji ? <span className="group-emoji">{g.emoji}</span> : <span className="pick-dot" style={{ background: g.color }} />}
                 <span className="hidden-name" title={g.name}>
                   {g.name}
                 </span>

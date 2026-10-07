@@ -5,8 +5,20 @@ import { THEMES } from "../lib/theme";
 import { describeRule } from "../lib/permRules";
 
 /** Right-click menu for a group: colour, rename, collapse and removal. */
+const EMOJIS = ["🚀", "🐛", "🔥", "⭐", "📦", "🧪", "💡", "🛠️", "📝", "🔒", "🎨", "💰"];
+
+/** The first character as a person sees it, so a flag or a skin tone stays whole. */
+function firstGrapheme(text: string): string | null {
+  if (!text) return null;
+  // Intl.Segmenter is in every webview the app runs on; the TS lib target predates it.
+  const Segmenter = (Intl as unknown as { Segmenter?: new (l?: string, o?: object) => { segment(t: string): Iterable<{ segment: string }> } }).Segmenter;
+  if (!Segmenter) return Array.from(text)[0] ?? null;
+  const [first] = new Segmenter(undefined, { granularity: "grapheme" }).segment(text);
+  return first?.segment ?? null;
+}
+
 export function GroupMenu() {
-  const { groupMenu, openGroupMenu, groups, tabs, setGroupColor, renameGroup, toggleGroupCollapsed, setGroupHidden, ungroupTabs, closeGroup, removeGroupRule, theme } =
+  const { groupMenu, openGroupMenu, groups, tabs, setGroupColor, setGroupEmoji, renameGroup, toggleGroupCollapsed, setGroupHidden, ungroupTabs, closeGroup, removeGroupRule, theme } =
     useStore();
   const [confirming, setConfirming] = useState(false);
   const [renaming, setRenaming] = useState(false);
@@ -70,6 +82,36 @@ export function GroupMenu() {
             onClick={() => setGroupColor(group.id, c)}
           />
         ))}
+      </div>
+
+      <div className="menu-emojis">
+        {EMOJIS.map((e) => (
+          <button
+            key={e}
+            className={`menu-emoji ${group.emoji === e ? "on" : ""}`}
+            title="Usar este emoji"
+            onClick={() => setGroupEmoji(group.id, e)}
+          >
+            {e}
+          </button>
+        ))}
+        <input
+          className="menu-emoji-input"
+          placeholder="outro"
+          title="Digite ou cole um emoji (no macOS, ⌃⌘Espaço abre o seletor)"
+          onChange={(ev) => {
+            const first = firstGrapheme(ev.target.value.trim());
+            if (first) {
+              setGroupEmoji(group.id, first);
+              ev.target.value = "";
+            }
+          }}
+        />
+        {group.emoji && (
+          <button className="menu-emoji clear" title="Tirar o emoji" onClick={() => setGroupEmoji(group.id, null)}>
+            ×
+          </button>
+        )}
       </div>
 
       {renaming ? (

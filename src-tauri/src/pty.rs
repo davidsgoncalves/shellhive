@@ -83,20 +83,26 @@ fn zshenv_script(shim: &str) -> String {
          \x20 unset ZDOTDIR\n\
          fi\n\
          _shellhive_resume=${{SHELLHIVE_RESUME-}}\n\
-         unset SHELLHIVE_RESUME\n\
+         _shellhive_start=${{SHELLHIVE_START-}}\n\
+         unset SHELLHIVE_RESUME SHELLHIVE_START\n\
          [[ -r \"${{ZDOTDIR:-$HOME}}/.zshenv\" ]] && source \"${{ZDOTDIR:-$HOME}}/.zshenv\"\n\
-         # Runs the session to reopen as if typed at the first prompt.\n\
+         # Runs the session to reopen, or a new one with a first prompt, as if\n\
+         # typed at the first prompt.\n\
          _shellhive_resume_line() {{\n\
          \x20 add-zle-hook-widget -d line-init _shellhive_resume_line\n\
-         \x20 BUFFER=\"claude --resume $_shellhive_resume\"\n\
-         \x20 unset _shellhive_resume\n\
+         \x20 if [[ -n \"$_shellhive_resume\" ]]; then\n\
+         \x20   BUFFER=\"claude --resume $_shellhive_resume\"\n\
+         \x20 else\n\
+         \x20   BUFFER=\"claude ${{(q)_shellhive_start}}\"\n\
+         \x20 fi\n\
+         \x20 unset _shellhive_resume _shellhive_start\n\
          \x20 zle accept-line\n\
          }}\n\
          _shellhive_init() {{\n\
          \x20 claude() {{ {shim} \"$@\"; }}\n\
          \x20 precmd_functions=(${{precmd_functions:#_shellhive_init}})\n\
          \x20 unfunction _shellhive_init\n\
-         \x20 if [[ -n \"$_shellhive_resume\" ]]; then\n\
+         \x20 if [[ -n \"$_shellhive_resume$_shellhive_start\" ]]; then\n\
          \x20   autoload -Uz add-zle-hook-widget\n\
          \x20   add-zle-hook-widget line-init _shellhive_resume_line\n\
          \x20 fi\n\
@@ -146,6 +152,19 @@ fn resume_line(session: &str) -> Option<String> {
     }
 }
 
+/// Line typed into a new tab to start Claude with the first prompt in
+/// SHELLHIVE_START, read by the shell from the environment.
+fn start_line() -> Option<String> {
+    #[cfg(windows)]
+    {
+        Some("claude $env:SHELLHIVE_START\r".to_string())
+    }
+    #[cfg(not(windows))]
+    {
+        Some(format!("{} \"$SHELLHIVE_START\"\n", quoted_shim()?))
+    }
+}
+
 /// Line typed into a new tab so every `claude` there carries the app's
 /// settings and a per-tab MCP config. On Unix it points at the shim; on
 /// Windows it is a PowerShell function doing the same thing, since there is
@@ -174,6 +193,9 @@ fn claude_function() -> Option<String> {
     }
 }
 
+// A Tauri command takes its arguments as parameters, one per field the
+// interface sends.
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub fn pty_spawn(
     app: AppHandle,
@@ -183,6 +205,7 @@ pub fn pty_spawn(
     rows: u16,
     cwd: Option<String>,
     resume: Option<String>,
+    prompt: Option<String>,
 ) -> Result<(), String> {
     if state.0.lock().unwrap().contains_key(&id) {
         return Ok(());
@@ -242,6 +265,12 @@ pub fn pty_spawn(
     #[cfg(windows)]
     let zsh_ready = false;
     let resume = resume.filter(|s| valid_session(s));
+    // A first prompt for a new session; resuming one takes precedence. It
+    // travels in the environment, so the shell never parses it as code.
+    let prompt = prompt.filter(|p| resume.is_none() && !p.trim().is_empty());
+    if let Some(text) = &prompt {
+        cmd.env("SHELLHIVE_START", text);
+    }
     // zsh reopens the session from its startup files, where no startup file
     // can swallow the command.
     if zsh_ready {
@@ -268,14 +297,15 @@ pub fn pty_spawn(
     // PATH and zsh caches command lookups. A function is resolved before both,
     // so every `claude` typed in this tab reaches the shim. zsh already gets
     // it from its startup files.
-    let (init, resume) = if zsh_ready {
-        (None, None)
+    let (init, resume, start) = if zsh_ready {
+        (None, None, None)
     } else {
-        (claude_function(), resume)
+        (claude_function(), resume, prompt.and_then(|_| start_line()))
     };
     let lines = init
         .into_iter()
-        .chain(resume.as_deref().and_then(resume_line));
+        .chain(resume.as_deref().and_then(resume_line))
+        .chain(start);
     for line in lines {
         let _ = writer.write_all(line.as_bytes());
     }
@@ -356,6 +386,8 @@ pub fn pty_kill(state: tauri::State<PtyState>, id: String) -> Result<(), String>
 #[cfg(test)]
 mod tests {
     use super::valid_session;
+    #[cfg(not(windows))]
+    use super::zshenv_script;
 
     #[test]
     fn accepts_only_session_ids() {
@@ -363,5 +395,15 @@ mod tests {
         assert!(!valid_session(""));
         assert!(!valid_session("x; rm -rf ~"));
         assert!(!valid_session("$(id)"));
+    }
+
+    /// The first prompt reaches zsh only through ${(q)...}, which quotes it
+    /// as a single word, so it can never run as code.
+    #[cfg(not(windows))]
+    #[test]
+    fn the_first_prompt_is_quoted_by_zsh() {
+        let script = zshenv_script("'/shim'");
+        assert!(script.contains("BUFFER=\"claude ${(q)_shellhive_start}\""));
+        assert!(script.contains("unset SHELLHIVE_RESUME SHELLHIVE_START"));
     }
 }

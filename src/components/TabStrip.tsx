@@ -64,6 +64,7 @@ function GroupLabel({ group, count }: { group: Group; count: number }) {
         openGroupMenu({ x: e.clientX, y: e.clientY, groupId: group.id });
       }}
     >
+      {group.emoji && <span className="group-emoji">{group.emoji}</span>}
       {group.name}
       {group.collapsed && <span className="pill-count">{count}</span>}
     </button>

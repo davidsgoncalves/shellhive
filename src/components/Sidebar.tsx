@@ -218,7 +218,11 @@ function GroupSection({ group, tabs, activeTabId }: { group: Group; tabs: Tab[];
         <button className="icon-btn chevron" onClick={() => toggleGroupCollapsed(group.id)}>
           {group.collapsed ? "›" : "⌄"}
         </button>
-        <span className={`swatch ${group.fixed ? "fixed" : ""}`} title={group.fixed ? "Grupo fixo" : undefined} />
+        {group.emoji ? (
+          <span className="group-emoji">{group.emoji}</span>
+        ) : (
+          <span className={`swatch ${group.fixed ? "fixed" : ""}`} title={group.fixed ? "Grupo fixo" : undefined} />
+        )}
         {group.fixed ? (
           <span className="group-name">{group.name}</span>
         ) : (

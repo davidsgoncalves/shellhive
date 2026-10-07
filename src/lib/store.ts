@@ -251,6 +251,7 @@ interface Store {
   setBarPosition: (p: BarPosition) => void;
   openGroupMenu: (m: { x: number; y: number; groupId: string } | null) => void;
   setGroupColor: (id: string, color: string) => void;
+  setGroupEmoji: (id: string, emoji: string | null) => void;
   ungroupTabs: (id: string) => void;
   closeGroup: (id: string) => void;
   setTerminalBorder: (px: number) => void;
@@ -633,6 +634,8 @@ export const useStore = create<Store>()(
       openGroupMenu: (groupMenu) => set({ groupMenu }),
       setGroupColor: (id, color) =>
         set((s) => ({ groups: s.groups.map((g) => (g.id === id ? { ...g, color } : g)) })),
+      setGroupEmoji: (id, emoji) =>
+        set((s) => ({ groups: s.groups.map((g) => (g.id === id ? { ...g, emoji: emoji || null } : g)) })),
       ungroupTabs: (id) =>
         set((s) => {
           if (id === UNGROUPED_ID) return s;

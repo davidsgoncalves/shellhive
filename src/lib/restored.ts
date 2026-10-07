@@ -16,3 +16,16 @@ export function markPendingResume(ids: string[]): void {
 export function takePendingResume(id: string): boolean {
   return pending.delete(id);
 }
+
+/** First prompts for new tabs, sent as `claude "<prompt>"` when the shell starts. */
+const prompts = new Map<string, string>();
+
+export function markPendingPrompt(id: string, prompt: string): void {
+  prompts.set(id, prompt);
+}
+
+export function takePendingPrompt(id: string): string | null {
+  const prompt = prompts.get(id) ?? null;
+  prompts.delete(id);
+  return prompt;
+}

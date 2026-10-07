@@ -266,7 +266,7 @@ fn read_plugin(dir: &Path, id: &str, approved: &HashMap<String, String>) -> Loca
 }
 
 const PERMISSIONS: &[&str] = &[
-    "tab", "tools", "prompt", "storage", "events", "badge", "notify", "status",
+    "tab", "tools", "prompt", "storage", "events", "badge", "notify", "status", "sessions",
 ];
 
 fn parse(dir: &Path, id: &str, plugin: &mut LocalPlugin) -> Result<(), String> {

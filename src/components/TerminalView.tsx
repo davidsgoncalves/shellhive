@@ -10,7 +10,7 @@ import { actionOf, isAppShortcut } from "../lib/shortcuts";
 import { reportError } from "../lib/errors";
 import { sessionFromDrag, type SessionRef } from "../lib/store";
 import { attachLinks, carriesFiles, carriesSession, carriesTab, fixLinuxInput, pasteDroppedFiles } from "../lib/termExtras";
-import { takePendingResume } from "../lib/restored";
+import { takePendingPrompt, takePendingResume } from "../lib/restored";
 import type { Tab } from "../lib/types";
 
 interface Props {
@@ -86,7 +86,8 @@ export function TerminalView({
     // Resume only when this tab was opened to continue a session; the backend
     // types the command through the shim, which supplies the settings.
     const resume = tab.claudeSessionId && takePendingResume(tab.id) ? tab.claudeSessionId : null;
-    invoke("pty_spawn", { id: tab.id, cols: term.cols, rows: term.rows, cwd: tab.cwd, resume })
+    const prompt = resume ? null : takePendingPrompt(tab.id);
+    invoke("pty_spawn", { id: tab.id, cols: term.cols, rows: term.rows, cwd: tab.cwd, resume, prompt })
       .catch((e) => {
         term.writeln(`\x1b[31mpty_spawn failed: ${e}\x1b[0m`);
         reportError("pty", `pty_spawn failed: ${e}`);
