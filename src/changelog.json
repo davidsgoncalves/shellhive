@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.5.1",
+    "date": "2026-10-07",
+    "items": [
+      "Plugins podem abrir o seletor de pastas do sistema; o modo esteira usa para escolher o projeto."
+    ]
+  },
+  {
     "version": "1.5.0",
     "date": "2026-10-07",
     "items": [

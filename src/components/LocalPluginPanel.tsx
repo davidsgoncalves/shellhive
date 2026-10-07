@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { PLUGIN_WINDOW_DATA, PLUGIN_WINDOW_READY } from "../lib/pluginWindow";
 import { BAND_GAP, BAND_HEIGHT, useStore } from "../lib/store";
 import type { PluginHost } from "../lib/plugins";
@@ -64,6 +65,7 @@ function frameDocument(html: string): string {
     setHeight: (px) => call("height", { px }),
     openTab: (opts) => call("openTab", opts || {}),
     focusTab: (id) => call("focusTab", { id }),
+    pickFolder: (opts) => call("pickFolder", opts || {}),
     tool: (name, args) => call("tool", { name, args }),
     prompt: (text, opts) => call("prompt", { text, submit: !!(opts && opts.submit) }),
     storage: { get: () => call("storage.get"), set: (value) => call("storage.set", { value }) },
@@ -210,6 +212,16 @@ export function PluginFrame({
             if (!s.tabs.some((t) => t.id === id)) throw new Error("aba não encontrada");
             s.activateTab(id);
             return reply(null);
+          }
+          case "pickFolder": {
+            // The user picks, so the plugin learns only the folder they chose.
+            const picked = await openDialog({
+              directory: true,
+              multiple: false,
+              title: typeof m.params?.title === "string" ? m.params.title : "Escolher pasta",
+              defaultPath: typeof m.params?.defaultPath === "string" ? m.params.defaultPath : undefined,
+            });
+            return reply(typeof picked === "string" ? picked : null);
           }
           case "notify":
             need("notify");
