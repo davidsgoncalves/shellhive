@@ -119,6 +119,7 @@ Saída de erro com código diferente de zero vira erro para o agente. Uma chamad
 | `shellhive.setHeight(px)` | nenhuma | Só na faixa: muda a altura dela, entre 28 px e `maxHeight` |
 | `shellhive.openTab({ cwd, title, prompt, group })` | `sessions` | Abre uma aba nova na pasta `cwd` (sem ela, a da aba ativa), no grupo de nome `group` (sem ele, o da aba ativa), e inicia o agente com `prompt` como primeira mensagem. Devolve o id da aba |
 | `shellhive.focusTab(id)` | `sessions` | Traz a aba para a frente |
+| `shellhive.pickFolder({ title, defaultPath })` | nenhuma | Abre o seletor de pastas do sistema e devolve o caminho escolhido, ou `null` se o usuário cancelar |
 | `shellhive.tool(nome, args)` | `tools` | Chama uma ferramenta do próprio plugin e devolve `{ text, isError }` |
 | `shellhive.prompt(texto, { submit })` | `prompt` | Escreve no prompt do agente da aba; envia só com `submit: true` |
 | `shellhive.storage.get()` / `.set(valor)` | `storage` | Guarda um valor JSON do plugin, até 256 KB |
