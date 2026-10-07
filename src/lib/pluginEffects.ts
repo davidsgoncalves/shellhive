@@ -6,6 +6,7 @@ import { useStore } from "./store";
 import { notify } from "./notify";
 import { pluginTab, type LocalPlugin, type PluginTab, type Surface } from "./localPlugins";
 import { openPluginWindow } from "./pluginWindow";
+import { markPendingPrompt } from "./restored";
 
 /** What a tool reply may ask the app to do, besides answering. */
 export interface PluginEffects {
@@ -73,6 +74,23 @@ export function openSurface(plugin: LocalPlugin, surface: Surface, tabId: string
   if (surface === "side" && plugin.sidePanel) s.setRightPanelTab(`plugin:${plugin.id}`);
   if (surface === "view" && plugin.view) s.openPluginView(plugin.id, data ?? null);
   if (surface === "window" && plugin.window) void openPluginWindow(plugin, data);
+}
+
+/**
+ * Opens a tab that starts the agent with a first prompt, in the group named
+ * `group`, or the active tab's group. Returns the new tab's id.
+ */
+export function openAgentTab(opts: { cwd?: unknown; title?: unknown; prompt?: unknown; group?: unknown }): string {
+  const s = useStore.getState();
+  const named = typeof opts.group === "string" ? s.groups.find((g) => !g.fixed && g.name === opts.group) : undefined;
+  const active = s.tabs.find((t) => t.id === s.activeTabId);
+  const groupId = named?.id ?? active?.groupId ?? s.groups.find((g) => !g.fixed)?.id ?? s.groups[0]?.id;
+  if (!groupId) throw new Error("não há grupo para a aba");
+  const title = typeof opts.title === "string" && opts.title.trim() ? opts.title.trim().slice(0, 80) : undefined;
+  const cwd = typeof opts.cwd === "string" && opts.cwd.trim() ? opts.cwd : active?.cwd ?? null;
+  const id = s.addTab(groupId, { cwd, title, customTitle: !!title });
+  if (typeof opts.prompt === "string" && opts.prompt.trim()) markPendingPrompt(id, opts.prompt.trim());
+  return id;
 }
 
 export function allTabs(): PluginTab[] {

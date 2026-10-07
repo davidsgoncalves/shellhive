@@ -7,7 +7,7 @@ import { BAND_GAP, BAND_HEIGHT, useStore } from "../lib/store";
 import type { PluginHost } from "../lib/plugins";
 import { submit, typeText } from "../lib/typing";
 import { notify } from "../lib/notify";
-import { allTabs, dispatchEffects, openSurface, runPluginTool } from "../lib/pluginEffects";
+import { allTabs, dispatchEffects, openAgentTab, openSurface, runPluginTool } from "../lib/pluginEffects";
 import { pluginTab, type LocalPlugin, type Surface } from "../lib/localPlugins";
 
 /** Theme variables handed to a panel, so it can match the app. */
@@ -62,6 +62,8 @@ function frameDocument(html: string): string {
     open: (surface, data) => call("open", { surface, data }),
     setBand: (data, tabId) => call("band", { data, tabId }),
     setHeight: (px) => call("height", { px }),
+    openTab: (opts) => call("openTab", opts || {}),
+    focusTab: (id) => call("focusTab", { id }),
     tool: (name, args) => call("tool", { name, args }),
     prompt: (text, opts) => call("prompt", { text, submit: !!(opts && opts.submit) }),
     storage: { get: () => call("storage.get"), set: (value) => call("storage.set", { value }) },
@@ -196,6 +198,17 @@ export function PluginFrame({
             if (kind !== "band" || !tabId || !plugin.band) throw new Error("só a faixa muda de altura");
             const px = Math.round(Number(m.params?.px) || 0) + BAND_GAP;
             useStore.getState().setPluginBandHeight(tabId, plugin.id, Math.min(plugin.band.maxHeight + BAND_GAP, Math.max(BAND_HEIGHT, px)));
+            return reply(null);
+          }
+          case "openTab":
+            need("sessions");
+            return reply(openAgentTab(m.params ?? {}));
+          case "focusTab": {
+            need("sessions");
+            const id = String(m.params?.id ?? "");
+            const s = useStore.getState();
+            if (!s.tabs.some((t) => t.id === id)) throw new Error("aba não encontrada");
+            s.activateTab(id);
             return reply(null);
           }
           case "notify":

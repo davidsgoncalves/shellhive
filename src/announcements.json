@@ -1,5 +1,13 @@
 [
   {
+    "id": "group-emoji",
+    "date": "2026-10-07",
+    "highlight": true,
+    "title": "Emoji nos grupos",
+    "body": "Dê um emoji a cada grupo para achar mais rápido na lista: clique com o botão direito no grupo e escolha um, ou digite qualquer outro. Ele aparece no lugar da bolinha de cor.",
+    "note": "Para tirar, use o × no mesmo menu."
+  },
+  {
     "id": "local-plugins-beta",
     "date": "2026-09-29",
     "highlight": true,

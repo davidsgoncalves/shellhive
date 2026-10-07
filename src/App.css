@@ -483,6 +483,20 @@ button.star.on { color: var(--accent); }
   transform-origin: top left; animation: pop-in .12s cubic-bezier(.22,.9,.3,1);
 }
 .menu-colors { display: flex; gap: 5px; padding: 3px 5px 6px; }
+.menu-emojis { display: flex; flex-wrap: wrap; gap: 2px; padding: 0 3px 6px; max-width: 220px; align-items: center; }
+.menu-emoji {
+  width: 26px; height: 26px; border: 1px solid transparent; border-radius: 6px; background: none;
+  font-size: 15px; line-height: 1; cursor: pointer; padding: 0; color: var(--fg);
+}
+.menu-emoji:hover { background: rgba(255,255,255,.08); }
+.menu-emoji.on { border-color: var(--accent); }
+.menu-emoji.clear { font-size: 13px; color: var(--muted); }
+.menu-emoji-input {
+  width: 52px; height: 24px; margin-left: 2px; padding: 0 6px; font-size: 11px; outline: none;
+  background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: 6px;
+}
+.menu-emoji-input:focus { border-color: var(--accent); }
+.group-emoji { font-size: 13px; line-height: 1; flex-shrink: 0; }
 .menu-swatch {
   width: 18px; height: 18px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0;
 }

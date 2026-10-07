@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.5.0",
+    "date": "2026-10-07",
+    "items": [
+      "Emoji nos grupos: escolha um no menu de clique direito do grupo; ele aparece no lugar da bolinha de cor.",
+      "Plugins podem abrir uma aba nova que já inicia o Claude com uma primeira mensagem, e trazer uma aba para a frente (permissão sessions)."
+    ]
+  },
+  {
     "version": "1.4.0",
     "date": "2026-10-05",
     "items": [

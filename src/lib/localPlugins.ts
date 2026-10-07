@@ -74,4 +74,5 @@ export const PERMISSION_LABEL: Record<string, string> = {
   badge: "escrever uma etiqueta embaixo do nome das abas",
   notify: "mandar notificações do sistema",
   status: "mostrar um indicador na barra de cima",
+  sessions: "abrir abas novas com o agente e trazer abas para a frente",
 };
