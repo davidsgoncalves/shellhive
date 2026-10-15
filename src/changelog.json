@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.5.2",
+    "date": "2026-10-15",
+    "items": [
+      "Em Configurações › Sobre, o botão \"Enviar diagnóstico de desempenho\" manda para análise o uso de memória e processador do app, das sessões do Claude e do sistema nos últimos 30 minutos, para investigar lentidão. Só sai com o envio de erros ligado e com o clique."
+    ]
+  },
+  {
     "version": "1.5.1",
     "date": "2026-10-07",
     "items": [
