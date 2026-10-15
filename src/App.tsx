@@ -24,6 +24,7 @@ import { allTabs, applyEffects, openSurface, runPluginTool, type PluginEffects }
 import { pluginKeyOf, setClaimedPluginKeys } from "./lib/shortcuts";
 import { TerminalSearch } from "./components/TerminalSearch";
 import { carriesFiles, pasteDroppedFiles } from "./lib/termExtras";
+import { startLagTracker } from "./lib/perfDiag";
 import { CommandCard, typeCommand } from "./components/CommandCard";
 import { applyLook, shareLook } from "./lib/theme";
 import { defaultGroupId, ensureUngrouped, openSession, openSessionInGroup, useStore } from "./lib/store";
@@ -593,9 +594,15 @@ function useDropAnywhere() {
   }, []);
 }
 
+/** Notes how late the interface answers, for the performance diagnostic. */
+function usePerfHistory() {
+  useEffect(() => startLagTracker(), []);
+}
+
 function App() {
   useBackendBridge();
   useDropAnywhere();
+  usePerfHistory();
   useTitlePoll();
   useSessionGroups();
   useQueuedCommands();

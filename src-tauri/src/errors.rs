@@ -209,6 +209,33 @@ pub fn error_reports_set(enabled: bool) -> Result<(), String> {
     Ok(())
 }
 
+/// True when reports are on and the build can send them.
+pub fn sending() -> bool {
+    CLIENT.lock().map(|c| c.is_some()).unwrap_or(false)
+}
+
+/// Sends a performance diagnostic the user asked for, already scrubbed, and
+/// waits for it to leave. Returns the Sentry event id, which the user can
+/// pass on to find it.
+pub fn send_diagnostic(report: serde_json::Value) -> String {
+    let mut event = sentry::protocol::Event {
+        message: Some("Diagnóstico de desempenho".into()),
+        level: sentry::Level::Info,
+        ..Default::default()
+    };
+    event.tags.insert("source".into(), "diagnostic".into());
+    if let serde_json::Value::Object(map) = report {
+        for (k, v) in map {
+            event.extra.insert(k, v);
+        }
+    }
+    let id = sentry::capture_event(event);
+    if let Some(client) = sentry::Hub::current().client() {
+        client.flush(Some(std::time::Duration::from_secs(5)));
+    }
+    id.to_string()
+}
+
 /// Errors caught by the interface.
 #[tauri::command]
 pub fn report_error(source: String, message: String) {

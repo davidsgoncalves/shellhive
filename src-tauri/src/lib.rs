@@ -7,6 +7,7 @@ mod hooks;
 mod install;
 mod mcp;
 mod paths;
+mod perf;
 mod permissions;
 mod plugins;
 mod pty;
@@ -34,6 +35,7 @@ pub fn run() {
             // Before anything opens the data folder.
             paths::migrate_legacy_data();
             errors::init(app.package_info().version.to_string());
+            perf::start();
             app.manage(db::open().map_err(|e| format!("database unavailable: {e}"))?);
             if let Err(e) = hooks::write_scripts() {
                 eprintln!("[setup] could not write hook scripts: {e}");
@@ -68,6 +70,7 @@ pub fn run() {
             errors::error_reports_get,
             errors::error_reports_set,
             errors::report_error,
+            perf::perf_report,
             errors::error_log_tail,
             files::link_open,
             files::path_exists,

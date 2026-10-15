@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { sendPerfReport } from "../lib/perfDiag";
 import { CopyCommand } from "./UpdateBanner";
 import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
@@ -79,6 +80,17 @@ function ErrorReportsSection({ version, kind }: { version: string; kind: string 
     void invoke<ReportsState>("error_reports_get").then(setState).catch(() => {});
   }, []);
 
+  const [diag, setDiag] = useState<{ busy: boolean; text: string | null; error: boolean }>({ busy: false, text: null, error: false });
+  const sendDiagnostic = async () => {
+    setDiag({ busy: true, text: null, error: false });
+    try {
+      const id = await sendPerfReport(version);
+      setDiag({ busy: false, text: `Enviado. Código do diagnóstico: ${id}`, error: false });
+    } catch (err) {
+      setDiag({ busy: false, text: String(err), error: true });
+    }
+  };
+
   const toggle = (enabled: boolean) => {
     void invoke("error_reports_set", { enabled })
       .then(() => setState((s) => (s ? { ...s, enabled } : s)))
@@ -132,7 +144,27 @@ function ErrorReportsSection({ version, kind }: { version: string; kind: string 
         <button className="ghost auto" onClick={() => void reportProblem()}>
           Relatar problema
         </button>
+        {state?.available && (
+          <button
+            className="ghost auto"
+            disabled={diag.busy || !state.enabled}
+            title={state.enabled ? "Manda o uso de memória e processador dos últimos 30 minutos" : "Ligue Enviar para mandar o diagnóstico"}
+            onClick={() => void sendDiagnostic()}
+          >
+            {diag.busy ? "Enviando…" : "Enviar diagnóstico de desempenho"}
+          </button>
+        )}
       </div>
+      {diag.text && (
+        <p className={diag.error ? "error" : "hint"} style={{ userSelect: "text" }}>
+          {diag.text}
+        </p>
+      )}
+      <p className="hint">
+        O diagnóstico leva o uso de memória e processador do app, das sessões do Claude e do sistema nos últimos 30
+        minutos, o quanto a tela demorou para responder, o sistema e o tema. Não leva nomes de abas, pastas nem o que
+        aparece no terminal.
+      </p>
     </section>
   );
 }
