@@ -491,7 +491,12 @@ pub fn write_scripts() -> Result<HookSetup, String> {
     let bin_dir = shim_dir().ok_or("no config dir")?;
     fs::create_dir_all(&bin_dir).map_err(|e| e.to_string())?;
     let shim = bin_dir.join("claude");
-    write_executable(
+    // Windows cannot run this sh script; PowerShell would find it first and
+    // ask which program opens it. Remove the one older versions wrote.
+    if cfg!(windows) {
+        let _ = fs::remove_file(&shim);
+    } else {
+        write_executable(
         &shim,
         format!(
             "#!/bin/sh\n\
@@ -516,6 +521,7 @@ pub fn write_scripts() -> Result<HookSetup, String> {
             mcp = shell_single_quote(&mcp_json.to_string_lossy()),
         ),
     )?;
+    }
 
     Ok(HookSetup {
         hooks_json: hooks_json.to_string_lossy().to_string(),

@@ -24,7 +24,12 @@ interface ThemeSpec {
   layers: boolean;
 }
 
-const SYSTEM_MONO = "Menlo, Monaco, 'Cascadia Mono', Consolas, 'DejaVu Sans Mono', 'Courier New', monospace";
+// The Nerd Fonts come last so they only supply the icons prompt themes such as
+// oh-my-posh and Starship draw, when one of them is installed.
+const SYSTEM_MONO =
+  "Menlo, Monaco, 'Cascadia Mono', Consolas, 'DejaVu Sans Mono', 'Courier New', " +
+  "'Symbols Nerd Font Mono', 'CaskaydiaCove Nerd Font', 'CaskaydiaMono Nerd Font', " +
+  "'MesloLGM Nerd Font', 'MesloLGS NF', 'JetBrainsMono Nerd Font', 'FiraCode Nerd Font', monospace";
 
 /** Terminal colours of the layered themes, from the Claude Design mock. */
 const LAYERED_TERMINAL: ITheme = {

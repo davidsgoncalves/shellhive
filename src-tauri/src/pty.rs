@@ -242,7 +242,9 @@ pub fn pty_spawn(
         );
     }
 
-    // Put the `claude` shim ahead of the real binary for this shell.
+    // Put the `claude` shim ahead of the real binary for this shell. Windows
+    // has no shim: the PowerShell function in claude_function does its job.
+    #[cfg(not(windows))]
     if let Some(bin) = crate::hooks::shim_dir() {
         let current = std::env::var_os("PATH").unwrap_or_default();
         let paths = std::iter::once(bin).chain(std::env::split_paths(&current));

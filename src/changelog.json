@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.5.3",
+    "date": "2026-10-17",
+    "items": [
+      "Windows: o comando claude digitado numa aba abre o Claude Code em vez de pedir um programa para abrir o arquivo.",
+      "Ícones de temas de prompt como oh-my-posh e Starship aparecem quando uma Nerd Font comum está instalada, em vez de quadrados."
+    ]
+  },
+  {
     "version": "1.5.2",
     "date": "2026-10-15",
     "items": [
