@@ -10,6 +10,7 @@ mod paths;
 mod perf;
 mod permissions;
 mod plugins;
+mod process;
 mod pty;
 mod sessions;
 

@@ -1,5 +1,4 @@
 use std::path::Path;
-use std::process::Command;
 
 #[derive(serde::Serialize)]
 pub struct GitInfo {
@@ -12,7 +11,7 @@ pub struct GitInfo {
 }
 
 fn git(cwd: &str, args: &[&str]) -> Option<String> {
-    let out = Command::new("git")
+    let out = crate::process::background("git")
         .arg("-C")
         .arg(cwd)
         .args(args)

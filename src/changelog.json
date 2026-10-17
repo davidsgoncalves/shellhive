@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.5.4",
+    "date": "2026-10-17",
+    "items": [
+      "Windows: o Shellhive não faz mais uma janela de console aparecer e sumir enquanto acompanha o git das abas e roda os plugins."
+    ]
+  },
+  {
     "version": "1.5.3",
     "date": "2026-10-17",
     "items": [

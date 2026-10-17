@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -745,7 +745,7 @@ fn run_tool(
     let Some(spec) = plugin.tools.iter().find(|t| t.name == tool) else {
         return fail(format!("O plugin {} não tem {tool}.", plugin.id));
     };
-    let mut cmd = Command::new(&spec.run[0]);
+    let mut cmd = crate::process::background(&spec.run[0]);
     cmd.args(&spec.run[1..])
         .current_dir(&plugin.dir)
         .env("SHELLHIVE_PLUGIN_DIR", &plugin.dir)
@@ -882,7 +882,11 @@ mod tests {
 
     #[test]
     fn the_example_tool_runs_and_opens_its_panel() {
-        if Command::new("node").arg("--version").output().is_err() {
+        if std::process::Command::new("node")
+            .arg("--version")
+            .output()
+            .is_err()
+        {
             return;
         }
         let tmp = std::env::temp_dir().join(format!("shellhive-run-{}", std::process::id()));
