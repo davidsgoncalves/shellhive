@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.5.5",
+    "date": "2026-10-18",
+    "items": [
+      "O Claude Code volta a ter cores nas abas quando o Shellhive é aberto a partir de um terminal que desliga as cores (NO_COLOR)."
+    ]
+  },
+  {
     "version": "1.5.4",
     "date": "2026-10-17",
     "items": [

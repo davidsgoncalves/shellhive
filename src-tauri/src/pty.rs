@@ -235,9 +235,19 @@ pub fn pty_spawn(
             scrubbed.push(key);
         }
     }
+    // Markers of the terminal the app was launched from describe that
+    // terminal, not this one. An inherited NO_COLOR turns off Claude Code's
+    // colors in every tab, and WT_SESSION makes programs think they run in
+    // Windows Terminal.
+    for key in ["NO_COLOR", "WT_SESSION", "WT_PROFILE_ID"] {
+        if std::env::var_os(key).is_some() {
+            cmd.env_remove(key);
+            scrubbed.push(key.to_string());
+        }
+    }
     if !scrubbed.is_empty() {
         eprintln!(
-            "[pty] scrubbed inherited Claude Code vars: {}",
+            "[pty] scrubbed inherited vars: {}",
             scrubbed.join(", ")
         );
     }
