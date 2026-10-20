@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { fileStorage } from "./persist";
-import { markPendingResume } from "./restored";
+import { markPendingFork, markPendingResume } from "./restored";
 import { sameRule } from "./permRules";
 import type { MiniBounds } from "./mini";
 import { THEME_FONT, THEMES, type TerminalFont, type ThemeId } from "./theme";
@@ -909,6 +909,20 @@ export function openSessionInGroup(groupId: string): void {
     return;
   }
   s.openModal({ kind: "pickFolder", groupId });
+}
+
+/**
+ * Opens a copy of a tab's Claude session in a new tab next to it, in the same
+ * group and folder. The copy gets its own id; the original keeps running.
+ * Returns the new tab's id, or null when the tab has no session.
+ */
+export function duplicateSession(tabId: string): string | null {
+  const s = useStore.getState();
+  const tab = s.tabs.find((t) => t.id === tabId);
+  if (!tab?.claudeSessionId) return null;
+  const id = s.addTab(tab.groupId, { cwd: tab.cwd, title: `${tab.title} (cópia)`, customTitle: true });
+  markPendingFork(id, tab.claudeSessionId);
+  return id;
 }
 
 /** Ensures at least one group exists and returns the group for new tabs. */

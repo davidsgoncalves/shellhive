@@ -28,6 +28,14 @@ pub fn run(kind: &str) -> i32 {
                 print!("{out}");
             }
         }
+        "prompt" => {
+            // The app answers with a block when the prompt is a Shellhive command.
+            if let Some(out) = post("/prompt", &tab, &input, QUICK) {
+                if out.contains("decision") {
+                    print!("{out}");
+                }
+            }
+        }
         "statusline" => {
             let _ = post("/statusline", &tab, &input, QUICK);
         }

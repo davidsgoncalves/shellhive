@@ -37,9 +37,9 @@ fn session_context() -> serde_json::Value {
 }
 
 /// Events forwarded for state only. PermissionRequest is handled separately
-/// because its hook blocks waiting for a decision.
+/// because its hook blocks waiting for a decision, and UserPromptSubmit
+/// because its hook can stop a Shellhive command from reaching Claude.
 const HOOK_EVENTS: &[&str] = &[
-    "UserPromptSubmit",
     "PreToolUse",
     "PostToolUse",
     "Notification",
@@ -49,6 +49,24 @@ const HOOK_EVENTS: &[&str] = &[
 ];
 
 static SEQ: AtomicU64 = AtomicU64::new(0);
+
+/// Commands Shellhive runs itself when typed in a tab as `:<name>`.
+const PROMPT_COMMANDS: &[&str] = &["duplicate"];
+
+/// The Shellhive command a prompt names. Only a prompt that is exactly
+/// `:<name>` for a known name counts, so text like `::Class` or `:foo bar`
+/// still reaches Claude untouched.
+fn prompt_command(payload: &serde_json::Value) -> Option<&'static str> {
+    let prompt = payload.get("prompt")?.as_str()?.trim();
+    let name = prompt.strip_prefix(':')?;
+    PROMPT_COMMANDS.iter().copied().find(|c| *c == name)
+}
+
+#[derive(Clone, serde::Serialize)]
+struct PromptCommand {
+    tab_id: Option<String>,
+    name: String,
+}
 
 fn now_millis() -> u128 {
     SystemTime::now()
@@ -230,6 +248,25 @@ fn handle(app: AppHandle, mut req: tiny_http::Request) {
         return;
     }
 
+    // A Shellhive command stops here: the app runs it and Claude never sees
+    // the prompt, so it is not recorded as the start of a turn either.
+    if url.starts_with("/prompt") {
+        if let Some(name) = prompt_command(&payload) {
+            let _ = app.emit(
+                "prompt-command",
+                PromptCommand {
+                    tab_id,
+                    name: name.to_string(),
+                },
+            );
+            let _ = req.respond(json_response(&serde_json::json!({
+                "decision": "block",
+                "reason": format!("Shellhive: :{name}"),
+            })));
+            return;
+        }
+    }
+
     // SessionStart is also a hook event; its reply carries the session context.
     let session_start = url.starts_with("/session-start");
     let event = if url.starts_with("/statusline") {
@@ -388,6 +425,25 @@ pub fn write_scripts() -> Result<HookSetup, String> {
         ),
     )?;
 
+    // Waits for the app's reply, which stops the prompt when it is a
+    // Shellhive command. Every other prompt passes as soon as the app answers.
+    let prompt_sh = dir.join("prompt.sh");
+    write_executable(
+        &prompt_sh,
+        format!(
+            "#!/bin/sh\n\
+             # Forwards UserPromptSubmit; the app may answer with a block.\n\
+             out=$(curl -s --max-time 2 -X POST \\\n\
+             \x20 -H \"Content-Type: application/json\" \\\n\
+             \x20 -H \"X-Tab-Id: ${{SHELLHIVE_TAB_ID:-}}\" \\\n\
+             \x20 --data-binary @- \"http://127.0.0.1:{PORT}/prompt\" 2>/dev/null)\n\
+             case \"$out\" in\n\
+             \x20 *decision*) printf '%s' \"$out\" ;;\n\
+             esac\n\
+             exit 0\n"
+        ),
+    )?;
+
     let session_start_sh = dir.join("session_start.sh");
     write_executable(
         &session_start_sh,
@@ -434,6 +490,12 @@ pub fn write_scripts() -> Result<HookSetup, String> {
                 "type": "command",
                 "command": hook_command("session-start", &session_start_sh),
             }]
+        }]),
+    );
+    hooks.insert(
+        "UserPromptSubmit".to_string(),
+        serde_json::json!([{
+            "hooks": [{ "type": "command", "command": hook_command("prompt", &prompt_sh) }]
         }]),
     );
     for event in HOOK_EVENTS {
@@ -531,4 +593,26 @@ pub fn write_scripts() -> Result<HookSetup, String> {
         shim_dir: bin_dir.to_string_lossy().to_string(),
         port: PORT,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn command_of(prompt: &str) -> Option<&'static str> {
+        prompt_command(&serde_json::json!({ "prompt": prompt }))
+    }
+
+    /// Only a prompt that is exactly `:<known name>` is taken from Claude.
+    #[test]
+    fn only_an_exact_command_is_stopped() {
+        assert_eq!(command_of(":duplicate"), Some("duplicate"));
+        assert_eq!(command_of("  :duplicate\n"), Some("duplicate"));
+        assert_eq!(command_of("::Class"), None);
+        assert_eq!(command_of("::duplicate"), None);
+        assert_eq!(command_of(":duplicate this file"), None);
+        assert_eq!(command_of(":unknown"), None);
+        assert_eq!(command_of("duplicate"), None);
+        assert_eq!(command_of("use :duplicate"), None);
+    }
 }

@@ -27,7 +27,7 @@ import { carriesFiles, pasteDroppedFiles } from "./lib/termExtras";
 import { startLagTracker } from "./lib/perfDiag";
 import { CommandCard, typeCommand } from "./components/CommandCard";
 import { applyLook, shareLook } from "./lib/theme";
-import { defaultGroupId, ensureUngrouped, openSession, openSessionInGroup, useStore } from "./lib/store";
+import { defaultGroupId, duplicateSession, ensureUngrouped, openSession, openSessionInGroup, useStore } from "./lib/store";
 import { tabPatchFor } from "./lib/hookState";
 import { decodeBase64, serializers, terminals } from "./lib/terminals";
 import {
@@ -168,6 +168,13 @@ function useBackendBridge() {
         pendingMessage: `${req.payload.tool_name ?? "ferramenta"}: ${summary}`,
       });
       void notify(`Permissão: ${req.payload.tool_name ?? "ferramenta"}`, `${tab?.title ?? "sessão"} · ${summary}`);
+    }).then((u) => unlisteners.push(u));
+
+    // `:<name>` typed in a tab, stopped before Claude by the prompt hook.
+    listen<{ tab_id: string | null; name: string }>("prompt-command", (ev) => {
+      const { tab_id, name } = ev.payload;
+      if (!tab_id) return;
+      if (name === "duplicate") duplicateSession(tab_id);
     }).then((u) => unlisteners.push(u));
 
     listen<CommandSuggestion>("command-suggestion", (ev) => {
