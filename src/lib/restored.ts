@@ -29,3 +29,16 @@ export function takePendingPrompt(id: string): string | null {
   prompts.delete(id);
   return prompt;
 }
+
+/** Sessions new tabs should start as copies of, sent as `claude --resume <id> --fork-session`. */
+const forks = new Map<string, string>();
+
+export function markPendingFork(id: string, session: string): void {
+  forks.set(id, session);
+}
+
+export function takePendingFork(id: string): string | null {
+  const session = forks.get(id) ?? null;
+  forks.delete(id);
+  return session;
+}

@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.5.6",
+    "date": "2026-10-20",
+    "items": [
+      "Duplicar sessão: abre uma cópia da sessão do Claude numa aba nova, pelo menu da aba ou digitando :duplicate. A sessão original continua na aba dela."
+    ]
+  },
+  {
     "version": "1.5.5",
     "date": "2026-10-18",
     "items": [

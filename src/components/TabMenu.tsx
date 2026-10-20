@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { useStore } from "../lib/store";
+import { duplicateSession, useStore } from "../lib/store";
 import { closeDetachedWindow } from "../lib/detach";
 import { runPluginTool } from "../lib/pluginEffects";
 import { pluginTab } from "../lib/localPlugins";
@@ -115,6 +115,18 @@ export function TabMenu() {
             Abrir painel: {p.panel!.title}
           </button>
         ))}
+      {tab.claudeSessionId && (
+        <button
+          className="menu-item"
+          title="Abre uma cópia desta sessão numa aba nova; a original continua aqui"
+          onClick={() => {
+            duplicateSession(tab.id);
+            openTabMenu(null);
+          }}
+        >
+          Duplicar sessão
+        </button>
+      )}
       {tab.claudeSessionId && (
         <button
           className="menu-item"

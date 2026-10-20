@@ -83,19 +83,20 @@ fn zshenv_script(shim: &str) -> String {
          \x20 unset ZDOTDIR\n\
          fi\n\
          _shellhive_resume=${{SHELLHIVE_RESUME-}}\n\
+         _shellhive_fork=${{SHELLHIVE_FORK-}}\n\
          _shellhive_start=${{SHELLHIVE_START-}}\n\
-         unset SHELLHIVE_RESUME SHELLHIVE_START\n\
+         unset SHELLHIVE_RESUME SHELLHIVE_FORK SHELLHIVE_START\n\
          [[ -r \"${{ZDOTDIR:-$HOME}}/.zshenv\" ]] && source \"${{ZDOTDIR:-$HOME}}/.zshenv\"\n\
          # Runs the session to reopen, or a new one with a first prompt, as if\n\
          # typed at the first prompt.\n\
          _shellhive_resume_line() {{\n\
          \x20 add-zle-hook-widget -d line-init _shellhive_resume_line\n\
          \x20 if [[ -n \"$_shellhive_resume\" ]]; then\n\
-         \x20   BUFFER=\"claude --resume $_shellhive_resume\"\n\
+         \x20   BUFFER=\"claude --resume $_shellhive_resume${{_shellhive_fork:+ --fork-session}}\"\n\
          \x20 else\n\
          \x20   BUFFER=\"claude ${{(q)_shellhive_start}}\"\n\
          \x20 fi\n\
-         \x20 unset _shellhive_resume _shellhive_start\n\
+         \x20 unset _shellhive_resume _shellhive_fork _shellhive_start\n\
          \x20 zle accept-line\n\
          }}\n\
          _shellhive_init() {{\n\
@@ -138,17 +139,18 @@ fn valid_session(session: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || c == '-')
 }
 
-/// Line typed into a new tab to reopen a Claude session. It calls the shim by
-/// path, so the session gets the app's settings even if `claude` was not
-/// defined in time.
-fn resume_line(session: &str) -> Option<String> {
+/// Line typed into a new tab to reopen a Claude session, or a copy of it when
+/// `fork` is set. It calls the shim by path, so the session gets the app's
+/// settings even if `claude` was not defined in time.
+fn resume_line(session: &str, fork: bool) -> Option<String> {
+    let flag = if fork { " --fork-session" } else { "" };
     #[cfg(windows)]
     {
-        Some(format!("claude --resume {session}\r"))
+        Some(format!("claude --resume {session}{flag}\r"))
     }
     #[cfg(not(windows))]
     {
-        Some(format!("{} --resume {session}\n", quoted_shim()?))
+        Some(format!("{} --resume {session}{flag}\n", quoted_shim()?))
     }
 }
 
@@ -205,6 +207,7 @@ pub fn pty_spawn(
     rows: u16,
     cwd: Option<String>,
     resume: Option<String>,
+    fork: Option<bool>,
     prompt: Option<String>,
 ) -> Result<(), String> {
     if state.0.lock().unwrap().contains_key(&id) {
@@ -277,6 +280,8 @@ pub fn pty_spawn(
     #[cfg(windows)]
     let zsh_ready = false;
     let resume = resume.filter(|s| valid_session(s));
+    // Resumes a copy of the session under a new id, leaving the original as is.
+    let fork = fork.unwrap_or(false);
     // A first prompt for a new session; resuming one takes precedence. It
     // travels in the environment, so the shell never parses it as code.
     let prompt = prompt.filter(|p| resume.is_none() && !p.trim().is_empty());
@@ -288,6 +293,9 @@ pub fn pty_spawn(
     if zsh_ready {
         if let Some(session) = &resume {
             cmd.env("SHELLHIVE_RESUME", session);
+            if fork {
+                cmd.env("SHELLHIVE_FORK", "1");
+            }
         }
     }
     if let Some(dir) = cwd.map(PathBuf::from).or_else(dirs::home_dir) {
@@ -316,7 +324,7 @@ pub fn pty_spawn(
     };
     let lines = init
         .into_iter()
-        .chain(resume.as_deref().and_then(resume_line))
+        .chain(resume.as_deref().and_then(|s| resume_line(s, fork)))
         .chain(start);
     for line in lines {
         let _ = writer.write_all(line.as_bytes());
@@ -399,7 +407,7 @@ pub fn pty_kill(state: tauri::State<PtyState>, id: String) -> Result<(), String>
 mod tests {
     use super::valid_session;
     #[cfg(not(windows))]
-    use super::zshenv_script;
+    use super::{resume_line, zshenv_script};
 
     #[test]
     fn accepts_only_session_ids() {
@@ -416,6 +424,17 @@ mod tests {
     fn the_first_prompt_is_quoted_by_zsh() {
         let script = zshenv_script("'/shim'");
         assert!(script.contains("BUFFER=\"claude ${(q)_shellhive_start}\""));
-        assert!(script.contains("unset SHELLHIVE_RESUME SHELLHIVE_START"));
+        assert!(script.contains("unset SHELLHIVE_RESUME SHELLHIVE_FORK SHELLHIVE_START"));
+    }
+
+    /// A duplicated tab resumes a copy of the session, never the session itself.
+    #[cfg(not(windows))]
+    #[test]
+    fn a_fork_resumes_a_copy() {
+        let script = zshenv_script("'/shim'");
+        assert!(script.contains("--resume $_shellhive_resume${_shellhive_fork:+ --fork-session}"));
+        let line = resume_line("abc-123", true).unwrap();
+        assert!(line.ends_with(" --resume abc-123 --fork-session\n"));
+        assert!(!resume_line("abc-123", false).unwrap().contains("--fork-session"));
     }
 }
