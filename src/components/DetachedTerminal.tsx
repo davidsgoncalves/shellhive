@@ -7,7 +7,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { decodeBase64 } from "../lib/terminals";
 import { terminalOptions, trackTerminal } from "../lib/theme";
 import { actionOf, shortcutLabel } from "../lib/shortcuts";
-import { attachLinks, carriesFiles, fixLinuxInput, pasteDroppedFiles } from "../lib/termExtras";
+import { attachLinks, carriesFiles, fixEmojiWidth, fixLinuxInput, pasteDroppedFiles } from "../lib/termExtras";
 import {
   DETACH_CLOSED,
   DETACH_READY,
@@ -39,6 +39,7 @@ export function DetachedTerminal({ tabId }: { tabId: string }) {
     const term = new Terminal(terminalOptions());
     const fit = new FitAddon();
     term.loadAddon(fit);
+    fixEmojiWidth(term);
     term.open(el);
     const input = fixLinuxInput(term);
     let cwd: string | null = null;

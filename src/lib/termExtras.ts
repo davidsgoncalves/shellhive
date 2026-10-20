@@ -1,7 +1,18 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { IDisposable, Terminal } from "@xterm/xterm";
+import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { primaryMod } from "./shortcuts";
+
+/**
+ * Measures emoji such as ❓ and 🔵 as two cells, as Claude Code does. With
+ * xterm's default Unicode 6 widths they take one cell, so the rest of the
+ * line lands one column off and partial redraws leave stray letters behind.
+ */
+export function fixEmojiWidth(term: Terminal): void {
+  term.loadAddon(new Unicode11Addon());
+  term.unicode.activeVersion = "11";
+}
 
 /** Paths with a folder part or a `:line` suffix, as Claude prints them. */
 const PATH_RE = /(?:~|\.{1,2})?\/?[\w.@-]+(?:\/[\w.@-]+)+(?::\d+){0,2}|[\w.@-]+\.[A-Za-z]\w{0,5}:\d+(?::\d+)?/g;

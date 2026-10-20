@@ -9,7 +9,7 @@ import { terminalOptions, trackTerminal } from "../lib/theme";
 import { actionOf, isAppShortcut } from "../lib/shortcuts";
 import { reportError } from "../lib/errors";
 import { sessionFromDrag, type SessionRef } from "../lib/store";
-import { attachLinks, carriesFiles, carriesSession, carriesTab, fixLinuxInput, pasteDroppedFiles } from "../lib/termExtras";
+import { attachLinks, carriesFiles, carriesSession, carriesTab, fixEmojiWidth, fixLinuxInput, pasteDroppedFiles } from "../lib/termExtras";
 import { takePendingFork, takePendingPrompt, takePendingResume } from "../lib/restored";
 import type { Tab } from "../lib/types";
 
@@ -62,6 +62,7 @@ export function TerminalView({
     term.loadAddon(fit);
     term.loadAddon(serializer);
     term.loadAddon(search);
+    fixEmojiWidth(term);
     const links = attachLinks(term, () => cwdRef.current);
     term.open(el);
     const input = fixLinuxInput(term);
