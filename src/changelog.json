@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.5.7",
+    "date": "2026-10-20",
+    "items": [
+      "Emoji como ❓, 🔵 e ✅ passam a ocupar duas colunas, como no Claude Code, e as respostas não ficam mais com letras soltas no meio do texto ao rolar."
+    ]
+  },
+  {
     "version": "1.5.6",
     "date": "2026-10-20",
     "items": [
