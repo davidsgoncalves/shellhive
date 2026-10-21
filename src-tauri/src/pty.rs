@@ -249,10 +249,7 @@ pub fn pty_spawn(
         }
     }
     if !scrubbed.is_empty() {
-        eprintln!(
-            "[pty] scrubbed inherited vars: {}",
-            scrubbed.join(", ")
-        );
+        eprintln!("[pty] scrubbed inherited vars: {}", scrubbed.join(", "));
     }
 
     // Put the `claude` shim ahead of the real binary for this shell. Windows
@@ -435,6 +432,8 @@ mod tests {
         assert!(script.contains("--resume $_shellhive_resume${_shellhive_fork:+ --fork-session}"));
         let line = resume_line("abc-123", true).unwrap();
         assert!(line.ends_with(" --resume abc-123 --fork-session\n"));
-        assert!(!resume_line("abc-123", false).unwrap().contains("--fork-session"));
+        assert!(!resume_line("abc-123", false)
+            .unwrap()
+            .contains("--fork-session"));
     }
 }
