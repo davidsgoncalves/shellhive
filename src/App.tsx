@@ -634,9 +634,18 @@ function App() {
       return;
     }
     // Restored tabs all come back dormant; wake the last active one so the app
-    // opens on a live terminal instead of the empty state. The rest stay lazy.
+    // opens on a live terminal instead of the empty state, then the others
+    // still on screen in the split, so it opens as it was closed. The rest
+    // stay lazy. The active tab takes its pane first and gets the focus back.
     if (!s.tabs.some((t) => t.state !== "dormant")) {
       const target = s.tabs.find((t) => t.id === s.activeTabId) ?? s.tabs[0];
+      s.activateTab(target.id);
+      const shown = useStore
+        .getState()
+        .panes.slice(0, paneCount(s.splitMode))
+        .filter((id): id is string => !!id && id !== target.id && s.tabs.some((t) => t.id === id));
+      if (shown.length === 0) return;
+      new Set(shown).forEach((id) => s.activateTab(id));
       s.activateTab(target.id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
