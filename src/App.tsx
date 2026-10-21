@@ -41,6 +41,7 @@ import {
   type DetachSnapshot,
 } from "./lib/detach";
 import { notify } from "./lib/notify";
+import { confirmQuit } from "./lib/quit";
 import { describeTool } from "./lib/describe";
 import { ruleAllows } from "./lib/permRules";
 import { nextSubagents } from "./lib/subagents";
@@ -300,8 +301,15 @@ function useDetachedWindows() {
         terminals.get(ev.payload.id)?.resize(ev.payload.cols, ev.payload.rows);
       }),
       listen<{ id: string }>(DETACH_CLOSED, (ev) => store().reattachTab(ev.payload.id)),
-      // Detached windows cannot outlive the window that owns their tabs.
-      getCurrentWebviewWindow().onCloseRequested(() => store().detached.forEach(closeDetachedWindow)),
+      // The only close listener for the main window: each one destroys the
+      // window unless it cancels, so a second listener would close it while
+      // this one still asks. Detached windows and the mini panel cannot
+      // outlive the window that owns their tabs.
+      getCurrentWebviewWindow().onCloseRequested(async (event) => {
+        if (!(await confirmQuit("close"))) return event.preventDefault();
+        store().detached.forEach(closeDetachedWindow);
+        closeMiniWindow();
+      }),
     ];
 
     let titles = new Map<string, string>();
@@ -412,7 +420,6 @@ function useMiniPanel() {
       }),
       listen(MINI_CLOSED, () => useStore.getState().setMiniPanel(false)),
       listen<MiniBounds>(MINI_BOUNDS, (ev) => useStore.getState().setMiniBounds(ev.payload)),
-      getCurrentWebviewWindow().onCloseRequested(() => closeMiniWindow()),
     ];
     return () => {
       clearTimeout(timer);

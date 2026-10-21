@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { reportError } from "./errors";
+import { confirmQuit } from "./quit";
 import { useStore } from "./store";
 
 export type Phase = "idle" | "found" | "working" | "ready" | "restart-failed" | "error";
@@ -71,6 +72,7 @@ export const useUpdater = create<Updater>()((set, get) => ({
   // Replacing the bundle can leave the old executable path unusable, so a
   // failed restart says so instead of looking like a dead button.
   restart: async () => {
+    if (!(await confirmQuit("restart"))) return;
     try {
       // Reopens the bundle on macOS; falls back to the plugin elsewhere.
       await invoke("restart_app");
