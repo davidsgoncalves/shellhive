@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.5.8",
+    "date": "2026-10-21",
+    "items": [
+      "Com a tela dividida, ao reabrir o Shellhive todas as abas que estavam nos painéis voltam rodando, não só a ativa."
+    ]
+  },
+  {
     "version": "1.5.7",
     "date": "2026-10-20",
     "items": [
