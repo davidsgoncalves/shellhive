@@ -159,12 +159,13 @@ function TabRow({ tab, active }: { tab: Tab; active: boolean }) {
         )}
         {agents && agents.length > 0 && <SubagentLines agents={agents} />}
       </span>
+      {/* Outside the trailing slot, which stacks its two items in one place. */}
+      {isDetached && (
+        <span className="detached-mark" title="Em outra janela · clique para trazer à frente">
+          ↗
+        </span>
+      )}
       <span className="tab-trailing">
-        {isDetached && (
-          <span className="detached-mark" title="Em outra janela · clique para trazer à frente">
-            ↗
-          </span>
-        )}
         <ContextGauge status={status} />
         <button
           className="icon-btn close"
