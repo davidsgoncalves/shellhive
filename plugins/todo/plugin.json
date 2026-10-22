@@ -1,0 +1,23 @@
+{
+  "id": "todo",
+  "name": "Todo list",
+  "description": "Guarda ideias e pendências que surgem no meio de uma conversa, com a sessão de onde vieram. O agente adiciona quando você pede; a lista fica na aba Todo list, na coluna da direita, de onde dá para voltar à sessão.",
+  "agentContext": "Ao terminar de discutir um assunto que deixou pontos em aberto, mencione isso uma vez, numa linha (por exemplo: ficaram em aberto X e Y). Nao pergunte se deve anotar e nao repita. Chame add_todo somente quando o usuario pedir para colocar algo na lista (todo list, lista de todo, anota isso).",
+  "tools": [
+    {
+      "name": "add_todo",
+      "description": "Adiciona um item à Todo list do Shellhive, com a sessão, a pasta e a aba de onde veio. Use somente quando o usuário pedir. Para vários itens, chame uma vez para cada.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "A ideia ou pendência em uma ou duas frases, com o porquê."
+          }
+        },
+        "required": ["text"],
+        "additionalProperties": false
+      }
+    }
+  ]
+}
