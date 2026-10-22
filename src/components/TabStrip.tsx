@@ -1,12 +1,20 @@
 import { useState, type DragEvent } from "react";
-import { openSession, openSessionInGroup, sessionFromDrag, useStore } from "../lib/store";
+import {
+  closeButtonTitle,
+  closeWithButton,
+  openSession,
+  openSessionInGroup,
+  sessionFromDrag,
+  useStore,
+} from "../lib/store";
 import { droppedOutside } from "../lib/detach";
 import { HiddenGroups } from "./HiddenGroups";
 import { STATE_LABEL, type Group, type Tab } from "../lib/types";
 
 function StripTab({ tab, active }: { tab: Tab; active: boolean }) {
-  const { activateTab, closeTab, openTabMenu, detachTab } = useStore();
+  const { activateTab, openTabMenu, detachTab } = useStore();
   const isDetached = useStore((s) => s.detached.includes(tab.id));
+  const closeTitle = useStore((s) => closeButtonTitle(s, tab));
   const branch = useStore((s) => s.gitByTab[tab.id]?.branch);
   const stale = useStore((s) => s.alerted.includes(tab.id));
   const pct = useStore((s) => s.statusByTab[tab.id]?.context_window?.used_percentage);
@@ -21,7 +29,7 @@ function StripTab({ tab, active }: { tab: Tab; active: boolean }) {
       }}
       onClick={() => activateTab(tab.id)}
       onAuxClick={(e) => {
-        if (e.button === 1) closeTab(tab.id);
+        if (e.button === 1 && closeTitle) closeWithButton(tab.id);
       }}
       onContextMenu={(e) => {
         e.preventDefault();
@@ -38,16 +46,18 @@ function StripTab({ tab, active }: { tab: Tab; active: boolean }) {
         </span>
       )}
       {showPct && <span className="strip-ctx">{Math.round(pct)}%</span>}
-      <button
-        className="strip-close"
-        title="Fechar aba"
-        onClick={(e) => {
-          e.stopPropagation();
-          closeTab(tab.id);
-        }}
-      >
-        ×
-      </button>
+      {closeTitle && (
+        <button
+          className="strip-close"
+          title={closeTitle}
+          onClick={(e) => {
+            e.stopPropagation();
+            closeWithButton(tab.id);
+          }}
+        >
+          ×
+        </button>
+      )}
     </div>
   );
 }

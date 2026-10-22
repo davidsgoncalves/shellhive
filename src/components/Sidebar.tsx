@@ -1,5 +1,12 @@
 import { useState, type DragEvent } from "react";
-import { openSession, openSessionInGroup, sessionFromDrag, useStore } from "../lib/store";
+import {
+  closeButtonTitle,
+  closeWithButton,
+  openSession,
+  openSessionInGroup,
+  sessionFromDrag,
+  useStore,
+} from "../lib/store";
 import { droppedOutside } from "../lib/detach";
 import { HiddenGroups } from "./HiddenGroups";
 import { STATE_LABEL, type GitInfo, type Group, type StatusPayload, type Subagent, type Tab } from "../lib/types";
@@ -113,8 +120,9 @@ function GitLine({ git }: { git: GitInfo }) {
 }
 
 function TabRow({ tab, active }: { tab: Tab; active: boolean }) {
-  const { activateTab, closeTab, renameTab, openTabMenu, detachTab } = useStore();
+  const { activateTab, renameTab, openTabMenu, detachTab } = useStore();
   const isDetached = useStore((s) => s.detached.includes(tab.id));
+  const closeTitle = useStore((s) => closeButtonTitle(s, tab));
   const status = useStore((s) => s.statusByTab[tab.id]);
   const stale = useStore((s) => s.alerted.includes(tab.id));
   const wrap = useStore((s) => s.tabTitleWrap === "wrap");
@@ -167,16 +175,18 @@ function TabRow({ tab, active }: { tab: Tab; active: boolean }) {
       )}
       <span className="tab-trailing">
         <ContextGauge status={status} />
-        <button
-          className="icon-btn close"
-          title="Fechar aba"
-          onClick={(e) => {
-            e.stopPropagation();
-            closeTab(tab.id);
-          }}
-        >
-          ×
-        </button>
+        {closeTitle && (
+          <button
+            className="icon-btn close"
+            title={closeTitle}
+            onClick={(e) => {
+              e.stopPropagation();
+              closeWithButton(tab.id);
+            }}
+          >
+            ×
+          </button>
+        )}
       </span>
     </li>
   );
