@@ -581,6 +581,8 @@ function SettingsDialog({ initialTab, onClose }: { initialTab?: SettingsTab; onC
     setTerminalBorder,
     tabTitleWrap,
     setTabTitleWrap,
+    closeAction,
+    setCloseAction,
     groupTint,
     setGroupTint,
     miniPanel,
@@ -688,6 +690,27 @@ function SettingsDialog({ initialTab, onClose }: { initialTab?: SettingsTab; onC
           >
             Cortar com …
           </button>
+        </div>
+      </section>
+
+      <section className="settings-section">
+        <h3>Botão × das abas</h3>
+        <p className="hint">
+          Arquivar encerra a sessão e a manda para o Histórico. Fechar terminal só libera o painel, e a sessão continua
+          rodando na lista. Suspender encerra o terminal e deixa a aba fechada na lista; a conversa volta ao clicar nela.
+        </p>
+        <div className="chip-row">
+          {(
+            [
+              ["archive", "Arquivar sessão"],
+              ["pane", "Fechar terminal"],
+              ["sleep", "Suspender sessão"],
+            ] as const
+          ).map(([value, label]) => (
+            <button key={value} className={`chip ${closeAction === value ? "on" : ""}`} onClick={() => setCloseAction(value)}>
+              {label}
+            </button>
+          ))}
         </div>
       </section>
 

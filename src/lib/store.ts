@@ -29,6 +29,7 @@ import {
   type RateLimits,
   type SplitMode,
   type TitleWrap,
+  type CloseAction,
   type GroupTint,
   type StatusEnvelope,
   type StatusPayload,
@@ -140,6 +141,8 @@ interface Store {
   terminalBorder: number;
   /** Whether long tab names in the sidebar wrap or get cut with an ellipsis. */
   tabTitleWrap: TitleWrap;
+  /** What the × on a tab does. */
+  closeAction: CloseAction;
   /** Background tint of each group in the tab list. */
   groupTint: GroupTint;
   /** Colours, fonts and backdrop of the whole app. */
@@ -219,6 +222,8 @@ interface Store {
   closeTab: (id: string) => void;
   /** Frees the pane showing a tab; the tab and its shell keep running in the list. */
   closePane: (id: string) => void;
+  /** Ends a tab's terminal and keeps the tab, dormant, to resume its session later. */
+  sleepTab: (id: string) => void;
   activateTab: (id: string) => void;
   renameTab: (id: string, title: string) => void;
   moveTab: (id: string, groupId: string) => void;
@@ -256,6 +261,7 @@ interface Store {
   closeGroup: (id: string) => void;
   setTerminalBorder: (px: number) => void;
   setTabTitleWrap: (w: TitleWrap) => void;
+  setCloseAction: (a: CloseAction) => void;
   setGroupTint: (t: GroupTint) => void;
   setTheme: (t: ThemeId) => void;
   setTerminalFont: (f: Partial<TerminalFont>) => void;
@@ -319,6 +325,7 @@ export const useStore = create<Store>()(
       barPosition: "top",
       terminalBorder: 1,
       tabTitleWrap: "wrap",
+      closeAction: "archive",
       groupTint: "subtle",
       theme: "classic",
       terminalFont: THEME_FONT,
@@ -477,6 +484,28 @@ export const useStore = create<Store>()(
           const panes = [...s.panes];
           panes[slot] = null;
           return { panes, activeTabId: s.activeTabId === id ? tabIn(panes[s.focusedPane]) : s.activeTabId };
+        }),
+      // The terminal ends when the tab leaves the live list; the shell's own
+      // exit marks a tab dormant the same way.
+      sleepTab: (id) =>
+        set((s) => {
+          if (s.detached.includes(id)) closeDetachedWindow(id);
+          const tabs = s.tabs.map((t) =>
+            t.id === id ? { ...t, state: "dormant" as TabState, pendingMessage: null } : t,
+          );
+          const { [id]: _agents, ...subagentsByTab } = s.subagentsByTab;
+          return {
+            tabs,
+            panes: s.panes.map((p) => (p === id ? null : p)),
+            activeTabId:
+              s.activeTabId === id ? (tabs.find((t) => t.state !== "dormant")?.id ?? null) : s.activeTabId,
+            detached: s.detached.filter((d) => d !== id),
+            permissions: s.permissions.filter((p) => p.tab_id !== id),
+            questions: s.questions.filter((q) => q.tab_id !== id),
+            commands: s.commands.filter((c) => c.tab_id !== id),
+            alerted: s.alerted.filter((a) => a !== id),
+            subagentsByTab,
+          };
         }),
       activateTab: (id) => {
         if (get().detached.includes(id)) return focusDetachedWindow(id);
@@ -668,6 +697,7 @@ export const useStore = create<Store>()(
         }),
       setTerminalBorder: (terminalBorder) => set({ terminalBorder }),
       setTabTitleWrap: (tabTitleWrap) => set({ tabTitleWrap }),
+      setCloseAction: (closeAction) => set({ closeAction }),
       setGroupTint: (groupTint) => set({ groupTint }),
       setTheme: (theme) => set({ theme }),
       setTerminalFont: (f) => set((s) => ({ terminalFont: { ...s.terminalFont, ...f } })),
@@ -856,6 +886,7 @@ export const useStore = create<Store>()(
         barPosition: s.barPosition,
         terminalBorder: s.terminalBorder,
         tabTitleWrap: s.tabTitleWrap,
+        closeAction: s.closeAction,
         groupTint: s.groupTint,
         theme: s.theme,
         terminalFont: s.terminalFont,
@@ -874,6 +905,32 @@ export const useStore = create<Store>()(
     },
   ),
 );
+
+/**
+ * What the × on a tab would do, as its tooltip, or null when it would do
+ * nothing there: freeing a pane needs the tab on screen, and sleeping needs it
+ * running. Takes the state so a component can select it.
+ */
+export function closeButtonTitle(s: Pick<Store, "closeAction" | "panes" | "splitMode" | "detached">, tab: Tab): string | null {
+  switch (s.closeAction) {
+    case "pane": {
+      const shown = s.panes.slice(0, paneCount(s.splitMode)).includes(tab.id) && !s.detached.includes(tab.id);
+      return shown ? "Fechar terminal · a sessão continua na lista" : null;
+    }
+    case "sleep":
+      return tab.state === "dormant" ? null : "Suspender · encerra o terminal; a conversa volta ao clicar na aba";
+    default:
+      return "Arquivar sessão · encerra e manda para o Histórico";
+  }
+}
+
+/** Runs the × on a tab, as chosen in Configurações. */
+export function closeWithButton(id: string): void {
+  const s = useStore.getState();
+  if (s.closeAction === "pane") return s.closePane(id);
+  if (s.closeAction === "sleep") return s.sleepTab(id);
+  s.closeTab(id);
+}
 
 /** Adds the catch-all group when missing and keeps it last in the list. */
 export function ensureUngrouped(): void {

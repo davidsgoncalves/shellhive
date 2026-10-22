@@ -85,6 +85,12 @@ export type GroupTint = "subtle" | "strong" | "none";
 /** How a long tab name fits in the sidebar. */
 export type TitleWrap = "truncate" | "wrap";
 
+/**
+ * What the × on a tab does: end the session and send it to the history, free
+ * the pane it is shown in, or end its terminal and keep the tab to resume.
+ */
+export type CloseAction = "archive" | "pane" | "sleep";
+
 /** Thickness of the group-coloured frame around the terminal, in pixels. */
 export const BORDER_OPTIONS = [
   { value: 0, label: "Sem borda" },

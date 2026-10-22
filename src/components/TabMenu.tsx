@@ -13,6 +13,7 @@ export function TabMenu() {
     startPaneAssign,
     closeTab,
     closePane,
+    sleepTab,
     tabs,
     detached,
     detachTab,
@@ -149,6 +150,18 @@ export function TabMenu() {
           }}
         >
           Fechar terminal
+        </button>
+      )}
+      {tab.state !== "dormant" && (
+        <button
+          className="menu-item"
+          title="Encerra o terminal; a aba fica na lista e a conversa volta ao clicar nela"
+          onClick={() => {
+            sleepTab(tab.id);
+            openTabMenu(null);
+          }}
+        >
+          Suspender sessão
         </button>
       )}
       <button
