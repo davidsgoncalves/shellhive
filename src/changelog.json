@@ -1,5 +1,15 @@
 [
   {
+    "version": "1.6.0",
+    "date": "2026-10-22",
+    "items": [
+      "Novo plugin Todo list: guarda ideias e pendências que surgem numa conversa, com a sessão de onde vieram. O Claude adiciona quando você pede, e a aba Todo list, na coluna da direita, permite adicionar à mão, concluir, excluir e voltar à sessão. Ative em Configurações › Plugins.",
+      "Fechar ou reiniciar o Shellhive com uma aba trabalhando agora pede confirmação, inclusive no Cmd+Q do Mac.",
+      "Abas abertas em janela separada voltam em janela separada quando o app reabre.",
+      "Nova opção em Configurações › Aparência para escolher o que o × das abas faz: arquivar a sessão, fechar o terminal ou suspender a sessão. Suspender também está no menu da aba."
+    ]
+  },
+  {
     "version": "1.5.9",
     "date": "2026-10-22",
     "items": [
