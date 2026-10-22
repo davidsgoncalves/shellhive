@@ -14,7 +14,7 @@ mod process;
 mod pty;
 mod sessions;
 
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 /// Hook mode: the executable run by Claude Code in place of the hook scripts.
 pub fn hook_client(kind: &str) -> i32 {
@@ -99,6 +99,22 @@ pub fn run() {
             plugins::local::plugin_events,
             files::save_text_file,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            // Cmd+Q and the Dock's Quit on macOS end the app here without
+            // closing the main window first, so its close listener never
+            // asks. While that window is up, hold the exit and let it ask;
+            // it closes itself if the user agrees. Exits asked for in code
+            // (`exit`, `restart`) carry a code and go through.
+            if let tauri::RunEvent::ExitRequested {
+                code: None, api, ..
+            } = event
+            {
+                if app.get_webview_window("main").is_some() {
+                    api.prevent_exit();
+                    let _ = app.emit_to("main", "quit-requested", ());
+                }
+            }
+        });
 }

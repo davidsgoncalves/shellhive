@@ -282,6 +282,10 @@ function useShortcuts() {
 function useDetachedWindows() {
   useEffect(() => {
     const store = useStore.getState;
+    const closeOwnedWindows = () => {
+      store().detached.forEach(closeDetachedWindow);
+      closeMiniWindow();
+    };
     const subs = [
       // A new window starts from the screen this window has kept drawing.
       listen<{ id: string }>(DETACH_READY, (ev) => {
@@ -307,8 +311,13 @@ function useDetachedWindows() {
       // outlive the window that owns their tabs.
       getCurrentWebviewWindow().onCloseRequested(async (event) => {
         if (!(await confirmQuit("close"))) return event.preventDefault();
-        store().detached.forEach(closeDetachedWindow);
-        closeMiniWindow();
+        closeOwnedWindows();
+      }),
+      // Cmd+Q on macOS, held by the backend until this window agrees.
+      listen("quit-requested", async () => {
+        if (!(await confirmQuit("close"))) return;
+        closeOwnedWindows();
+        await getCurrentWebviewWindow().destroy();
       }),
     ];
 
