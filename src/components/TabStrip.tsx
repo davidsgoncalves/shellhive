@@ -40,7 +40,7 @@ function StripTab({ tab, active }: { tab: Tab; active: boolean }) {
       {showPct && <span className="strip-ctx">{Math.round(pct)}%</span>}
       <button
         className="strip-close"
-        title="Fechar aba"
+        title="Arquivar sessão"
         onClick={(e) => {
           e.stopPropagation();
           closeTab(tab.id);

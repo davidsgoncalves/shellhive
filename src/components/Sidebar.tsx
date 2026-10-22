@@ -169,7 +169,7 @@ function TabRow({ tab, active }: { tab: Tab; active: boolean }) {
         <ContextGauge status={status} />
         <button
           className="icon-btn close"
-          title="Fechar aba"
+          title="Arquivar sessão"
           onClick={(e) => {
             e.stopPropagation();
             closeTab(tab.id);
