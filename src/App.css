@@ -226,6 +226,10 @@ button.ghost:disabled { opacity: .4; cursor: default; }
 .panel-tabs-tail { margin-left: auto; display: flex; align-items: center; flex-shrink: 0; }
 .panel-tabs-menu { transform-origin: top right; }
 .panel-tabs-menu .menu-item { display: flex; align-items: center; gap: 6px; }
+/* Where a dragged tab will land: it takes this tab's place. */
+.panel-tabs .drop-target { box-shadow: inset 2px 0 0 var(--accent); }
+.panel-tabs-menu .menu-item.drop-target { box-shadow: inset 0 2px 0 var(--accent); }
+.panel-tabs.drop-end .panel-tabs-tail { box-shadow: inset 2px 0 0 var(--accent); }
 .panel-tabs button { flex-shrink: 0; white-space: nowrap; }
 .panel-tabs > button:not(.icon-btn), .panel-tabs-measure > button {
   background: transparent; border: none; color: var(--muted); cursor: pointer;

@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.6.1-beta.1",
+    "date": "2026-10-22",
+    "items": [
+      "As abas da coluna da direita podem ser reordenadas arrastando, inclusive as que ficam no menu ⋯: arraste uma delas para a barra para tirá-la de lá. A ordem fica salva."
+    ]
+  },
+  {
     "version": "1.6.0",
     "date": "2026-10-22",
     "items": [

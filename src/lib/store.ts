@@ -159,6 +159,8 @@ interface Store {
   viewData: Record<string, unknown>;
   /** The tab shown in the right column. */
   rightPanelTab: string;
+  /** Order the user dragged the right column's tabs into; tabs not listed follow. */
+  panelTabOrder: string[];
   /** Badges plugins put under tab names: tab id -> plugin id -> text. */
   pluginBadges: Record<string, Record<string, string>>;
   /** Bands plugins attach to terminals: tab id -> plugin id -> data and height. */
@@ -281,6 +283,7 @@ interface Store {
   setPluginBand: (tabId: string, pluginId: string, data: unknown) => void;
   setPluginBandHeight: (tabId: string, pluginId: string, height: number) => void;
   setRightPanelTab: (tab: string) => void;
+  setPanelTabOrder: (order: string[]) => void;
   /** Shows a plugin's view in a pane: its own if open, else a free one, else the focused one. */
   openPluginView: (pluginId: string, data: unknown) => void;
   closePluginView: (pluginId: string) => void;
@@ -343,6 +346,7 @@ export const useStore = create<Store>()(
       pluginStatus: {},
       viewData: {},
       rightPanelTab: "queue",
+      panelTabOrder: [],
       miniPanel: false,
       showEvents: false,
       errorReportsAsked: false,
@@ -747,6 +751,7 @@ export const useStore = create<Store>()(
           return { pluginStatus: status ? { ...rest, [pluginId]: status } : rest };
         }),
       setRightPanelTab: (rightPanelTab) => set({ rightPanelTab, eventsOpen: true }),
+      setPanelTabOrder: (panelTabOrder) => set({ panelTabOrder }),
       openPluginView: (pluginId, data) =>
         set((s) => {
           const id = viewOf(pluginId);
@@ -888,6 +893,7 @@ export const useStore = create<Store>()(
         sidebarOpen: s.sidebarOpen,
         eventsOpen: s.eventsOpen,
         columnWidths: s.columnWidths,
+        panelTabOrder: s.panelTabOrder,
         pinned: s.pinned,
         folders: s.folders,
         defaultFolderId: s.defaultFolderId,
