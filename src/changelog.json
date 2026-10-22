@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.5.9",
+    "date": "2026-10-22",
+    "items": [
+      "Na lista de sessões, a seta ↗ de aba em janela separada não fica mais por cima do medidor de contexto nem do botão de fechar."
+    ]
+  },
+  {
     "version": "1.5.8",
     "date": "2026-10-21",
     "items": [
