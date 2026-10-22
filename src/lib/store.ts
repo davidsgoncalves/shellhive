@@ -224,6 +224,8 @@ interface Store {
   moveTab: (id: string, groupId: string) => void;
   detachTab: (id: string, at?: { x: number; y: number }) => void;
   reattachTab: (id: string) => void;
+  /** Wakes tabs saved in their own windows and opens those windows again. */
+  restoreDetached: (ids: string[]) => void;
   setGitInfo: (id: string, info: GitInfo | null) => void;
   reopenClosedTab: () => void;
   openSearch: (tabId: string | null) => void;
@@ -522,6 +524,13 @@ export const useStore = create<Store>()(
           const activeTabId = s.activeTabId === id ? (panes.find((p) => p != null) ?? null) : s.activeTabId;
           return { detached: [...s.detached, id], panes, activeTabId };
         });
+      },
+      restoreDetached: (ids) => {
+        // Woken off the panes, so they do not push out the tabs restored there.
+        const dormant = get().tabs.filter((t) => ids.includes(t.id) && t.state === "dormant");
+        markPendingResume(dormant.filter((t) => t.claudeSessionId).map((t) => t.id));
+        set((s) => ({ tabs: s.tabs.map((t) => (dormant.includes(t) ? { ...t, state: "shell" as TabState } : t)) }));
+        ids.forEach((id) => get().detachTab(id));
       },
       reattachTab: (id) => {
         if (!get().detached.includes(id)) return;
@@ -870,6 +879,7 @@ export const useStore = create<Store>()(
         sessionGroups: s.sessionGroups,
         splitMode: s.splitMode,
         panes: s.panes,
+        detached: s.detached,
       }),
     },
   ),

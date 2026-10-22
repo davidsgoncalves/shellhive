@@ -282,7 +282,11 @@ function useShortcuts() {
 function useDetachedWindows() {
   useEffect(() => {
     const store = useStore.getState;
+    // Set once the app is closing, so the detached windows it closes stay
+    // saved as detached and open again with the app.
+    let quitting = false;
     const closeOwnedWindows = () => {
+      quitting = true;
       store().detached.forEach(closeDetachedWindow);
       closeMiniWindow();
     };
@@ -304,7 +308,9 @@ function useDetachedWindows() {
       listen<{ id: string; cols: number; rows: number }>(DETACH_RESIZE, (ev) => {
         terminals.get(ev.payload.id)?.resize(ev.payload.cols, ev.payload.rows);
       }),
-      listen<{ id: string }>(DETACH_CLOSED, (ev) => store().reattachTab(ev.payload.id)),
+      listen<{ id: string }>(DETACH_CLOSED, (ev) => {
+        if (!quitting) store().reattachTab(ev.payload.id);
+      }),
       // The only close listener for the main window: each one destroys the
       // window unless it cancels, so a second listener would close it while
       // this one still asks. Detached windows and the mini panel cannot
@@ -644,6 +650,9 @@ function App() {
 
   useEffect(() => {
     ensureUngrouped();
+    // Saved detached tabs have no window yet; they get one once the panes are back.
+    const detached = useStore.getState().detached;
+    useStore.setState({ detached: [] });
     const s = useStore.getState();
     if (s.tabs.length === 0) {
       openSessionInGroup(defaultGroupId());
@@ -660,10 +669,12 @@ function App() {
         .getState()
         .panes.slice(0, paneCount(s.splitMode))
         .filter((id): id is string => !!id && id !== target.id && s.tabs.some((t) => t.id === id));
-      if (shown.length === 0) return;
-      new Set(shown).forEach((id) => s.activateTab(id));
-      s.activateTab(target.id);
+      if (shown.length > 0) {
+        new Set(shown).forEach((id) => s.activateTab(id));
+        s.activateTab(target.id);
+      }
     }
+    s.restoreDetached(detached.filter((id) => s.tabs.some((t) => t.id === id)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
