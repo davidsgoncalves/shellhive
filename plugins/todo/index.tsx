@@ -21,6 +21,22 @@ const plugin: ShellhivePlugin = {
       await useTodos.getState().add(newTodo(text, "claude", tab));
       return { text: "Item adicionado à Todo list." };
     },
+    list_todos: async () => {
+      await useTodos.getState().load();
+      const open = useTodos
+        .getState()
+        .todos.filter((t) => !t.done)
+        .map((t) => ({ id: t.id, text: t.text, from: t.tabTitle || null, folder: t.cwd, at: new Date(t.at).toISOString() }));
+      return { text: open.length ? JSON.stringify(open, null, 2) : "A Todo list está vazia." };
+    },
+    // Done, not deleted: the item leaves the list and stays stored.
+    remove_todo: async (args) => {
+      await useTodos.getState().load();
+      const item = useTodos.getState().todos.find((t) => t.id === args.id && !t.done);
+      if (!item) return { text: "Item não encontrado entre os abertos; veja os ids em list_todos.", isError: true };
+      await useTodos.getState().toggle(item.id);
+      return { text: `Item tirado da lista: ${item.text}` };
+    },
   },
 };
 

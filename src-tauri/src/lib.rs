@@ -41,6 +41,7 @@ pub fn run() {
             errors::init(app.package_info().version.to_string());
             perf::start();
             app.manage(db::open().map_err(|e| format!("database unavailable: {e}"))?);
+            db::prune_events_in_background();
             if let Err(e) = hooks::write_scripts() {
                 eprintln!("[setup] could not write hook scripts: {e}");
             }

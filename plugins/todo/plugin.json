@@ -1,8 +1,8 @@
 {
   "id": "todo",
   "name": "Todo list",
-  "description": "Guarda ideias e pendências que surgem no meio de uma conversa, com a sessão de onde vieram. O agente adiciona quando você pede; a lista fica na aba Todo list, na coluna da direita, de onde dá para voltar à sessão.",
-  "agentContext": "Ao terminar de discutir um assunto que deixou pontos em aberto, mencione isso uma vez, numa linha (por exemplo: ficaram em aberto X e Y). Nao pergunte se deve anotar e nao repita. Chame add_todo somente quando o usuario pedir para colocar algo na lista (todo list, lista de todo, anota isso).",
+  "description": "Guarda ideias e pendências que surgem no meio de uma conversa, com a sessão de onde vieram. O agente adiciona, lista e tira itens quando você pede; a lista fica no painel Todo list, de onde dá para voltar à sessão.",
+  "agentContext": "Ao terminar de discutir um assunto que deixou pontos em aberto, mencione isso uma vez, numa linha (por exemplo: ficaram em aberto X e Y). Nao pergunte se deve anotar e nao repita. Chame add_todo somente quando o usuario pedir para colocar algo na lista (todo list, lista de todo, anota isso). Chame remove_todo somente quando o usuario pedir para tirar ou concluir um item da lista; use list_todos para achar o id.",
   "tools": [
     {
       "name": "add_todo",
@@ -15,7 +15,35 @@
             "description": "A ideia ou pendência em uma ou duas frases, com o porquê."
           }
         },
-        "required": ["text"],
+        "required": [
+          "text"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_todos",
+      "description": "Lista os itens abertos da Todo list do Shellhive, com id, texto, de onde vieram e quando.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "remove_todo",
+      "description": "Tira um item da Todo list, como concluído. Use somente quando o usuário pedir. Pegue o id em list_todos.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Id do item, de list_todos."
+          }
+        },
+        "required": [
+          "id"
+        ],
         "additionalProperties": false
       }
     }

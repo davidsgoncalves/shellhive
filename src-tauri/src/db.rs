@@ -24,6 +24,37 @@ pub fn open() -> Result<Db, String> {
     Ok(Db(Mutex::new(conn)))
 }
 
+/// Hook events kept, in milliseconds: a week.
+const EVENTS_KEEP_MS: i64 = 7 * 24 * 60 * 60 * 1000;
+
+/// Hook events are written on every tool call and only read to diagnose the
+/// app, so they pile up. On launch, those older than a week are dropped and
+/// the file is shrunk when any were. Runs on its own connection and thread so
+/// the app does not wait on it.
+pub fn prune_events_in_background() {
+    std::thread::spawn(|| {
+        if let Err(e) = prune_events() {
+            eprintln!("[db] pruning events failed: {e}");
+        }
+    });
+}
+
+fn prune_events() -> Result<(), String> {
+    let conn = Connection::open(db_path()?).map_err(|e| e.to_string())?;
+    conn.busy_timeout(std::time::Duration::from_secs(30))
+        .map_err(|e| e.to_string())?;
+    let cutoff = now_millis() - EVENTS_KEEP_MS;
+    let gone = conn
+        .execute("DELETE FROM events WHERE received_at < ?1", params![cutoff])
+        .map_err(|e| e.to_string())?;
+    if gone > 0 {
+        conn.execute_batch("VACUUM; PRAGMA wal_checkpoint(TRUNCATE);")
+            .map_err(|e| e.to_string())?;
+        eprintln!("[db] dropped {gone} hook events older than a week");
+    }
+    Ok(())
+}
+
 fn migrate(conn: &Connection) -> Result<(), String> {
     let version: i32 = conn
         .query_row("PRAGMA user_version", [], |r| r.get(0))
