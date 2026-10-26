@@ -129,13 +129,16 @@ export async function runBee(bee: Bee): Promise<void> {
 }
 
 /** Ends the run a bee tab holds, once Claude stops: keeps its reply and closes the tab. */
-export async function finishBeeRun(tabId: string): Promise<void> {
+export async function finishBeeRun(tabId: string, reply?: string): Promise<void> {
   const run = useBeeRuns.getState().runs.find((r) => r.tabId === tabId && r.status === "running");
   if (!run) return;
   const s = useStore.getState();
   const tab = s.tabs.find((t) => t.id === tabId);
   const bee = s.bees.find((b) => b.id === run.beeId);
-  const summary = tab?.transcriptPath
+  // The Stop event carries the last reply; the transcript may not have it written yet.
+  const summary = reply?.trim()
+    ? reply
+    : tab?.transcriptPath
     ? await invoke<string | null>("session_last_reply", { path: tab.transcriptPath }).catch(() => null)
     : null;
   useBeeRuns.getState().put({
