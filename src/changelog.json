@@ -1,5 +1,12 @@
 [
   {
+    "version": "2.0.0-beta.2",
+    "date": "2026-10-26",
+    "items": [
+      "A aba Repositórios saiu das configurações: uma worker bee é só um prompt, e os repositórios e pastas vão escritos nele. O app também deixou de procurar clones nas pastas dos grupos ao abrir."
+    ]
+  },
+  {
     "version": "2.0.0-beta.1",
     "date": "2026-10-26",
     "items": [
