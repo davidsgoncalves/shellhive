@@ -79,6 +79,34 @@ Como publicar:
 
 No fim, responda com um resumo: para cada PR, quantos achados e cada bloqueante em uma linha; e a lista dos PRs sem achados, com o link, dizendo que falta eu aprovar.`;
 
+const DAILY_PROMPT = `Você está rodando como uma abelha do Worker bee do Shellhive, sem ninguém acompanhando o terminal. Não faça perguntas.
+
+Tarefa: escrever o resumo do meu dia de trabalho, pronto para eu colar na daily.
+
+Clones onde olhar meus commits:
+{{Liste as pastas dos seus clones, uma por linha. Ex.: ~/projects/meu-app}}
+
+Período: desde {{Quando o dia começa. Ex.: hoje às 00:00, ou as últimas 24 horas}}.
+
+1. Meus commits: em cada clone, \`git -C <clone> fetch -q --all\` e \`git -C <clone> log --all --author="$(git -C <clone> config user.email)" --since=<início do período> --format='%h %s (%D)'\`. Junte os commits pela branch ou tarefa (como ABC-123), sem listar um por um.
+2. Meus PRs: \`gh search prs --author=@me --updated=">=<data do início>" --json number,title,url,state,repository,isDraft\`. Separe em abertos, mergeados e fechados no período.
+3. Revisões que fiz: \`gh search prs --reviewed-by=@me --updated=">=<data do início>" --json number,title,url,repository\`, sem contar os meus próprios PRs.
+4. Pendências: PRs meus abertos com pedido de alteração ou comentário sem resposta, e PRs que pedem a minha revisão (\`gh search prs --review-requested=@me --state=open\`).
+
+Responda só com o resumo, em português, neste formato:
+{{Escreva o formato que você usa na daily, ou apague esta linha para usar o padrão abaixo.}}
+
+Feito:
+- <tarefa ou PR>: <o que avançou, em uma frase> (<link do PR, se houver>)
+
+Revisei:
+- <PR>: <link>
+
+Pendente / bloqueado:
+- <o que espera alguém, e quem>
+
+Frases curtas, sem detalhes de implementação, sem repetir a mesma tarefa em dois lugares. Se o período não teve nada numa seção, escreva "nada".`;
+
 export const TEMPLATES: BeeTemplate[] = [
   {
     id: "review",
@@ -96,5 +124,13 @@ export const TEMPLATES: BeeTemplate[] = [
     needs: "GitHub (gh)",
     trigger: { kind: "schedule", days: [5], time: "18:00" },
     prompt: WORKTREES_PROMPT,
+  },
+  {
+    id: "daily",
+    name: "Resumo do dia",
+    description: "Junta os seus commits, PRs e revisões do dia num texto pronto para a daily, com o que ficou pendente.",
+    needs: "GitHub (gh)",
+    trigger: { kind: "schedule", days: [1, 2, 3, 4, 5], time: "18:00" },
+    prompt: DAILY_PROMPT,
   },
 ];
