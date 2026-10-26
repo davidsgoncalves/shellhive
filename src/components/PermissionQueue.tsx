@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { useStore } from "../lib/store";
+import { onScreen, useStore } from "../lib/store";
 import { describeTool, looksDestructive } from "../lib/describe";
 import { describeRule, ruleFor } from "../lib/permRules";
-import type { PermissionDecision, PermissionRequest, QuestionItem } from "../lib/types";
+import { isBeeTab, type PermissionDecision, type PermissionRequest, type QuestionItem } from "../lib/types";
 import { CommandCard } from "./CommandCard";
 import { PluginApprovals, pendingApprovals } from "./PluginApprovals";
 
@@ -23,7 +23,16 @@ function Countdown({ req }: { req: PermissionRequest }) {
   );
 }
 
-function Item({ req }: { req: PermissionRequest }) {
+export function PermissionCard({
+  req,
+  overlay = false,
+  onOpen,
+}: {
+  req: PermissionRequest;
+  overlay?: boolean;
+  /** Replaces going to the tab, for a tab that is not in the lists. */
+  onOpen?: () => void;
+}) {
   const { tabs, groups, activateTab, dropPermission, addGroupRule } = useStore();
   const [sent, setSent] = useState<PermissionDecision | null>(null);
   const tab = tabs.find((t) => t.id === req.tab_id);
@@ -40,7 +49,7 @@ function Item({ req }: { req: PermissionRequest }) {
   };
 
   return (
-    <li className={`perm-item ${risky ? "risky" : ""} ${sent ? "sent" : ""}`}>
+    <li className={`perm-item ${risky ? "risky" : ""} ${sent ? "sent" : ""} ${overlay ? "overlay" : ""}`}>
       <div className="perm-head">
         <span className="perm-tool">{tool ?? "ferramenta"}</span>
         {risky && <span className="risk-tag" title="Padrão destrutivo detectado">risco</span>}
@@ -50,7 +59,7 @@ function Item({ req }: { req: PermissionRequest }) {
         {summary}
       </code>
       <div className="perm-meta">
-        <button className="link" onClick={() => tab && activateTab(tab.id)} title="Ir para a aba">
+        <button className="link" onClick={() => (onOpen ? onOpen() : tab && activateTab(tab.id))} title="Ir para a aba">
           {tab?.title ?? "aba desconhecida"}
         </button>
         {req.payload.cwd && <span className="muted">{req.payload.cwd.split("/").slice(-2).join("/")}</span>}
@@ -93,7 +102,7 @@ function Item({ req }: { req: PermissionRequest }) {
  * A question is shown for context and to jump to its tab. Claude Code draws its
  * own picker in the terminal, so the answer is given there.
  */
-function QuestionCard({ item }: { item: QuestionItem }) {
+export function QuestionCard({ item, onOpen }: { item: QuestionItem; onOpen?: () => void }) {
   const { tabs, activateTab } = useStore();
   const tab = tabs.find((t) => t.id === item.tab_id);
   return (
@@ -117,7 +126,7 @@ function QuestionCard({ item }: { item: QuestionItem }) {
         </div>
       ))}
       <div className="perm-actions">
-        <button className="allow" onClick={() => tab && activateTab(tab.id)}>
+        <button className="allow" onClick={() => (onOpen ? onOpen() : tab && activateTab(tab.id))}>
           Responder em {tab?.title ?? "outra aba"}
         </button>
       </div>
@@ -125,11 +134,25 @@ function QuestionCard({ item }: { item: QuestionItem }) {
   );
 }
 
+/**
+ * What waits in the Fila: requests from tabs off screen. A tab on screen shows
+ * its own over its terminal, and a question there is already in the terminal.
+ */
+export function useQueued() {
+  const s = useStore();
+  // A bee's requests wait in the Worker bee panel instead.
+  const bee = new Set(s.tabs.filter(isBeeTab).map((t) => t.id));
+  const away = (tabId: string | null | undefined) => !onScreen(s, tabId) && !bee.has(tabId ?? "");
+  return {
+    permissions: s.permissions.filter((p) => away(p.tab_id)),
+    questions: s.questions.filter((q) => away(q.tab_id)),
+    commands: s.commands.filter((c) => away(c.tab_id)),
+    approvals: pendingApprovals(s.localPlugins, s.deferredApprovals).length,
+  };
+}
+
 export function PermissionQueue() {
-  const permissions = useStore((s) => s.permissions);
-  const questions = useStore((s) => s.questions);
-  const commands = useStore((s) => s.commands);
-  const approvals = useStore((s) => pendingApprovals(s.localPlugins, s.deferredApprovals).length);
+  const { permissions, questions, commands, approvals } = useQueued();
   if (permissions.length === 0 && questions.length === 0 && commands.length === 0 && approvals === 0) {
     return <p className="hint pad">Nada pendente.</p>;
   }
@@ -137,7 +160,7 @@ export function PermissionQueue() {
     <ul className="perm-list">
       <PluginApprovals />
       {permissions.map((p) => (
-        <Item key={p.id} req={p} />
+        <PermissionCard key={p.id} req={p} />
       ))}
       {questions.map((q) => (
         <QuestionCard key={q.id} item={q} />

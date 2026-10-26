@@ -1,3 +1,5 @@
+mod bees;
+mod connections;
 mod db;
 mod errors;
 mod files;
@@ -38,6 +40,7 @@ pub fn run() {
             errors::init(app.package_info().version.to_string());
             perf::start();
             app.manage(db::open().map_err(|e| format!("database unavailable: {e}"))?);
+            db::prune_events_in_background();
             if let Err(e) = hooks::write_scripts() {
                 eprintln!("[setup] could not write hook scripts: {e}");
             }
@@ -68,6 +71,14 @@ pub fn run() {
             db::state_save,
             db::metrics_summary,
             git::git_info,
+            connections::connections_check,
+            bees::bee_runs_get,
+            bees::bee_runs_set,
+            mcp::bee_creator_tabs,
+            sessions::session_last_reply,
+            connections::mcp_status,
+            connections::git_origin,
+            connections::git_origins_in,
             errors::error_reports_get,
             errors::error_reports_set,
             errors::report_error,

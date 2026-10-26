@@ -30,6 +30,8 @@ interface Props {
   onDropSession: (ref: SessionRef) => void;
   /** Something in this session waits on the user: a permission, a question or a command. */
   attention: boolean;
+  /** Drawn above the Worker bee view, for a bee's run watched live. */
+  raised?: boolean;
 }
 
 export function TerminalView({
@@ -43,6 +45,7 @@ export function TerminalView({
   onDropTab,
   onDropSession,
   attention,
+  raised = false,
 }: Props) {
   const [dropping, setDropping] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -150,6 +153,7 @@ export function TerminalView({
       style={{
         display: visible ? "block" : "none",
         ...rect,
+        ...(raised ? { zIndex: 60 } : {}),
         ["--group-color" as string]: color,
       }}
       onMouseDown={onFocus}

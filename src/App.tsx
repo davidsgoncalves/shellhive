@@ -4,10 +4,10 @@ import { emitTo, listen } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import "@xterm/xterm/css/xterm.css";
 import "./App.css";
-import { Sidebar } from "./components/Sidebar";
 import { TabStrip } from "./components/TabStrip";
 import { TerminalView } from "./components/TerminalView";
-import { RightPanel } from "./components/RightPanel";
+import { Tour } from "./components/Tour";
+import { SidePanel } from "./components/SidePanel";
 import { TopBar } from "./components/TopBar";
 import { Dialogs } from "./components/Dialogs";
 import { GroupMenu } from "./components/GroupMenu";
@@ -26,8 +26,14 @@ import { TerminalSearch } from "./components/TerminalSearch";
 import { carriesFiles, pasteDroppedFiles } from "./lib/termExtras";
 import { startLagTracker } from "./lib/perfDiag";
 import { CommandCard, typeCommand } from "./components/CommandCard";
+import { PermissionCard } from "./components/PermissionQueue";
+import { scanRepos } from "./lib/repos";
+import { checkConnections } from "./lib/connections";
+import { finishBeeRun, startBeeScheduler, stopBeeRun, useBeeRuns } from "./lib/bees";
+import { callBeeTool, syncBeeCreators } from "./lib/beeCreator";
+import { BeeMain, LIVE_RECT, useWatchedBeeTab } from "./components/WorkerBee";
 import { applyLook, shareLook } from "./lib/theme";
-import { defaultGroupId, duplicateSession, ensureUngrouped, openSession, openSessionInGroup, useStore } from "./lib/store";
+import { defaultGroupId, duplicateSession, ensureUngrouped, onScreen, openSession, openSessionInGroup, useStore } from "./lib/store";
 import { tabPatchFor } from "./lib/hookState";
 import { decodeBase64, serializers, terminals } from "./lib/terminals";
 import {
@@ -61,6 +67,7 @@ import { actionOf, tabNumberOf } from "./lib/shortcuts";
 import { syncTabTitle } from "./lib/titles";
 import {
   WATCHDOG_MINUTES,
+  isBeeTab,
   paneCount,
   paneRect,
   type HookEvent,
@@ -99,7 +106,7 @@ function trackQuestions(e: HookEvent, tabId: string): void {
       questions: input.questions,
     });
     const first = input.questions[0]?.question ?? "Pergunta";
-    void notify("Claude perguntou", first);
+    void notify("Claude perguntou", first, !onScreen(store, tabId));
     return;
   }
   if (name === "PostToolUse") {
@@ -141,9 +148,16 @@ function useBackendBridge() {
       if (patch.state && patch.state !== tab.state) store().clearAlerted(tab.id);
       if (patch.state === "shell" || patch.state === "dormant") {
         store().dropQuestion({ tabId: tab.id });
+        // Claude left a bee's tab before stopping: the run failed.
+        const run = useBeeRuns.getState().runs.find((r) => r.tabId === tab.id && r.status === "running");
+        if (run) stopBeeRun(run, "O Claude saiu antes de terminar.");
       }
       if (patch.state === "waiting" && tab.state === "working") {
-        void notify("Sessão terminou", patch.title ?? tab.title);
+        if (isBeeTab(tab) || useBeeRuns.getState().runs.some((r) => r.tabId === tab.id && r.status === "running")) {
+          void finishBeeRun(tab.id);
+        } else {
+          void notify("Sessão terminou", patch.title ?? tab.title);
+        }
       }
       trackQuestions(e, tab.id);
       // A /rename inside Claude lands in the transcript; pick it up on the
@@ -168,7 +182,11 @@ function useBackendBridge() {
         state: "permission",
         pendingMessage: `${req.payload.tool_name ?? "ferramenta"}: ${summary}`,
       });
-      void notify(`Permissão: ${req.payload.tool_name ?? "ferramenta"}`, `${tab?.title ?? "sessão"} · ${summary}`);
+      void notify(
+        `${tab && isBeeTab(tab) ? "Worker bee pede permissão" : "Permissão"}: ${req.payload.tool_name ?? "ferramenta"}`,
+        `${tab?.title ?? "sessão"} · ${summary}`,
+        !onScreen(store(), req.tab_id),
+      );
     }).then((u) => unlisteners.push(u));
 
     // `:<name>` typed in a tab, stopped before Claude by the prompt hook.
@@ -181,7 +199,11 @@ function useBackendBridge() {
     listen<CommandSuggestion>("command-suggestion", (ev) => {
       store().addCommand(ev.payload);
       const tab = store().tabs.find((t) => t.id === ev.payload.tab_id);
-      void notify("Comando para você rodar", `${tab?.title ?? "sessão"} · ${ev.payload.command}`);
+      void notify(
+        "Comando para você rodar",
+        `${tab?.title ?? "sessão"} · ${ev.payload.command}`,
+        !onScreen(store(), ev.payload.tab_id),
+      );
     }).then((u) => unlisteners.push(u));
 
     listen<PermissionResolved>("permission-resolved", (ev) => {
@@ -235,7 +257,7 @@ function useShortcuts() {
       const number = tabNumberOf(e);
       if (!action && number === null) return;
       const s = useStore.getState();
-      const live = s.tabs.filter((t) => t.state !== "dormant");
+      const live = s.tabs.filter((t) => t.state !== "dormant" && !isBeeTab(t));
       const idx = live.findIndex((t) => t.id === s.activeTabId);
       e.preventDefault();
 
@@ -258,9 +280,9 @@ function useShortcuts() {
           return void (target && !s.detached.includes(target) && s.openSearch(target));
         }
         case "sidebar":
-          return s.toggleSidebar();
+          return s.togglePanel();
         case "events":
-          return s.toggleEvents();
+          return s.panelOpen && s.panelTab === "queue" ? s.togglePanel() : s.setPanelTab("queue");
         case "settings":
           return s.openModal({ kind: "settings" });
         case "miniPanel":
@@ -483,6 +505,11 @@ function usePluginToolCalls() {
       async ({ payload }) => {
         const reply = (text: string, isError: boolean) =>
           invoke("plugin_tool_result", { callId: payload.call_id, text, isError }).catch(console.error);
+        // The bee tools belong to the core, not to a plugin.
+        if (payload.plugin === "worker-bee") {
+          const out = await callBeeTool(payload.tool, payload.args ?? {}).catch((err) => ({ text: String(err), isError: true }));
+          return void reply(out.text, !!out.isError);
+        }
         const on = useStore.getState().enabledPlugins.includes(payload.plugin);
         const handler = on ? PLUGINS.find((x) => x.manifest.id === payload.plugin)?.tools?.[payload.tool] : undefined;
         if (!handler) return void reply(`O plugin ${payload.plugin} não trata ${payload.tool}.`, true);
@@ -628,6 +655,25 @@ function usePerfHistory() {
   useEffect(() => startLagTracker(), []);
 }
 
+/** On launch: the repositories of the groups' folders, and whether the tools the bees need are ready. */
+function useWorkSetup() {
+  // Picking a session shows its terminal, so the Worker bee gives the center back.
+  useEffect(
+    () =>
+      useStore.subscribe((s, prev) => {
+        if (s.pickedTab === prev.pickedTab || s.panelTab !== "bees") return;
+        s.setPanelTab(s.layout === "sidebar" ? "tabs" : "queue");
+      }),
+    [],
+  );
+  useEffect(() => {
+    void scanRepos();
+    void checkConnections();
+    syncBeeCreators();
+    return startBeeScheduler();
+  }, []);
+}
+
 function App() {
   useBackendBridge();
   useDropAnywhere();
@@ -645,6 +691,7 @@ function App() {
   usePluginToolCalls();
   useLocalPlugins();
   usePluginSchedules();
+  useWorkSetup();
   usePluginShortcuts();
   const tabs = useStore((s) => s.tabs);
 
@@ -680,10 +727,13 @@ function App() {
 
   const live = tabs.filter((t) => t.state !== "dormant");
   const layout = useStore((s) => s.layout);
+  // The Worker bee takes the center; a bee's run in progress shows live under its details.
+  const beeMode = useStore((s) => s.panelOpen && s.panelTab === "bees");
+  const watched = useWatchedBeeTab();
   const barPosition = useStore((s) => s.barPosition);
   const groups = useStore((s) => s.groups);
   const borderWidth = useStore((s) => s.terminalBorder);
-  const { splitMode, panes, focusedPane, focusPane, detached, searchTabId, openSearch, commands, questions, enabledPlugins } =
+  const { splitMode, panes, focusedPane, focusPane, detached, searchTabId, openSearch, permissions, commands, questions, enabledPlugins } =
     useStore();
   const localPlugins = useStore((s) => s.localPlugins);
   const slots = paneCount(splitMode);
@@ -727,7 +777,7 @@ function App() {
       <ErrorReportsPrompt />
       {barPosition === "top" && <TopBar />}
       <div className="body">
-        {layout === "sidebar" && <Sidebar />}
+        <SidePanel />
         <main className="main">
           {layout === "topbar" && <TabStrip />}
           <div
@@ -740,7 +790,8 @@ function App() {
               const bands = bandsOf(t.id);
               const above = sum(bands.top);
               const below = sum(bands.bottom);
-              const visible = slot !== -1 && !detached.includes(t.id);
+              const watching = t.id === watched;
+              const visible = watching || (slot !== -1 && !detached.includes(t.id));
               // Stacked from the edge of the pane they sit on.
               const stack = (list: typeof bands.top, from: string) => {
                 let offset = 0;
@@ -760,11 +811,14 @@ function App() {
                   key={t.id}
                   tab={t}
                   visible={visible}
-                  focused={slot === focusedPane}
+                  focused={watching || (!beeMode && slot === focusedPane)}
+                  raised={watching}
                   rect={
-                    above || below
-                      ? { ...rect, top: `calc(${rect.top} + ${above}px)`, height: `calc(${rect.height} - ${above + below}px)` }
-                      : rect
+                    watching
+                      ? LIVE_RECT
+                      : above || below
+                        ? { ...rect, top: `calc(${rect.top} + ${above}px)`, height: `calc(${rect.height} - ${above + below}px)` }
+                        : rect
                   }
                   color={colorOf(t)}
                   onFocus={() => slot !== -1 && focusPane(slot)}
@@ -816,10 +870,14 @@ function App() {
             )}
             {Array.from({ length: slots }, (_, slot) => {
               const tabId = panes[slot];
+              const asks = permissions.filter((p) => p.tab_id && p.tab_id === tabId);
               const here = commands.filter((c) => c.tab_id && c.tab_id === tabId);
-              if (!tabId || here.length === 0 || detached.includes(tabId)) return null;
+              if (!tabId || asks.length + here.length === 0 || detached.includes(tabId)) return null;
               return (
                 <ul key={`cmd-${slot}`} className="pane-commands" style={paneRect(splitMode, slot)}>
+                  {asks.map((p) => (
+                    <PermissionCard key={p.id} req={p} overlay />
+                  ))}
                   {here.map((c) => (
                     <CommandCard key={c.id} item={c} overlay />
                   ))}
@@ -827,12 +885,13 @@ function App() {
               );
             })}
             <PaneOverlay />
+            {beeMode && <BeeMain />}
           </div>
         </main>
-        <RightPanel />
       </div>
       {barPosition === "bottom" && <TopBar />}
       <Dialogs />
+      <Tour />
       <GroupMenu />
       <TabMenu />
     </div>

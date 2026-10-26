@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { save } from "@tauri-apps/plugin-dialog";
+import type { PaneRect } from "../../src/lib/plugins";
 import { problem, toPng, toSvg } from "./render";
-import type { Diagram } from "./state";
-import { onShow, sendEdit } from "./window";
+import { useDiagrams, type Diagram } from "./state";
 
 const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err));
 const MIN = 0.1;
@@ -17,33 +16,41 @@ interface View {
   y: number;
 }
 
-/** One diagram at a time in its own window, with zoom and panning. */
-export function DiagramWindow() {
-  const [diagram, setDiagram] = useState<Diagram | null>(null);
+/**
+ * A diagram in place of a tab's terminal, with zoom and panning. Hidden, not
+ * closed, while its tab is off screen.
+ */
+export function DiagramView({
+  shown,
+  rect,
+  onClose,
+}: {
+  shown: Diagram;
+  rect: PaneRect | null;
+  onClose: () => void;
+}) {
+  const [diagram, setDiagram] = useState<Diagram>(shown);
   const [svg, setSvg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useState(shown.source);
   const [note, setNote] = useState<string | null>(null);
   const [view, setView] = useState<View>({ scale: 1, x: 0, y: 0 });
+  const root = useRef<HTMLDivElement>(null);
   const stage = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; y: number } | null>(null);
 
-  useEffect(
-    () =>
-      onShow((d) => {
-        setDiagram(d);
-        setDraft(d.source);
-        setEditing(false);
-        setNote(null);
-        void getCurrentWebviewWindow().setTitle(d.title);
-      }),
-    [],
-  );
+  // Another diagram opened over the same tab replaces this one.
+  useEffect(() => {
+    setDiagram(shown);
+    setDraft(shown.source);
+    setEditing(false);
+    setNote(null);
+    root.current?.focus();
+  }, [shown]);
 
   useEffect(() => {
-    if (!diagram) return;
     let live = true;
     toSvg(diagram.source)
       .then((out) => live && (setSvg(out), setError(null)))
@@ -89,6 +96,15 @@ export function DiagramWindow() {
     });
   }, []);
 
+  // Fits again when the pane changes size, or shows up after its tab was off screen.
+  useEffect(() => {
+    const el = stage.current;
+    if (!el) return;
+    const observer = new ResizeObserver(fit);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [fit]);
+
   // Pinch and ⌘/Ctrl + wheel zoom at the pointer; a plain wheel or swipe pans.
   useEffect(() => {
     const el = stage.current;
@@ -106,20 +122,16 @@ export function DiagramWindow() {
     return () => el.removeEventListener("wheel", onWheel);
   }, [zoomAt]);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (editing && (e.target as HTMLElement).tagName === "TEXTAREA") return;
-      if (e.key === "+" || e.key === "=") zoomAt(1.25);
-      else if (e.key === "-") zoomAt(0.8);
-      else if (e.key === "0") fit();
-      else return;
-      e.preventDefault();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [editing, zoomAt, fit]);
-
-  if (!diagram) return <p className="hint pad">Carregando…</p>;
+  // Only while the view has focus, so typing in the terminals is left alone.
+  const onKey = (e: React.KeyboardEvent) => {
+    if ((e.target as HTMLElement).tagName === "TEXTAREA") return;
+    if (e.key === "+" || e.key === "=") zoomAt(1.25);
+    else if (e.key === "-") zoomAt(0.8);
+    else if (e.key === "0") fit();
+    else if (e.key === "Escape") onClose();
+    else return;
+    e.preventDefault();
+  };
 
   const copy = async () => {
     if (!svg) return;
@@ -151,12 +163,18 @@ export function DiagramWindow() {
     const bad = await problem(draft);
     if (bad) return setError(bad);
     setDiagram({ ...diagram, source: draft });
-    void sendEdit(diagram.id, draft);
+    void useDiagrams.getState().update(diagram.id, draft);
     setEditing(false);
   };
 
   return (
-    <div className="diagram-window">
+    <div
+      className="diagram-view"
+      style={rect ?? { display: "none" }}
+      tabIndex={-1}
+      onKeyDown={onKey}
+      ref={root}
+    >
       <header>
         <span className="diagram-title">{diagram.title}</span>
         <button className="ghost auto" title="Diminuir (−)" onClick={() => zoomAt(0.8)}>
@@ -166,7 +184,7 @@ export function DiagramWindow() {
         <button className="ghost auto" title="Aumentar (+)" onClick={() => zoomAt(1.25)}>
           +
         </button>
-        <button className="ghost auto" title="Caber na janela (0)" onClick={fit}>
+        <button className="ghost auto" title="Caber na tela (0)" onClick={fit}>
           Caber
         </button>
         <span className="diagram-sep" />
@@ -178,6 +196,9 @@ export function DiagramWindow() {
         </button>
         <button className={`ghost auto ${editing ? "on" : ""}`} onClick={() => setEditing((e) => !e)}>
           Ver código
+        </button>
+        <button className="icon-btn" title="Fechar e voltar ao terminal (Esc)" onClick={onClose}>
+          ×
         </button>
       </header>
       {note && <p className="hint diagram-note">{note}</p>}

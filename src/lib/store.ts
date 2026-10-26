@@ -14,6 +14,9 @@ import {
   UNGROUPED_ID,
   UNGROUPED_NAME,
   type Folder,
+  type Repo,
+  type Bee,
+  BEE_GROUP_ID,
   type GitInfo,
   type Subagent,
   type CommandSuggestion,
@@ -68,6 +71,13 @@ function freePane(s: Pick<Store, "panes" | "tabs" | "splitMode">): number | null
   return null;
 }
 
+/** Whether a tab's terminal is in a visible pane of the main window. */
+export function onScreen(s: Pick<Store, "panes" | "splitMode" | "detached">, id: string | null | undefined): boolean {
+  if (!id || s.detached.includes(id)) return false;
+  const at = s.panes.indexOf(id);
+  return at !== -1 && at < paneCount(s.splitMode);
+}
+
 function rememberClosed(list: ClosedTab[], tabs: Tab[]): ClosedTab[] {
   const added = tabs.map(({ groupId, cwd, claudeSessionId, title, customTitle }) => ({
     groupId,
@@ -79,7 +89,7 @@ function rememberClosed(list: ClosedTab[], tabs: Tab[]): ClosedTab[] {
   return [...list, ...added].slice(-CLOSED_TABS_MAX);
 }
 
-export type SettingsTab = "aparencia" | "pastas" | "plugins" | "sobre";
+export type SettingsTab = "aparencia" | "pastas" | "repos" | "conexoes" | "plugins" | "sobre";
 
 export type Modal =
   | null
@@ -87,6 +97,9 @@ export type Modal =
   | { kind: "newGroup" }
   | { kind: "switcher" }
   | { kind: "pickFolder"; groupId: string };
+
+/** What the Worker bee shows in place of the terminals: a bee, its editor, or a new one. */
+export type BeeView = { mode: "detail" | "edit"; id: string } | { mode: "new" } | null;
 
 /** A plugin's band on one terminal. */
 export interface PluginBand {
@@ -104,8 +117,8 @@ interface Store {
   groups: Group[];
   tabs: Tab[];
   activeTabId: string | null;
-  sidebarOpen: boolean;
-  eventsOpen: boolean;
+  /** Whether the side panel is open next to the rail. */
+  panelOpen: boolean;
   /** Widths the user dragged the side columns to; null is the default. */
   columnWidths: { sidebar: number | null; events: number | null };
   setColumnWidth: (column: "sidebar" | "events", width: number | null) => void;
@@ -125,6 +138,14 @@ interface Store {
   folders: Folder[];
   /** Folder id used when a session opens without an explicit choice. */
   defaultFolderId: string | null;
+  /** GitHub repositories and their clones, for the worker bees. */
+  repos: Repo[];
+  /** Repositories removed by hand, which the scan does not bring back. */
+  dismissedRepos: string[];
+  bees: Bee[];
+  /** Null shows the first bee. */
+  beeView: BeeView;
+  setBeeView: (view: BeeView) => void;
   /** Which dialog is open, if any. */
   modal: Modal;
   /** Open group context menu, with the cursor position that opened it. */
@@ -157,9 +178,9 @@ interface Store {
   pluginStatus: Record<string, { text: string; title?: string }>;
   /** Data handed to each plugin view, by plugin id. */
   viewData: Record<string, unknown>;
-  /** The tab shown in the right column. */
-  rightPanelTab: string;
-  /** Order the user dragged the right column's tabs into; tabs not listed follow. */
+  /** The rail icon whose panel is shown. */
+  panelTab: string;
+  /** Order the user dragged the rail icons into; icons not listed follow. */
   panelTabOrder: string[];
   /** Badges plugins put under tab names: tab id -> plugin id -> text. */
   pluginBadges: Record<string, Record<string, string>>;
@@ -176,6 +197,9 @@ interface Store {
   dismissedAnnouncements: string[];
   /** Ids of the Novidades already shown. */
   seenAnnouncements: string[];
+  /** The v2 tour was shown once; it opens again only from Sobre. */
+  tourSeen: boolean;
+  tourOpen: boolean;
   /** The one-time question about sending error reports was answered. */
   errorReportsAsked: boolean;
   /** Whether the raw hook events tab is shown in the right panel. */
@@ -219,7 +243,14 @@ interface Store {
 
   addTab: (
     groupId: string,
-    opts?: { cwd?: string | null; claudeSessionId?: string; title?: string; customTitle?: boolean },
+    opts?: {
+      cwd?: string | null;
+      claudeSessionId?: string;
+      title?: string;
+      customTitle?: boolean;
+      background?: boolean;
+      beeCreator?: boolean;
+    },
   ) => string;
   closeTab: (id: string) => void;
   /** Frees the pane showing a tab; the tab and its shell keep running in the list. */
@@ -227,6 +258,8 @@ interface Store {
   /** Ends a tab's terminal and keeps the tab, dormant, to resume its session later. */
   sleepTab: (id: string) => void;
   activateTab: (id: string) => void;
+  /** The last tab brought up, a new object each time, even for the tab already active. */
+  pickedTab: { id: string } | null;
   renameTab: (id: string, title: string) => void;
   moveTab: (id: string, groupId: string) => void;
   detachTab: (id: string, at?: { x: number; y: number }) => void;
@@ -240,8 +273,7 @@ interface Store {
   rememberSessionGroups: () => void;
   patchTab: (id: string, patch: Partial<Tab>) => void;
 
-  toggleSidebar: () => void;
-  toggleEvents: () => void;
+  togglePanel: () => void;
   pushEvent: (e: HookEvent) => void;
   clearEvents: () => void;
   setSetup: (s: HookSetup) => void;
@@ -255,6 +287,12 @@ interface Store {
   renameFolder: (id: string, name: string) => void;
   removeFolder: (id: string) => void;
   setDefaultFolder: (id: string | null) => void;
+  /** Sets a repository's folder, adding it if new. */
+  setRepo: (repo: Repo) => void;
+  removeRepo: (slug: string) => void;
+  addBee: (bee: Bee) => void;
+  updateBee: (id: string, patch: Partial<Bee>) => void;
+  removeBee: (id: string) => void;
   openModal: (m: Modal) => void;
   setLayout: (l: Layout) => void;
   setBarPosition: (p: BarPosition) => void;
@@ -271,6 +309,7 @@ interface Store {
   setTerminalFont: (f: Partial<TerminalFont>) => void;
   resetTerminalFont: () => void;
   markAnnouncementsSeen: (ids: string[]) => void;
+  setTourOpen: (open: boolean) => void;
   dismissAnnouncement: (id: string) => void;
   setPluginEnabled: (id: string, on: boolean) => void;
   setBetaChannel: (on: boolean) => void;
@@ -282,7 +321,7 @@ interface Store {
   /** Shows a plugin's band on a tab's terminal with this data; null removes it. */
   setPluginBand: (tabId: string, pluginId: string, data: unknown) => void;
   setPluginBandHeight: (tabId: string, pluginId: string, height: number) => void;
-  setRightPanelTab: (tab: string) => void;
+  setPanelTab: (tab: string) => void;
   setPanelTabOrder: (order: string[]) => void;
   /** Shows a plugin's view in a pane: its own if open, else a free one, else the focused one. */
   openPluginView: (pluginId: string, data: unknown) => void;
@@ -309,8 +348,7 @@ export const useStore = create<Store>()(
       groups: [],
       tabs: [],
       activeTabId: null,
-      sidebarOpen: true,
-      eventsOpen: true,
+      panelOpen: true,
       columnWidths: { sidebar: null, events: null },
       setColumnWidth: (column, width) => set((s) => ({ columnWidths: { ...s.columnWidths, [column]: width } })),
       events: [],
@@ -321,6 +359,11 @@ export const useStore = create<Store>()(
       alerted: [],
       pinned: [],
       folders: [],
+      repos: [],
+      dismissedRepos: [],
+      bees: [],
+      beeView: null,
+      setBeeView: (beeView) => set({ beeView, panelTab: "bees", panelOpen: true }),
       defaultFolderId: null,
       modal: null,
       groupMenu: null,
@@ -335,6 +378,8 @@ export const useStore = create<Store>()(
       theme: "classic",
       terminalFont: THEME_FONT,
       seenAnnouncements: [],
+      tourSeen: false,
+      tourOpen: false,
       dismissedAnnouncements: [],
       enabledPlugins: [],
       betaChannel: false,
@@ -345,7 +390,7 @@ export const useStore = create<Store>()(
       pluginBands: {},
       pluginStatus: {},
       viewData: {},
-      rightPanelTab: "queue",
+      panelTab: "tabs",
       panelTabOrder: [],
       miniPanel: false,
       showEvents: false,
@@ -443,7 +488,13 @@ export const useStore = create<Store>()(
           pendingMessage: null,
           transcriptPath: null,
           claudeTitle: null,
+          ...(opts.beeCreator ? { beeCreator: true } : {}),
         };
+        // A background tab runs without taking a pane or the focus.
+        if (opts.background) {
+          set((s) => ({ tabs: [...s.tabs, tab] }));
+          return id;
+        }
         set((s) => {
           const panes = [...s.panes];
           // An empty pane takes the new tab before the focused one is replaced.
@@ -513,6 +564,7 @@ export const useStore = create<Store>()(
             subagentsByTab,
           };
         }),
+      pickedTab: null,
       activateTab: (id) => {
         if (get().detached.includes(id)) return focusDetachedWindow(id);
         // Reopening a closed tab continues the session it was running.
@@ -528,6 +580,7 @@ export const useStore = create<Store>()(
           panes[target] = id;
           return {
             activeTabId: id,
+            pickedTab: { id },
             focusedPane: target,
             panes,
             tabs: s.tabs.map((t) => (t.id === id && t.state === "dormant" ? { ...t, state: "shell" as TabState } : t)),
@@ -631,8 +684,7 @@ export const useStore = create<Store>()(
       patchTab: (id, patch) =>
         set((s) => ({ tabs: s.tabs.map((t) => (t.id === id ? { ...t, ...patch } : t)) })),
 
-      toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
-      toggleEvents: () => set((s) => ({ eventsOpen: !s.eventsOpen })),
+      togglePanel: () => set((s) => ({ panelOpen: !s.panelOpen })),
       pushEvent: (e) => set((s) => ({ events: [e, ...s.events].slice(0, 500) })),
       clearEvents: () => set({ events: [] }),
       setSetup: (setup) => set({ setup }),
@@ -670,6 +722,21 @@ export const useStore = create<Store>()(
           groups: s.groups.map((g) => (g.folderId === id ? { ...g, folderId: null } : g)),
         })),
       setDefaultFolder: (id) => set({ defaultFolderId: id }),
+      setRepo: (repo) =>
+        set((s) => ({
+          repos: s.repos.some((r) => r.slug === repo.slug)
+            ? s.repos.map((r) => (r.slug === repo.slug ? repo : r))
+            : [...s.repos, repo].sort((a, b) => a.slug.localeCompare(b.slug)),
+          dismissedRepos: repo.manual ? s.dismissedRepos.filter((d) => d !== repo.slug) : s.dismissedRepos,
+        })),
+      addBee: (bee) => set((s) => ({ bees: [...s.bees, bee] })),
+      updateBee: (id, patch) => set((s) => ({ bees: s.bees.map((b) => (b.id === id ? { ...b, ...patch } : b)) })),
+      removeBee: (id) => set((s) => ({ bees: s.bees.filter((b) => b.id !== id) })),
+      removeRepo: (slug) =>
+        set((s) => ({
+          repos: s.repos.filter((r) => r.slug !== slug),
+          dismissedRepos: [...s.dismissedRepos.filter((d) => d !== slug), slug],
+        })),
       openModal: (modal) => set({ modal }),
       setLayout: (layout) => set({ layout }),
       setBarPosition: (barPosition) => set({ barPosition }),
@@ -750,7 +817,7 @@ export const useStore = create<Store>()(
           const { [pluginId]: _old, ...rest } = s.pluginStatus;
           return { pluginStatus: status ? { ...rest, [pluginId]: status } : rest };
         }),
-      setRightPanelTab: (rightPanelTab) => set({ rightPanelTab, eventsOpen: true }),
+      setPanelTab: (panelTab) => set({ panelTab, panelOpen: true }),
       setPanelTabOrder: (panelTabOrder) => set({ panelTabOrder }),
       openPluginView: (pluginId, data) =>
         set((s) => {
@@ -799,6 +866,7 @@ export const useStore = create<Store>()(
       markAnnouncementsSeen: (ids) =>
         set((s) => ({ seenAnnouncements: [...new Set([...s.seenAnnouncements, ...ids])] })),
       setMiniPanel: (miniPanel) => set({ miniPanel }),
+      setTourOpen: (tourOpen) => set({ tourOpen, tourSeen: true }),
       setShowEvents: (showEvents) => set({ showEvents }),
       setErrorReportsAsked: (errorReportsAsked) => set({ errorReportsAsked }),
       setMiniBounds: (miniBounds) => set({ miniBounds }),
@@ -888,14 +956,20 @@ export const useStore = create<Store>()(
       // Ptys do not survive a restart, so every tab comes back dormant.
       partialize: (s) => ({
         groups: s.groups,
-        tabs: s.tabs.map((t) => ({ ...t, state: "dormant" as TabState, pendingMessage: null })),
+        // A bee's run ends with the app; its tab is not brought back.
+        tabs: s.tabs
+          .filter((t) => t.groupId !== BEE_GROUP_ID)
+          .map((t) => ({ ...t, state: "dormant" as TabState, pendingMessage: null })),
         activeTabId: s.activeTabId,
-        sidebarOpen: s.sidebarOpen,
-        eventsOpen: s.eventsOpen,
+        panelOpen: s.panelOpen,
+        panelTab: s.panelTab,
         columnWidths: s.columnWidths,
         panelTabOrder: s.panelTabOrder,
         pinned: s.pinned,
         folders: s.folders,
+        repos: s.repos,
+        dismissedRepos: s.dismissedRepos,
+        bees: s.bees,
         defaultFolderId: s.defaultFolderId,
         layout: s.layout,
         barPosition: s.barPosition,
@@ -906,6 +980,7 @@ export const useStore = create<Store>()(
         theme: s.theme,
         terminalFont: s.terminalFont,
         seenAnnouncements: s.seenAnnouncements,
+        tourSeen: s.tourSeen,
         dismissedAnnouncements: s.dismissedAnnouncements,
         enabledPlugins: s.enabledPlugins,
         betaChannel: s.betaChannel,

@@ -3,13 +3,13 @@ import { Announcements } from "./Announcements";
 import { openSurface } from "../lib/pluginEffects";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useStore } from "../lib/store";
-import { SPLIT_MODES, type RateWindow, type TabState } from "../lib/types";
+import { SPLIT_MODES, isBeeTab, type RateWindow, type TabState } from "../lib/types";
 import { shortcutLabel } from "../lib/shortcuts";
 import logo from "../assets/logo.png";
 
 /** Vite sets this only on the dev server, so a packaged build never shows it. */
 const IS_DEV = import.meta.env.DEV;
-const APP_NAME = IS_DEV ? "Shellhive - dev" : "Shellhive";
+const APP_NAME = IS_DEV ? "ShellHive - dev" : "ShellHive";
 
 function useNow(intervalMs = 30_000) {
   const [now, setNow] = useState(() => Date.now());
@@ -77,14 +77,19 @@ export function TopBar() {
   const activeStatus = active ? statusByTab[active.id] : undefined;
 
   const totalCost = Object.values(statusByTab).reduce((sum, s) => sum + (s.cost?.total_cost_usd ?? 0), 0);
-  const liveSessions = tabs.filter((t) => t.claudeSessionId && t.state !== "dormant" && t.state !== "shell").length;
+  const liveSessions = tabs.filter(
+    (t) => t.claudeSessionId && t.state !== "dormant" && t.state !== "shell" && !isBeeTab(t),
+  ).length;
   const stale = rateLimits ? now - rateLimits.receivedAt > 10 * 60_000 : false;
 
   return (
     <header className={`topbar ${barPosition === "bottom" ? "at-bottom" : ""}`}>
       <div className={`brand ${IS_DEV ? "dev" : ""}`}>
         <img className="brand-logo" src={logo} alt="" />
-        {APP_NAME}
+        <span>
+          Shell<span className="brand-hive">Hive</span>
+          {IS_DEV && " - dev"}
+        </span>
       </div>
 
       <div className={`limits ${stale ? "stale" : ""}`} title={stale ? "Último dado há mais de 10 min" : undefined}>
@@ -95,7 +100,7 @@ export function TopBar() {
 
       <div className="counts">
         {COUNTED.map(({ state, label }) => {
-          const n = tabs.filter((t) => t.state === state).length;
+          const n = tabs.filter((t) => t.state === state && !isBeeTab(t)).length;
           return (
             <span key={state} className={`count-chip ${n ? "" : "zero"}`} title={label}>
               <span className={`dot state-${state}`} />

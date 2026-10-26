@@ -78,7 +78,7 @@ function frameDocument(html: string): string {
 
 /**
  * A plugin's HTML in a frame with no access to the app but its bridge. Used
- * for the panel under a tab and for the plugin's tab in the right column;
+ * for the panel under a tab and for the plugin's panel on the rail;
  * `tabId` is the tab the frame works on: the asking tab, or the active one.
  */
 export function PluginFrame({
@@ -305,7 +305,7 @@ export function LocalPluginPanel({ host }: { host: PluginHost }) {
   );
 }
 
-/** A local plugin's tab in the right column, working on the active tab. */
+/** A local plugin's panel on the rail, working on the active tab. */
 export function PluginSidePanel({ plugin, onClose }: { plugin: LocalPlugin; onClose: () => void }) {
   const activeTabId = useStore((s) => s.activeTabId);
   return (

@@ -7,7 +7,7 @@ const when = (at: number) =>
 
 const folderName = (cwd: string | null) => cwd?.split(/[\\/]/).filter(Boolean).pop() ?? null;
 
-/** The list in the right column: open items first, newest on top. */
+/** The list in the side panel: open items, newest on top. Done ones leave the list but stay stored. */
 export function TodoList() {
   const { todos, loaded, load, add, toggle, remove } = useTodos();
   const tabs = useStore((s) => s.tabs);
@@ -32,7 +32,7 @@ export function TodoList() {
       .filter(Boolean)
       .join(" · ");
 
-  const ordered = [...todos.filter((t) => !t.done), ...todos.filter((t) => t.done)];
+  const ordered = todos.filter((t) => !t.done);
 
   return (
     <div className="todo">

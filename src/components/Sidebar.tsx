@@ -10,8 +10,6 @@ import {
 import { droppedOutside } from "../lib/detach";
 import { HiddenGroups } from "./HiddenGroups";
 import { STATE_LABEL, type GitInfo, type Group, type StatusPayload, type Subagent, type Tab } from "../lib/types";
-import { shortcutLabel } from "../lib/shortcuts";
-import { ColumnResizer } from "./ColumnResizer";
 
 function ctxClass(pct: number): string {
   if (pct >= 90) return "crit";
@@ -271,46 +269,13 @@ function GroupSection({ group, tabs, activeTabId }: { group: Group; tabs: Tab[];
   );
 }
 
-export function Sidebar() {
-  const { tabs, activeTabId, sidebarOpen, toggleSidebar, openModal, groupTint } = useStore();
+/** The groups and their tabs, shown under the Sessões icon of the rail. */
+export function SessionsPanel() {
+  const { tabs, activeTabId, openModal } = useStore();
   const groups = useStore((s) => s.groups).filter((g) => !g.hidden);
-  const width = useStore((s) => s.columnWidths.sidebar);
-
-  if (!sidebarOpen) {
-    return (
-      <aside className="sidebar collapsed">
-        <button className="icon-btn" title={`Mostrar sessões (${shortcutLabel("sidebar")})`} onClick={toggleSidebar}>
-          »
-        </button>
-        <div className="rail">
-          {groups.map((g) => {
-            const gt = tabs.filter((t) => t.groupId === g.id);
-            const pending = gt.some((t) => t.state === "permission");
-            return (
-              <div
-                key={g.id}
-                className={`rail-group ${pending ? "pending" : ""}`}
-                style={{ background: g.color }}
-                title={`${g.name} · ${gt.length}`}
-              >
-                {gt.length}
-              </div>
-            );
-          })}
-        </div>
-      </aside>
-    );
-  }
 
   return (
-    <aside className={`sidebar tint-${groupTint}`} style={width ? { width } : undefined}>
-      <ColumnResizer column="sidebar" />
-      <header className="sidebar-header">
-        <h1>Sessões</h1>
-        <button className="icon-btn" title={`Recolher (${shortcutLabel("sidebar")})`} onClick={toggleSidebar}>
-          «
-        </button>
-      </header>
+    <div className="sessions-panel">
       <div className="groups">
         {groups.map((g) => (
           <GroupSection key={g.id} group={g} tabs={tabs.filter((t) => t.groupId === g.id)} activeTabId={activeTabId} />
@@ -322,6 +287,6 @@ export function Sidebar() {
           + Novo grupo
         </button>
       </footer>
-    </aside>
+    </div>
   );
 }

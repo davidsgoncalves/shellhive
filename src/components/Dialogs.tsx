@@ -10,6 +10,7 @@ import type { ReportsState } from "../lib/errors";
 import { shortcutLabel, withShortcuts } from "../lib/shortcuts";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useStore, type SettingsTab } from "../lib/store";
+import { ConnectionsTab, ReposTab } from "./WorkSettings";
 import { DEFAULT_FONT_SIZE, THEMES, type ThemeId } from "../lib/theme";
 import { Modal } from "./Modal";
 import { AddFolder, FolderChoice } from "./FolderFields";
@@ -175,7 +176,7 @@ function AboutTab() {
   const [status, setStatus] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
   const { version: available, phase, progress, message, look: lookForUpdate, install, restart } = useUpdater();
-  const { showEvents, setShowEvents, betaChannel, setBetaChannel } = useStore();
+  const { showEvents, setShowEvents, betaChannel, setBetaChannel, setTourOpen, openModal } = useStore();
 
   useEffect(() => {
     void getVersion().then(setVersion);
@@ -295,6 +296,17 @@ function AboutTab() {
 
     <section className="settings-section">
       <h3>Novidades</h3>
+      <div className="row">
+        <button
+          className="ghost auto"
+          onClick={() => {
+            openModal(null);
+            setTourOpen(true);
+          }}
+        >
+          Ver o tour do Swarm update
+        </button>
+      </div>
       <ol className="changelog">
         {CHANGELOG.map((entry) => (
           <li key={entry.version}>
@@ -603,6 +615,12 @@ function SettingsDialog({ initialTab, onClose }: { initialTab?: SettingsTab; onC
         <button className={tab === "pastas" ? "on" : ""} onClick={() => setTab("pastas")}>
           Pastas
         </button>
+        <button className={tab === "repos" ? "on" : ""} onClick={() => setTab("repos")}>
+          Repositórios
+        </button>
+        <button className={tab === "conexoes" ? "on" : ""} onClick={() => setTab("conexoes")}>
+          Conexões
+        </button>
         <button className={tab === "plugins" ? "on" : ""} onClick={() => setTab("plugins")}>
           Plugins
         </button>
@@ -614,6 +632,10 @@ function SettingsDialog({ initialTab, onClose }: { initialTab?: SettingsTab; onC
       {tab === "sobre" && <AboutTab />}
 
       {tab === "plugins" && <PluginsTab />}
+
+      {tab === "repos" && <ReposTab />}
+
+      {tab === "conexoes" && <ConnectionsTab />}
 
       {tab === "aparencia" && (
       <>

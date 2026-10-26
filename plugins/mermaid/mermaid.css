@@ -1,4 +1,4 @@
-/* List in the right column. */
+/* List in the side panel. */
 .diagram-list { list-style: none; margin: 0; padding: 6px; display: flex; flex-direction: column; gap: 2px; }
 .diagram-list li { display: flex; align-items: center; gap: 4px; border-radius: 6px; }
 .diagram-list li:hover { background: var(--panel-2); }
@@ -11,15 +11,18 @@
 .diagram-item-title { font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .diagram-item-meta { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* The diagram's own window. */
-.diagram-window { height: 100vh; display: flex; flex-direction: column; background: var(--bg); color: var(--fg); }
-.diagram-window > header {
+/* A diagram in place of a tab's terminal. */
+.diagram-view {
+  position: absolute; z-index: 40; display: flex; flex-direction: column; outline: none;
+  background: var(--bg); color: var(--fg);
+}
+.diagram-view > header {
   display: flex; align-items: center; gap: 6px; padding: 8px 12px; flex-shrink: 0;
   border-bottom: 1px solid var(--border);
 }
 .diagram-title { font-size: 13px; font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.diagram-window > header .ghost { padding: 3px 8px; font-size: 11px; }
-.diagram-window > header .ghost.on { border-color: var(--accent); color: var(--accent); }
+.diagram-view > header .ghost { padding: 3px 8px; font-size: 11px; }
+.diagram-view > header .ghost.on { border-color: var(--accent); color: var(--accent); }
 .diagram-zoom { font-size: 11px; color: var(--muted); min-width: 38px; text-align: center; font-variant-numeric: tabular-nums; }
 .diagram-sep { width: 1px; height: 16px; background: var(--border); margin: 0 4px; }
 .diagram-note { margin: 6px 12px 0; }

@@ -1,3 +1,6 @@
+use std::collections::HashSet;
+use std::sync::Mutex;
+
 use tauri::{AppHandle, Emitter, Manager};
 
 const PROTOCOL_VERSION: &str = "2025-06-18";
@@ -9,11 +12,83 @@ pub(crate) fn text_result(text: String, is_error: bool) -> serde_json::Value {
     })
 }
 
-/// Tools of the core, followed by those of the enabled plugins.
-fn tool_definitions() -> serde_json::Value {
+/// Tabs opened to create worker bees with Claude; only they see the bee tools.
+static BEE_CREATORS: Mutex<Option<HashSet<String>>> = Mutex::new(None);
+
+fn is_bee_creator(tab_id: Option<&str>) -> bool {
+    tab_id.is_some_and(|id| {
+        BEE_CREATORS
+            .lock()
+            .unwrap()
+            .as_ref()
+            .is_some_and(|tabs| tabs.contains(id))
+    })
+}
+
+/// The tabs that create bees, as the interface keeps them.
+#[tauri::command]
+pub fn bee_creator_tabs(ids: Vec<String>) {
+    *BEE_CREATORS.lock().unwrap() = Some(ids.into_iter().collect());
+}
+
+/// Tools of the core, followed by those of the enabled plugins, and the bee
+/// tools for a tab that creates bees.
+fn tool_definitions(tab_id: Option<&str>) -> serde_json::Value {
     let mut tools = core_tools();
     tools.extend(crate::plugins::tools());
+    if is_bee_creator(tab_id) {
+        tools.extend(bee_tools());
+    }
     serde_json::Value::Array(tools)
+}
+
+const BEE_TOOLS: [&str; 3] = ["create_bee", "list_bees", "run_bee"];
+
+fn bee_tools() -> Vec<serde_json::Value> {
+    let tools = serde_json::json!([
+        {
+            "name": "list_bees",
+            "description": "Lista as worker bees (id, nome, se está ligada, quando roda) e os templates prontos, com o prompt de cada um.",
+            "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false }
+        },
+        {
+            "name": "create_bee",
+            "description": "Cria uma worker bee, desligada até o usuário conferir no painel e ligar. Só chame depois de o usuário confirmar o resumo e o prompt.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "name": { "type": "string", "description": "Nome curto da worker bee." },
+                    "prompt": { "type": "string", "description": "O prompt completo que a worker bee roda, sem nenhum {{...}} sobrando." },
+                    "template": { "type": "string", "description": "Id do template usado de base, se houver." },
+                    "trigger": {
+                        "type": "object",
+                        "description": "Quando roda: {\"kind\":\"manual\"}, {\"kind\":\"interval\",\"minutes\":60} ou {\"kind\":\"schedule\",\"days\":[1,2,3,4,5],\"time\":\"09:00\"} (0 = domingo).",
+                        "properties": {
+                            "kind": { "type": "string", "enum": ["manual", "interval", "schedule"] },
+                            "minutes": { "type": "number" },
+                            "days": { "type": "array", "items": { "type": "number" } },
+                            "time": { "type": "string" }
+                        },
+                        "required": ["kind"]
+                    },
+                    "missed": { "type": "string", "enum": ["run", "skip"], "description": "Horário perdido com o app fechado: run roda uma vez ao abrir (padrão), skip pula." }
+                },
+                "required": ["name", "prompt", "trigger"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "run_bee",
+            "description": "Roda agora uma worker bee, pelo id de list_bees.",
+            "inputSchema": {
+                "type": "object",
+                "properties": { "id": { "type": "string" } },
+                "required": ["id"],
+                "additionalProperties": false
+            }
+        }
+    ]);
+    tools.as_array().cloned().unwrap_or_default()
 }
 
 fn core_tools() -> Vec<serde_json::Value> {
@@ -159,7 +234,7 @@ pub fn handle_rpc(
             "serverInfo": { "name": "shellhive", "version": env!("CARGO_PKG_VERSION") }
         }),
         "ping" => serde_json::json!({}),
-        "tools/list" => serde_json::json!({ "tools": tool_definitions() }),
+        "tools/list" => serde_json::json!({ "tools": tool_definitions(tab_id.as_deref()) }),
         "tools/call" => {
             let params = msg.get("params").cloned().unwrap_or_default();
             let name = params.get("name").and_then(|v| v.as_str()).unwrap_or("");
@@ -170,6 +245,9 @@ pub fn handle_rpc(
             match name {
                 "list_sessions" => call_list_sessions(app, &args),
                 "suggest_command" => call_suggest_command(app, tab_id, &args),
+                bee if BEE_TOOLS.contains(&bee) && is_bee_creator(tab_id.as_deref()) => {
+                    crate::plugins::call_frontend(app, "worker-bee", bee, tab_id, &args)
+                }
                 other => match crate::plugins::tool_owner(other).as_deref() {
                     Some("editor") => crate::plugins::editor::call(app, tab_id, &args),
                     Some(plugin) if crate::plugins::local::is_local(plugin) => {

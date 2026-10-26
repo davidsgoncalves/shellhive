@@ -130,6 +130,30 @@ pub fn session_titles(path: String) -> SessionTitles {
     read_titles(Path::new(&path))
 }
 
+/// The text of Claude's last reply in a transcript, for a bee run's summary.
+#[tauri::command]
+pub fn session_last_reply(path: String) -> Option<String> {
+    let text = std::fs::read_to_string(&path).ok()?;
+    text.lines().rev().find_map(last_reply_in)
+}
+
+fn last_reply_in(line: &str) -> Option<String> {
+    let v: serde_json::Value = serde_json::from_str(line).ok()?;
+    if v.get("type")?.as_str()? != "assistant" {
+        return None;
+    }
+    let parts: Vec<&str> = v
+        .get("message")?
+        .get("content")?
+        .as_array()?
+        .iter()
+        .filter(|b| b.get("type").and_then(|t| t.as_str()) == Some("text"))
+        .filter_map(|b| b.get("text").and_then(|t| t.as_str()))
+        .filter(|t| !t.trim().is_empty())
+        .collect();
+    (!parts.is_empty()).then(|| parts.join("\n\n"))
+}
+
 fn read_metadata(path: &Path) -> (Option<String>, Option<String>, Option<String>) {
     let Ok(file) = File::open(path) else {
         return (None, None, None);
