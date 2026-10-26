@@ -176,7 +176,7 @@ function AboutTab() {
   const [status, setStatus] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
   const { version: available, phase, progress, message, look: lookForUpdate, install, restart } = useUpdater();
-  const { showEvents, setShowEvents, betaChannel, setBetaChannel } = useStore();
+  const { showEvents, setShowEvents, betaChannel, setBetaChannel, setTourOpen, openModal } = useStore();
 
   useEffect(() => {
     void getVersion().then(setVersion);
@@ -296,6 +296,17 @@ function AboutTab() {
 
     <section className="settings-section">
       <h3>Novidades</h3>
+      <div className="row">
+        <button
+          className="ghost auto"
+          onClick={() => {
+            openModal(null);
+            setTourOpen(true);
+          }}
+        >
+          Ver o tour do Swarm update
+        </button>
+      </div>
       <ol className="changelog">
         {CHANGELOG.map((entry) => (
           <li key={entry.version}>

@@ -6,6 +6,7 @@ import "@xterm/xterm/css/xterm.css";
 import "./App.css";
 import { TabStrip } from "./components/TabStrip";
 import { TerminalView } from "./components/TerminalView";
+import { Tour } from "./components/Tour";
 import { SidePanel } from "./components/SidePanel";
 import { TopBar } from "./components/TopBar";
 import { Dialogs } from "./components/Dialogs";
@@ -890,6 +891,7 @@ function App() {
       </div>
       {barPosition === "bottom" && <TopBar />}
       <Dialogs />
+      <Tour />
       <GroupMenu />
       <TabMenu />
     </div>

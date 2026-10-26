@@ -197,6 +197,9 @@ interface Store {
   dismissedAnnouncements: string[];
   /** Ids of the Novidades already shown. */
   seenAnnouncements: string[];
+  /** The v2 tour was shown once; it opens again only from Sobre. */
+  tourSeen: boolean;
+  tourOpen: boolean;
   /** The one-time question about sending error reports was answered. */
   errorReportsAsked: boolean;
   /** Whether the raw hook events tab is shown in the right panel. */
@@ -306,6 +309,7 @@ interface Store {
   setTerminalFont: (f: Partial<TerminalFont>) => void;
   resetTerminalFont: () => void;
   markAnnouncementsSeen: (ids: string[]) => void;
+  setTourOpen: (open: boolean) => void;
   dismissAnnouncement: (id: string) => void;
   setPluginEnabled: (id: string, on: boolean) => void;
   setBetaChannel: (on: boolean) => void;
@@ -374,6 +378,8 @@ export const useStore = create<Store>()(
       theme: "classic",
       terminalFont: THEME_FONT,
       seenAnnouncements: [],
+      tourSeen: false,
+      tourOpen: false,
       dismissedAnnouncements: [],
       enabledPlugins: [],
       betaChannel: false,
@@ -860,6 +866,7 @@ export const useStore = create<Store>()(
       markAnnouncementsSeen: (ids) =>
         set((s) => ({ seenAnnouncements: [...new Set([...s.seenAnnouncements, ...ids])] })),
       setMiniPanel: (miniPanel) => set({ miniPanel }),
+      setTourOpen: (tourOpen) => set({ tourOpen, tourSeen: true }),
       setShowEvents: (showEvents) => set({ showEvents }),
       setErrorReportsAsked: (errorReportsAsked) => set({ errorReportsAsked }),
       setMiniBounds: (miniBounds) => set({ miniBounds }),
@@ -973,6 +980,7 @@ export const useStore = create<Store>()(
         theme: s.theme,
         terminalFont: s.terminalFont,
         seenAnnouncements: s.seenAnnouncements,
+        tourSeen: s.tourSeen,
         dismissedAnnouncements: s.dismissedAnnouncements,
         enabledPlugins: s.enabledPlugins,
         betaChannel: s.betaChannel,
