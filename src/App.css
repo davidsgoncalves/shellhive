@@ -346,6 +346,22 @@ button.ghost.auto { width: auto; }
   border: 1px solid var(--border); background: var(--bg);
 }
 .folder-name { font-size: 12px; font-weight: 600; flex-shrink: 0; }
+.folder-manage li button.link { flex-shrink: 0; }
+
+/* Settings › Conexões */
+.connections-head { align-items: center; justify-content: space-between; }
+.connections-head .ghost { width: auto; }
+.connection-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.connection-list li {
+  display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--bg); font-size: 12px;
+}
+.connection-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: var(--danger); }
+.connection-list li.ok .connection-dot { background: var(--c-waiting); }
+.connection-list li.warn .connection-dot { background: var(--c-permission); }
+.connection-label { font-weight: 600; flex-shrink: 0; }
+.connection-detail { color: var(--muted); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.connection-list li .ghost { width: auto; flex-shrink: 0; font-family: var(--font-mono); font-size: 11px; }
 .folder-path { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; flex: 1; min-width: 0; }
 button.star { background: none; border: none; cursor: pointer; color: var(--muted); font-size: 13px; padding: 0 2px; }
 button.star.on { color: var(--accent); }

@@ -1,3 +1,4 @@
+mod connections;
 mod db;
 mod errors;
 mod files;
@@ -68,6 +69,10 @@ pub fn run() {
             db::state_save,
             db::metrics_summary,
             git::git_info,
+            connections::connections_check,
+            connections::mcp_status,
+            connections::git_origin,
+            connections::git_origins_in,
             errors::error_reports_get,
             errors::error_reports_set,
             errors::report_error,

@@ -26,6 +26,8 @@ import { carriesFiles, pasteDroppedFiles } from "./lib/termExtras";
 import { startLagTracker } from "./lib/perfDiag";
 import { CommandCard, typeCommand } from "./components/CommandCard";
 import { PermissionCard } from "./components/PermissionQueue";
+import { scanRepos } from "./lib/repos";
+import { checkConnections } from "./lib/connections";
 import { applyLook, shareLook } from "./lib/theme";
 import { defaultGroupId, duplicateSession, ensureUngrouped, onScreen, openSession, openSessionInGroup, useStore } from "./lib/store";
 import { tabPatchFor } from "./lib/hookState";
@@ -636,6 +638,14 @@ function usePerfHistory() {
   useEffect(() => startLagTracker(), []);
 }
 
+/** On launch: the repositories of the groups' folders, and whether the tools the bees need are ready. */
+function useWorkSetup() {
+  useEffect(() => {
+    void scanRepos();
+    void checkConnections();
+  }, []);
+}
+
 function App() {
   useBackendBridge();
   useDropAnywhere();
@@ -653,6 +663,7 @@ function App() {
   usePluginToolCalls();
   useLocalPlugins();
   usePluginSchedules();
+  useWorkSetup();
   usePluginShortcuts();
   const tabs = useStore((s) => s.tabs);
 
