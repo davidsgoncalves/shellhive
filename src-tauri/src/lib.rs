@@ -14,7 +14,6 @@ mod permissions;
 mod plugins;
 mod process;
 mod pty;
-mod review;
 mod sessions;
 
 use tauri::{Emitter, Manager};
@@ -76,10 +75,6 @@ pub fn run() {
             bees::bee_runs_get,
             bees::bee_runs_set,
             mcp::bee_creator_tabs,
-            review::review_candidates,
-            review::review_findings_path,
-            review::review_publish,
-            review::review_verdict,
             sessions::session_last_reply,
             connections::mcp_status,
             connections::git_origin,

@@ -27,7 +27,7 @@ fn shell_path() -> Option<&'static str> {
     .as_deref()
 }
 
-pub(crate) fn tool(program: &str) -> Command {
+fn tool(program: &str) -> Command {
     let mut cmd = crate::process::background(program);
     if let Some(path) = shell_path() {
         cmd.env("PATH", path);

@@ -63,14 +63,10 @@ export type BeeTrigger =
 export interface Bee {
   id: string;
   name: string;
-  /** "free" runs the dev's prompt as is. */
-  template: "free" | "review";
-  /** The bee's whole prompt, with {{variables}} the app fills on each run. */
+  /** The whole prompt the bee runs: a template the user filled in, or their own text. */
   instructions: string;
   /** The template it started from, if any. */
   templateId?: string;
-  /** Repository slugs, from the Repositórios list. */
-  repos: string[];
   trigger: BeeTrigger;
   /** What a run missed while the app was closed does on launch. */
   missed: "run" | "skip";
@@ -93,28 +89,8 @@ export interface BeeRun {
   summary: string | null;
   /** Opened in a normal tab while running, so it stays open at the end. */
   revealed?: boolean;
-  /** The pull requests a review bee's run looked at. */
-  review?: { prs: ReviewPr[] };
 }
 
-/** A pull request in a review run, and what came of it. */
-export interface ReviewPr {
-  repo: string;
-  number: number;
-  url: string;
-  title: string;
-  branch: string;
-  /** The commit reviewed. */
-  head: string;
-  /** The commit of the user's previous review, for a follow-up round. */
-  reviewedHead: string | null;
-  /** Set once published; "clean" means nothing was found and nothing published. */
-  verdict?: "REQUEST_CHANGES" | "COMMENT" | "clean" | "error";
-  comments?: number;
-  error?: string | null;
-  /** The user's call on a clean one; "stale" once the PR moved on. */
-  decision?: "approved" | "changes" | "stale";
-}
 export const UNGROUPED_NAME = "Sem grupo";
 export const UNGROUPED_COLOR = "#6b7280";
 

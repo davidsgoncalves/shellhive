@@ -48,19 +48,18 @@ fn bee_tools() -> Vec<serde_json::Value> {
     let tools = serde_json::json!([
         {
             "name": "list_bees",
-            "description": "Lista as abelhas do Worker bee (com id, tipo, repositórios e gatilho) e os repositórios que uma abelha pode usar.",
+            "description": "Lista as abelhas do Worker bee (id, nome, se está ligada, quando roda) e os templates prontos, com o prompt de cada um.",
             "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false }
         },
         {
             "name": "create_bee",
-            "description": "Cria uma abelha do Worker bee, desligada até o usuário conferir no painel e ligar. Só chame depois de o usuário confirmar o resumo.",
+            "description": "Cria uma abelha do Worker bee, desligada até o usuário conferir no painel e ligar. Só chame depois de o usuário confirmar o resumo e o prompt.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "name": { "type": "string", "description": "Nome curto da abelha." },
-                    "template": { "type": "string", "enum": ["free", "review"], "description": "free roda o prompt em instructions; review revisa os PRs que pedem revisão ao usuário." },
-                    "instructions": { "type": "string", "description": "Prompt da abelha livre, ou instruções extras de como revisar na de review." },
-                    "repos": { "type": "array", "items": { "type": "string" }, "description": "Repositórios (dono/nome) da lista de list_bees." },
+                    "prompt": { "type": "string", "description": "O prompt completo que a abelha roda, sem nenhum {{...}} sobrando." },
+                    "template": { "type": "string", "description": "Id do template usado de base, se houver." },
                     "trigger": {
                         "type": "object",
                         "description": "Quando roda: {\"kind\":\"manual\"}, {\"kind\":\"interval\",\"minutes\":60} ou {\"kind\":\"schedule\",\"days\":[1,2,3,4,5],\"time\":\"09:00\"} (0 = domingo).",
@@ -74,7 +73,7 @@ fn bee_tools() -> Vec<serde_json::Value> {
                     },
                     "missed": { "type": "string", "enum": ["run", "skip"], "description": "Horário perdido com o app fechado: run roda uma vez ao abrir (padrão), skip pula." }
                 },
-                "required": ["name", "template", "repos", "trigger"],
+                "required": ["name", "prompt", "trigger"],
                 "additionalProperties": false
             }
         },

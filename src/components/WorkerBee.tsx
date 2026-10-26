@@ -1,89 +1,19 @@
 import { useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import { useStore } from "../lib/store";
-import { DAY_NAMES, describeTrigger, openBeeRun, runBee, setDecision, stopBeeRun, useBeeNotes, useBeeRuns } from "../lib/bees";
+import { DAY_NAMES, describeTrigger, openBeeRun, runBee, stopBeeRun, useBeeRuns } from "../lib/bees";
 import { openBeeCreator } from "../lib/beeCreator";
-import { BLANK_PROMPT, COMMON_VARIABLES, REVIEW_VARIABLES, TEMPLATES, reviewPromptOf, type BeeTemplate } from "../lib/beeTemplates";
-import { isBeeTab, type Bee, type BeeRun, type BeeTrigger, type ReviewPr } from "../lib/types";
+import { BLANK_PROMPT, PLACEHOLDER, TEMPLATES, type BeeTemplate } from "../lib/beeTemplates";
+import { isBeeTab, type Bee, type BeeRun, type BeeTrigger } from "../lib/types";
 import { PermissionCard, QuestionCard } from "./PermissionQueue";
 
 /** Requests from the bees' hidden tabs: permissions and questions. */
 export function useBeeWaiting() {
   const s = useStore();
-  const runs = useBeeRuns((r) => r.runs);
   const bee = new Set(s.tabs.filter(isBeeTab).map((t) => t.id));
   return {
     permissions: s.permissions.filter((p) => bee.has(p.tab_id ?? "")),
     questions: s.questions.filter((q) => bee.has(q.tab_id ?? "")),
-    // Pull requests a review bee found nothing in, waiting on the user's call.
-    clean: runs.flatMap((run) =>
-      (run.review?.prs ?? []).filter((pr) => pr.verdict === "clean" && !pr.decision).map((pr) => ({ run, pr })),
-    ),
   };
-}
-
-/** The user's call on a pull request the review bee found nothing in. */
-function CleanCard({ run, pr }: { run: BeeRun; pr: ReviewPr }) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [asking, setAsking] = useState(false);
-  const [note, setNote] = useState("");
-  const decide = async (approve: boolean) => {
-    setBusy(true);
-    setError(null);
-    try {
-      await invoke("review_verdict", { repo: pr.repo, number: pr.number, head: pr.head, approve, note: approve ? null : note });
-      setDecision(run.id, pr, approve ? "approved" : "changes");
-    } catch (err) {
-      const text = String(err);
-      // A new commit gets its own round; this answer no longer applies.
-      if (text.includes("commit novo")) setDecision(run.id, pr, "stale");
-      setError(text);
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <li className="perm-item bee-clean">
-      <div className="perm-head">
-        <span className="perm-tool">Por mim está ok</span>
-        <span className="muted">
-          {pr.repo.split("/")[1]}#{pr.number}
-        </span>
-      </div>
-      <p className="question-text">{pr.title}</p>
-      <p className="hint">A abelha não achou nada para apontar. Falta você confirmar.</p>
-      {asking && (
-        <textarea
-          className="bee-textarea"
-          rows={3}
-          autoFocus
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          placeholder="O que precisa mudar"
-        />
-      )}
-      {error && <p className="error">{error}</p>}
-      <div className="perm-actions">
-        <button className="ask" onClick={() => void openUrl(pr.url)}>
-          Abrir no GitHub
-        </button>
-        {asking ? (
-          <button className="deny" disabled={busy} onClick={() => void decide(false)}>
-            Enviar pedido
-          </button>
-        ) : (
-          <button className="deny" disabled={busy} onClick={() => setAsking(true)}>
-            Pedir alterações
-          </button>
-        )}
-        <button className="allow" disabled={busy} onClick={() => void decide(true)}>
-          Aprovar
-        </button>
-      </div>
-    </li>
-  );
 }
 
 const STATUS_LABEL: Record<BeeRun["status"], string> = { running: "rodando", done: "concluída", error: "com erro" };
@@ -134,7 +64,7 @@ export function BeePanel() {
 
   return (
     <div className="bee-panel">
-      {waiting.permissions.length + waiting.questions.length + waiting.clean.length > 0 && (
+      {waiting.permissions.length + waiting.questions.length > 0 && (
         <section className="bee-waiting">
           <h4>Esperando você</h4>
           <ul className="perm-list">
@@ -143,9 +73,6 @@ export function BeePanel() {
             ))}
             {waiting.questions.map((q) => (
               <QuestionCard key={q.id} item={q} onOpen={() => openTab(q.tab_id)} />
-            ))}
-            {waiting.clean.map(({ run, pr }) => (
-              <CleanCard key={`${run.id}-${pr.repo}-${pr.number}`} run={run} pr={pr} />
             ))}
           </ul>
         </section>
@@ -220,11 +147,10 @@ export function BeeMain() {
 export const LIVE_RECT = { left: "4px", top: "calc(45% + 28px)", width: "calc(100% - 8px)", height: "calc(55% - 32px)" };
 
 function BeeDetail({ bee, live }: { bee: Bee; live: boolean }) {
-  const { updateBee, setBeeView, repos } = useStore();
+  const { updateBee, setBeeView } = useStore();
   const all = useBeeRuns((s) => s.runs);
   const runs = all.filter((r) => r.beeId === bee.id);
   const running = runs.find((r) => r.status === "running");
-  const beeNote = useBeeNotes((n) => n[bee.id]);
   const [, tick] = useState(0);
   // Keeps the running time current.
   useEffect(() => {
@@ -239,9 +165,7 @@ function BeeDetail({ bee, live }: { bee: Bee; live: boolean }) {
         <div>
           <h2>{bee.name}</h2>
           <p className="hint">
-            {TEMPLATES.find((t) => t.id === (bee.templateId ?? (bee.template === "review" ? "review" : "")))?.name ??
-              "Sem template"}{" "}
-            · {describeTrigger(bee.trigger)}
+            {TEMPLATES.find((t) => t.id === bee.templateId)?.name ?? "Sem template"} · {describeTrigger(bee.trigger)}
             {bee.trigger.kind !== "manual" && ` · horário perdido: ${bee.missed === "run" ? "roda ao abrir" : "pula"}`}
           </p>
         </div>
@@ -257,33 +181,16 @@ function BeeDetail({ bee, live }: { bee: Bee; live: boolean }) {
             Parar
           </button>
         ) : (
-          <button className="primary" onClick={() => void runBee(bee, { manual: true })}>
+          <button className="primary" onClick={() => void runBee(bee)}>
             Rodar agora
           </button>
         )}
       </header>
       <div className="bee-detail-body">
-        <section className="bee-facts">
-          <div>
-            <h4>Repositórios</h4>
-            {bee.repos.length ? (
-              <ul>
-                {bee.repos.map((slug) => (
-                  <li key={slug}>
-                    {slug} <span className="muted">{repos.find((r) => r.slug === slug)?.path ?? "fora da lista"}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="hint">Nenhum.</p>
-            )}
-          </div>
-          <div>
-            <h4>Prompt</h4>
-            <p className="bee-instructions">{bee.template === "review" ? reviewPromptOf(bee) : bee.instructions}</p>
-          </div>
+        <section>
+          <h4>Prompt</h4>
+          <p className="bee-instructions">{bee.instructions}</p>
         </section>
-        {beeNote && !running && <p className="hint">Última busca: {beeNote}</p>}
         <section>
           <h4>Execuções</h4>
           {runs.length === 0 && <p className="hint">Ainda não rodou. Use "Rodar agora" para ver como ela se sai.</p>}
@@ -297,7 +204,6 @@ function BeeDetail({ bee, live }: { bee: Bee; live: boolean }) {
       {live && running && (
         <div className="bee-live-label">
           Ao vivo · rodando há {duration(running.startedAt, Date.now())}
-          {running.review && ` · ${running.review.prs.map((p) => `${p.repo.split("/")[1]}#${p.number}`).join(", ")}`}
         </div>
       )}
     </div>
@@ -321,18 +227,6 @@ function RunRow({ run }: { run: BeeRun }) {
           </button>
         )}
       </div>
-      {run.review && (
-        <ul className="bee-run-prs">
-          {run.review.prs.map((p) => (
-            <li key={`${p.repo}#${p.number}`}>
-              <button className="link" onClick={() => void openUrl(p.url)}>
-                {p.repo.split("/")[1]}#{p.number}
-              </button>{" "}
-              {p.title}
-            </li>
-          ))}
-        </ul>
-      )}
       {run.summary && <p className="bee-run-summary">{run.summary}</p>}
     </li>
   );
@@ -359,46 +253,31 @@ function Frame({ title, step, footer, children }: { title: string; step?: string
 
 /** Creates a bee in steps, or edits the one given; `onDone` gets the bee to show next. */
 function BeeEditor({ beeId, onDone }: { beeId?: string; onDone: (id?: string) => void }) {
-  const onClose = () => onDone(beeId);
-  const { bees, repos, addBee, updateBee, removeBee } = useStore();
+  const { bees, addBee, updateBee, removeBee } = useStore();
   const editing = bees.find((b) => b.id === beeId);
+  const onClose = () => onDone(beeId);
   const [step, setStep] = useState<"start" | "template" | "config">(editing ? "config" : "start");
-  const [template, setTemplate] = useState<Bee["template"]>(editing?.template ?? "free");
   const [templateId, setTemplateId] = useState<string | undefined>(editing?.templateId);
   const [name, setName] = useState(editing?.name ?? "");
-  // The whole prompt is the bee's, templates included; an old review bee shows the one it runs with.
-  const [instructions, setInstructions] = useState(
-    editing ? (editing.template === "review" ? reviewPromptOf(editing) : editing.instructions) : BLANK_PROMPT,
-  );
-  const [picked, setPicked] = useState<string[]>(editing?.repos ?? []);
-  const [filter, setFilter] = useState("");
+  const [prompt, setPrompt] = useState(editing?.instructions ?? BLANK_PROMPT);
   const [trigger, setTrigger] = useState<BeeTrigger>(editing?.trigger ?? { kind: "manual" });
   const [missed, setMissed] = useState<Bee["missed"]>(editing?.missed ?? "run");
 
-  const review = template === "review";
-  // A review run fills these in; without them it has nowhere to put its findings.
-  const missing = review ? REVIEW_VARIABLES.filter((v) => !instructions.includes(v)) : [];
-  const unfilled = /\[[^\]\n]{3,}\]/.test(instructions);
-  const ready =
-    name.trim() &&
-    instructions.trim() &&
-    missing.length === 0 &&
-    (!review || picked.length > 0) &&
-    (trigger.kind !== "schedule" || trigger.days.length > 0);
+  const unfilled = PLACEHOLDER.test(prompt);
+  const ready = name.trim() && prompt.trim() && (trigger.kind !== "schedule" || trigger.days.length > 0);
   const save = () => {
     if (!ready) return;
-    const fields = { name: name.trim(), instructions: instructions.trim(), repos: picked, trigger, missed, templateId };
+    const fields = { name: name.trim(), instructions: prompt.trim(), trigger, missed, templateId };
     if (editing) return void (updateBee(editing.id, fields), onDone(editing.id));
     const id = crypto.randomUUID();
-    addBee({ id, template, enabled: true, createdAt: Date.now(), lastRunAt: null, ...fields });
+    addBee({ id, enabled: true, createdAt: Date.now(), lastRunAt: null, ...fields });
     onDone(id);
   };
   const pick = (t: BeeTemplate) => {
-    setTemplate(t.kind);
     setTemplateId(t.id);
     setName(t.name);
     setTrigger(t.trigger);
-    setInstructions(t.prompt);
+    setPrompt(t.prompt);
     setStep("config");
   };
 
@@ -407,9 +286,9 @@ function BeeEditor({ beeId, onDone }: { beeId?: string; onDone: (id?: string) =>
       {
         id: "template",
         title: "Com template",
-        text: "Parte de uma abelha pronta, como a de review. Você ajusta as instruções e os repositórios.",
+        text: "Parte de um prompt pronto, como o de review. Você troca as partes marcadas pelo seu conteúdo.",
       },
-      { id: "free", title: "Sem template", text: "Você escreve o prompt da abelha e escolhe os repositórios e quando ela roda." },
+      { id: "free", title: "Sem template", text: "Você escreve o prompt da abelha e escolhe quando ela roda." },
       {
         id: "claude",
         title: "Com o Claude",
@@ -437,9 +316,8 @@ function BeeEditor({ beeId, onDone }: { beeId?: string; onDone: (id?: string) =>
                   onDone();
                   return openBeeCreator();
                 }
-                setTemplate("free");
                 setTemplateId(undefined);
-                setInstructions(BLANK_PROMPT);
+                setPrompt(BLANK_PROMPT);
                 setStep("config");
               }}
             >
@@ -476,9 +354,6 @@ function BeeEditor({ beeId, onDone }: { beeId?: string; onDone: (id?: string) =>
     );
   }
 
-  const shownRepos = repos.filter((r) => !filter || r.slug.toLowerCase().includes(filter.toLowerCase()));
-  const toggleRepo = (slug: string) =>
-    setPicked((p) => (p.includes(slug) ? p.filter((s) => s !== slug) : [...p, slug]));
   const toggleDay = (d: number) =>
     trigger.kind === "schedule" &&
     setTrigger({ ...trigger, days: trigger.days.includes(d) ? trigger.days.filter((x) => x !== d) : [...trigger.days, d] });
@@ -525,41 +400,16 @@ function BeeEditor({ beeId, onDone }: { beeId?: string; onDone: (id?: string) =>
       </label>
       <label className="field">
         <span>Prompt da abelha</span>
+        <span className="hint">Substitua os {"{{...}}"} pelo seu próprio conteúdo. A abelha roda exatamente este texto.</span>
         <textarea
           className="bee-textarea bee-prompt"
-          rows={18}
+          rows={20}
           spellCheck={false}
-          value={instructions}
-          onChange={(e) => setInstructions(e.target.value)}
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
         />
-        <span className="hint">
-          Troque as partes entre [colchetes]. O app preenche a cada execução:{" "}
-          {[...COMMON_VARIABLES, ...(review ? REVIEW_VARIABLES : [])].join(", ")}.
-        </span>
-        {unfilled && <span className="hint bee-warn">Ainda há partes entre [colchetes] para trocar.</span>}
-        {missing.length > 0 && <span className="error">O prompt da abelha de review precisa de {missing.join(", ")}.</span>}
+        {unfilled && <span className="hint bee-warn">Ainda há partes {"{{...}}"} para substituir.</span>}
       </label>
-      <div className="field">
-        <span>Repositórios {picked.length > 0 && `· ${picked.length} escolhido(s)`}</span>
-        {repos.length === 0 ? (
-          <p className="hint">Nenhum repositório na lista. Veja em Configurações › Repositórios.</p>
-        ) : (
-          <>
-            <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filtrar" />
-            <ul className="bee-repos">
-              {shownRepos.map((r) => (
-                <li key={r.slug}>
-                  <label>
-                    <input type="checkbox" checked={picked.includes(r.slug)} onChange={() => toggleRepo(r.slug)} />
-                    <span>{r.slug}</span>
-                    <span className="muted">{r.path}</span>
-                  </label>
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
-      </div>
       <div className="field">
         <span>Quando roda</span>
         <div className="chip-row">
