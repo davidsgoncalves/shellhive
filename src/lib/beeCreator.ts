@@ -32,6 +32,8 @@ export function openBeeCreator(): void {
   const id = s.addTab(groupId, { title: "Criar abelha", customTitle: true, beeCreator: true });
   syncBeeCreators();
   markPendingPrompt(id, GUIDE);
+  // The new session takes the center from the Worker bee.
+  s.setPanelTab(s.layout === "sidebar" ? "tabs" : "queue");
 }
 
 /** Tells the MCP server which tabs create bees, so only they see the bee tools. */
@@ -74,7 +76,7 @@ export async function callBeeTool(tool: string, args: Record<string, unknown>): 
   if (tool === "run_bee") {
     const bee = s.bees.find((b) => b.id === args.id);
     if (!bee) return { text: "Abelha não encontrada; veja os ids em list_bees.", isError: true };
-    void runBee(bee);
+    void runBee(bee, { manual: true });
     return { text: `A abelha ${bee.name} começou a rodar; o resultado aparece no painel do Worker bee.` };
   }
   if (tool === "create_bee") {

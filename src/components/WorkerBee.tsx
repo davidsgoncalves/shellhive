@@ -5,7 +5,6 @@ import { useStore } from "../lib/store";
 import { DAY_NAMES, describeTrigger, openBeeRun, runBee, setDecision, useBeeNotes, useBeeRuns } from "../lib/bees";
 import { openBeeCreator } from "../lib/beeCreator";
 import { isBeeTab, type Bee, type BeeRun, type BeeTrigger, type ReviewPr } from "../lib/types";
-import { Modal } from "./Modal";
 import { PermissionCard, QuestionCard } from "./PermissionQueue";
 
 /** Requests from the bees' hidden tabs: permissions and questions. */
@@ -91,18 +90,45 @@ const STATUS_LABEL: Record<BeeRun["status"], string> = { running: "rodando", don
 const when = (at: number) =>
   new Date(at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 
-/** The bees, what they wait on, and their recent runs. */
+const duration = (from: number, to: number) => {
+  const min = Math.max(0, Math.round((to - from) / 60_000));
+  return min < 1 ? "menos de 1 min" : min < 60 ? `${min} min` : `${Math.floor(min / 60)}h${String(min % 60).padStart(2, "0")}`;
+};
+
+/** The bee shown in the center: the one picked, else the first. */
+function useShownBee() {
+  const bees = useStore((s) => s.bees);
+  const view = useStore((s) => s.beeView);
+  if (view?.mode === "new") return null;
+  return bees.find((b) => b.id === view?.id) ?? bees[0] ?? null;
+}
+
+/** The hidden tab of the shown bee's run in progress, drawn live in the center. */
+export function useWatchedBeeTab(): string | null {
+  const on = useStore((s) => s.panelOpen && s.panelTab === "bees");
+  const view = useStore((s) => s.beeView);
+  const bee = useShownBee();
+  const runs = useBeeRuns((s) => s.runs);
+  const tabs = useStore((s) => s.tabs);
+  if (!on || !bee || view?.mode === "edit") return null;
+  const tabId = runs.find((r) => r.beeId === bee.id && r.status === "running")?.tabId ?? null;
+  return tabId && tabs.some((t) => t.id === tabId) ? tabId : null;
+}
+
+/** The side panel: what the bees wait on, and the list of bees. */
 export function BeePanel() {
   const bees = useStore((s) => s.bees);
-  const openModal = useStore((s) => s.openModal);
+  const setBeeView = useStore((s) => s.setBeeView);
+  const updateBee = useStore((s) => s.updateBee);
   const load = useBeeRuns((s) => s.load);
   const waiting = useBeeWaiting();
   const runs = useBeeRuns((s) => s.runs);
+  const shown = useShownBee();
   useEffect(() => void load(), [load]);
   // A hidden tab is shown through its run, which keeps it open once revealed.
   const openTab = (tabId: string | null) => {
     const run = runs.find((r) => r.tabId === tabId && r.status === "running");
-    if (run) openBeeRun(run);
+    if (run) setBeeView({ mode: "detail", id: run.beeId });
   };
 
   return (
@@ -124,17 +150,32 @@ export function BeePanel() {
         </section>
       )}
       {bees.length === 0 ? (
-        <div className="bee-empty">
-          <p className="hint">Nenhuma abelha ainda. Uma abelha roda uma tarefa do Claude em segundo plano, na hora que você escolher.</p>
-          <button className="ghost" onClick={() => openModal({ kind: "bee" })}>
-            + Nova abelha
-          </button>
-        </div>
+        <p className="hint">Nenhuma abelha ainda. Uma abelha roda uma tarefa do Claude em segundo plano, na hora que você escolher.</p>
       ) : (
         <ul className="bee-list">
-          {bees.map((b) => (
-            <BeeCard key={b.id} bee={b} />
-          ))}
+          {bees.map((b) => {
+            const running = runs.some((r) => r.beeId === b.id && r.status === "running");
+            return (
+              <li
+                key={b.id}
+                className={`bee-row ${shown?.id === b.id ? "on" : ""} ${b.enabled ? "" : "off"}`}
+                onClick={() => setBeeView({ mode: "detail", id: b.id })}
+              >
+                <input
+                  type="checkbox"
+                  title={b.enabled ? "Desligar" : "Ligar"}
+                  checked={b.enabled}
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) => updateBee(b.id, { enabled: e.target.checked })}
+                />
+                <span className="bee-row-main">
+                  <span className="bee-name">{b.name}</span>
+                  <span className="bee-meta">{running ? "rodando agora" : describeTrigger(b.trigger)}</span>
+                </span>
+                {running && <span className="bee-run-dot live" />}
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
@@ -143,71 +184,147 @@ export function BeePanel() {
 
 /** The panel header's button for a new bee. */
 export function NewBeeButton() {
-  const openModal = useStore((s) => s.openModal);
+  const setBeeView = useStore((s) => s.setBeeView);
   return (
-    <button className="ghost auto bee-new" onClick={() => openModal({ kind: "bee" })}>
+    <button className="ghost auto bee-new" onClick={() => setBeeView({ mode: "new" })}>
       + Nova abelha
     </button>
   );
 }
 
-function BeeCard({ bee }: { bee: Bee }) {
-  const { updateBee, openModal } = useStore();
-  const all = useBeeRuns((s) => s.runs);
-  const runs = all.filter((r) => r.beeId === bee.id).slice(0, 5);
-  const running = runs.some((r) => r.status === "running");
-  const beeNote = useBeeNotes((n) => n[bee.id]);
-
-  return (
-    <li className={`bee-card ${bee.enabled ? "" : "off"}`}>
-      <div className="bee-head">
-        <label className="bee-toggle" title={bee.enabled ? "Desligar" : "Ligar"}>
-          <input type="checkbox" checked={bee.enabled} onChange={(e) => updateBee(bee.id, { enabled: e.target.checked })} />
-        </label>
-        <span className="bee-name">{bee.name}</span>
-        <button className="link" onClick={() => openModal({ kind: "bee", beeId: bee.id })}>
-          Editar
+/** The Worker bee in place of the terminals: a bee's details, or its editor. */
+export function BeeMain() {
+  const view = useStore((s) => s.beeView);
+  const setBeeView = useStore((s) => s.setBeeView);
+  const bee = useShownBee();
+  const watched = useWatchedBeeTab();
+  const done = (id?: string) => setBeeView(id ? { mode: "detail", id } : null);
+  let body: React.ReactNode;
+  if (view?.mode === "new") body = <BeeEditor onDone={done} />;
+  else if (bee && view?.mode === "edit") body = <BeeEditor key={bee.id} beeId={bee.id} onDone={done} />;
+  else if (bee) body = <BeeDetail bee={bee} live={!!watched} />;
+  else
+    body = (
+      <div className="bee-blank">
+        <p className="hint">Nenhuma abelha ainda.</p>
+        <button className="primary" onClick={() => setBeeView({ mode: "new" })}>
+          + Nova abelha
         </button>
       </div>
-      <div className="bee-meta">
-        {describeTrigger(bee.trigger)}
-        {bee.repos.length > 0 && ` · ${bee.repos.length === 1 ? bee.repos[0] : `${bee.repos.length} repositórios`}`}
+    );
+  return <div className={`bee-main ${watched ? "with-live" : ""}`}>{body}</div>;
+}
+
+/** Where the live terminal of a run sits, under the details. */
+export const LIVE_RECT = { left: "4px", top: "calc(45% + 28px)", width: "calc(100% - 8px)", height: "calc(55% - 32px)" };
+
+function BeeDetail({ bee, live }: { bee: Bee; live: boolean }) {
+  const { updateBee, setBeeView, repos } = useStore();
+  const all = useBeeRuns((s) => s.runs);
+  const runs = all.filter((r) => r.beeId === bee.id);
+  const running = runs.find((r) => r.status === "running");
+  const beeNote = useBeeNotes((n) => n[bee.id]);
+  const [, tick] = useState(0);
+  // Keeps the running time current.
+  useEffect(() => {
+    if (!running) return;
+    const timer = setInterval(() => tick((n) => n + 1), 30_000);
+    return () => clearInterval(timer);
+  }, [running]);
+
+  return (
+    <div className="bee-detail">
+      <header className="bee-detail-head">
+        <div>
+          <h2>{bee.name}</h2>
+          <p className="hint">
+            {bee.template === "review" ? "Review" : "Sem template"} · {describeTrigger(bee.trigger)}
+            {bee.trigger.kind !== "manual" && ` · horário perdido: ${bee.missed === "run" ? "roda ao abrir" : "pula"}`}
+          </p>
+        </div>
+        <label className="check">
+          <input type="checkbox" checked={bee.enabled} onChange={(e) => updateBee(bee.id, { enabled: e.target.checked })} />
+          {bee.enabled ? "Ligada" : "Desligada"}
+        </label>
+        <button className="ghost auto" onClick={() => setBeeView({ mode: "edit", id: bee.id })}>
+          Editar
+        </button>
+        <button className="primary" disabled={!!running} onClick={() => void runBee(bee, { manual: true })}>
+          {running ? "Rodando…" : "Rodar agora"}
+        </button>
+      </header>
+      <div className="bee-detail-body">
+        <section className="bee-facts">
+          <div>
+            <h4>Repositórios</h4>
+            {bee.repos.length ? (
+              <ul>
+                {bee.repos.map((slug) => (
+                  <li key={slug}>
+                    {slug} <span className="muted">{repos.find((r) => r.slug === slug)?.path ?? "fora da lista"}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="hint">Nenhum.</p>
+            )}
+          </div>
+          <div>
+            <h4>{bee.template === "review" ? "Suas instruções" : "Prompt"}</h4>
+            <p className="bee-instructions">{bee.instructions || "Nenhuma; vale o método de revisão."}</p>
+          </div>
+        </section>
+        {beeNote && !running && <p className="hint">Última busca: {beeNote}</p>}
+        <section>
+          <h4>Execuções</h4>
+          {runs.length === 0 && <p className="hint">Ainda não rodou. Use "Rodar agora" para ver como ela se sai.</p>}
+          <ul className="bee-runs">
+            {runs.map((r) => (
+              <RunRow key={r.id} run={r} />
+            ))}
+          </ul>
+        </section>
       </div>
-      {beeNote && !running && <p className="hint bee-note">{beeNote}</p>}
-      <button className="ghost bee-run" disabled={running} onClick={() => void runBee(bee)}>
-        {running ? "Rodando…" : "Rodar agora"}
-      </button>
-      {runs.length > 0 && (
-        <ul className="bee-runs">
-          {runs.map((r) => (
-            <RunRow key={r.id} run={r} />
-          ))}
-        </ul>
+      {live && running && (
+        <div className="bee-live-label">
+          Ao vivo · rodando há {duration(running.startedAt, Date.now())}
+          {running.review && ` · ${running.review.prs.map((p) => `${p.repo.split("/")[1]}#${p.number}`).join(", ")}`}
+        </div>
       )}
-    </li>
+    </div>
   );
 }
 
 function RunRow({ run }: { run: BeeRun }) {
-  const [open, setOpen] = useState(false);
-  const canOpen = !!run.tabId || !!run.sessionId;
+  const canOpen = run.status !== "running" && !!run.sessionId;
   return (
     <li className={`bee-run-row ${run.status}`}>
       <div className="row">
         <span className="bee-run-dot" />
         <time>{when(run.startedAt)}</time>
-        <span className="bee-run-status">{STATUS_LABEL[run.status]}</span>
+        <span className="bee-run-status">
+          {STATUS_LABEL[run.status]}
+          {run.endedAt && ` · ${duration(run.startedAt, run.endedAt)}`}
+        </span>
         {canOpen && (
-          <button className="link" onClick={() => openBeeRun(run)} title="Abre a sessão numa aba">
-            abrir
+          <button className="link" onClick={() => openBeeRun(run)} title="Retoma a sessão numa aba">
+            abrir sessão
           </button>
         )}
       </div>
-      {run.summary && (
-        <p className={`bee-run-summary ${open ? "open" : ""}`} onClick={() => setOpen((o) => !o)} title={open ? undefined : "Clique para ver tudo"}>
-          {run.summary}
-        </p>
+      {run.review && (
+        <ul className="bee-run-prs">
+          {run.review.prs.map((p) => (
+            <li key={`${p.repo}#${p.number}`}>
+              <button className="link" onClick={() => void openUrl(p.url)}>
+                {p.repo.split("/")[1]}#{p.number}
+              </button>{" "}
+              {p.title}
+            </li>
+          ))}
+        </ul>
       )}
+      {run.summary && <p className="bee-run-summary">{run.summary}</p>}
     </li>
   );
 }
@@ -217,8 +334,23 @@ const WORKDAYS = [1, 2, 3, 4, 5];
 
 type Start = "template" | "free" | "claude";
 
-/** Creates a bee in steps, or edits the one given. */
-export function BeeDialog({ beeId, onClose }: { beeId?: string; onClose: () => void }) {
+/** The editor's frame in the center: title, body and the buttons at the bottom. */
+function Frame({ title, step, footer, children }: { title: string; step?: string; footer?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div className="bee-form">
+      <div className="bee-form-body">
+        {step && <p className="hint">{step}</p>}
+        <h2>{title}</h2>
+        {children}
+      </div>
+      {footer && <footer className="bee-form-footer">{footer}</footer>}
+    </div>
+  );
+}
+
+/** Creates a bee in steps, or edits the one given; `onDone` gets the bee to show next. */
+function BeeEditor({ beeId, onDone }: { beeId?: string; onDone: (id?: string) => void }) {
+  const onClose = () => onDone(beeId);
   const { bees, repos, addBee, updateBee, removeBee } = useStore();
   const editing = bees.find((b) => b.id === beeId);
   const [step, setStep] = useState<"start" | "template" | "config">(editing ? "config" : "start");
@@ -239,17 +371,10 @@ export function BeeDialog({ beeId, onClose }: { beeId?: string; onClose: () => v
   const save = () => {
     if (!ready) return;
     const fields = { name: name.trim(), instructions: instructions.trim(), repos: picked, trigger, missed };
-    if (editing) updateBee(editing.id, fields);
-    else
-      addBee({
-        id: crypto.randomUUID(),
-        template,
-        enabled: true,
-        createdAt: Date.now(),
-        lastRunAt: null,
-        ...fields,
-      });
-    onClose();
+    if (editing) return void (updateBee(editing.id, fields), onDone(editing.id));
+    const id = crypto.randomUUID();
+    addBee({ id, template, enabled: true, createdAt: Date.now(), lastRunAt: null, ...fields });
+    onDone(id);
   };
 
   if (step === "start") {
@@ -267,8 +392,15 @@ export function BeeDialog({ beeId, onClose }: { beeId?: string; onClose: () => v
       },
     ];
     return (
-      <Modal title="Nova abelha" onClose={onClose}>
-        <p className="hint">Etapa 1 · Como você quer começar?</p>
+      <Frame
+        title="Como você quer começar?"
+        step="Nova abelha · etapa 1"
+        footer={
+          <button className="ghost auto" onClick={onClose}>
+            Cancelar
+          </button>
+        }
+      >
         <div className="bee-starts">
           {options.map((o) => (
             <button
@@ -277,7 +409,7 @@ export function BeeDialog({ beeId, onClose }: { beeId?: string; onClose: () => v
               onClick={() => {
                 if (o.id === "template") return setStep("template");
                 if (o.id === "claude") {
-                  onClose();
+                  onDone();
                   return openBeeCreator();
                 }
                 setTemplate("free");
@@ -289,22 +421,21 @@ export function BeeDialog({ beeId, onClose }: { beeId?: string; onClose: () => v
             </button>
           ))}
         </div>
-      </Modal>
+      </Frame>
     );
   }
 
   if (step === "template") {
     return (
-      <Modal
-        title="Nova abelha"
-        onClose={onClose}
+      <Frame
+        title="Escolha o template"
+        step="Nova abelha · etapa 2 de 3"
         footer={
           <button className="ghost auto bee-delete" onClick={() => setStep("start")}>
             Voltar
           </button>
         }
       >
-        <p className="hint">Etapa 2 de 3 · Escolha o template</p>
         <div className="bee-starts">
           <button
             className="bee-start"
@@ -323,7 +454,7 @@ export function BeeDialog({ beeId, onClose }: { beeId?: string; onClose: () => v
             <em>Precisa de: GitHub (gh)</em>
           </button>
         </div>
-      </Modal>
+      </Frame>
     );
   }
 
@@ -335,9 +466,9 @@ export function BeeDialog({ beeId, onClose }: { beeId?: string; onClose: () => v
     setTrigger({ ...trigger, days: trigger.days.includes(d) ? trigger.days.filter((x) => x !== d) : [...trigger.days, d] });
 
   return (
-    <Modal
-      title={editing ? `Abelha ${editing.name}` : "Nova abelha"}
-      onClose={onClose}
+    <Frame
+      title={editing ? `Editar ${editing.name}` : "Configure a abelha"}
+      step={editing ? undefined : review ? "Nova abelha · etapa 3 de 3 · template Review" : "Nova abelha · etapa 2 de 2"}
       footer={
         <>
           {editing ? (
@@ -345,7 +476,7 @@ export function BeeDialog({ beeId, onClose }: { beeId?: string; onClose: () => v
               className="ghost auto bee-delete"
               onClick={() => {
                 removeBee(editing.id);
-                onClose();
+                onDone();
               }}
             >
               Excluir
@@ -364,7 +495,6 @@ export function BeeDialog({ beeId, onClose }: { beeId?: string; onClose: () => v
         </>
       }
     >
-      {!editing && <p className="hint">{review ? "Etapa 3 de 3 · Configurar · template Review" : "Etapa 2 de 2 · Configurar"}</p>}
       <label className="field">
         <span>Nome</span>
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Limpar worktrees" autoFocus />
@@ -465,6 +595,6 @@ export function BeeDialog({ beeId, onClose }: { beeId?: string; onClose: () => v
           </div>
         </div>
       )}
-    </Modal>
+    </Frame>
   );
 }

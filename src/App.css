@@ -351,42 +351,75 @@ button.ghost.auto { width: auto; }
 /* ---------- worker bee ---------- */
 .bee-new { margin-left: auto; margin-right: 4px; padding: 3px 8px; font-size: 11px; }
 .bee-panel { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 10px 12px; }
-.bee-panel h4 { margin: 0 0 6px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.bee-panel h4, .bee-detail h4 { margin: 0 0 6px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
 .bee-waiting .perm-list { padding: 0; overflow: visible; }
-.bee-empty { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
-.bee-empty .ghost { width: auto; }
-.bee-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.bee-card {
-  display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border-radius: 8px;
-  border: 1px solid var(--border); background: var(--bg);
+.bee-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.bee-row {
+  display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 7px; cursor: pointer;
+  border: 1px solid transparent;
 }
-.bee-card.off .bee-name, .bee-card.off .bee-meta { opacity: .55; }
-.bee-head { display: flex; align-items: center; gap: 8px; }
-.bee-toggle { display: flex; align-items: center; cursor: pointer; }
-.bee-name { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bee-row:hover { background: var(--panel-2); }
+.bee-row.on { background: var(--panel-2); border-color: var(--border); }
+.bee-row.off .bee-row-main { opacity: .55; }
+.bee-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.bee-name { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bee-meta { font-size: 11px; color: var(--muted); }
-.bee-note { margin: 0; }
-.bee-run { align-self: flex-start; width: auto; padding: 3px 10px; font-size: 11px; }
-.bee-runs { list-style: none; margin: 2px 0 0; padding: 6px 0 0; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
-.bee-run-row .row { display: flex; align-items: center; gap: 6px; font-size: 11px; }
+.bee-run-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--c-waiting); flex-shrink: 0; }
+.bee-run-dot.live, .bee-run-row.running .bee-run-dot { background: var(--c-working); animation: pulse 1.4s ease-in-out infinite; }
+.bee-run-row.error .bee-run-dot { background: var(--danger); }
+.perm-item.bee-clean { border-left-color: var(--c-waiting); display: flex; flex-direction: column; gap: 6px; }
+.bee-clean .muted { color: var(--muted); font-size: 11px; }
+.bee-clean .question-text, .bee-clean .hint { margin: 0; }
+
+/* The Worker bee in place of the terminals. */
+.bee-main {
+  position: absolute; inset: 4px; z-index: 55; display: flex; flex-direction: column; overflow: hidden;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+}
+.bee-blank { margin: auto; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.bee-detail { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+/* A run in progress shows its terminal under the details. */
+.bee-main.with-live .bee-detail { flex: none; height: calc(45% + 24px); }
+.bee-detail-head {
+  display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.bee-detail-head > div { flex: 1; min-width: 0; }
+.bee-detail-head h2 { margin: 0 0 2px; font-size: 16px; }
+.bee-detail-head .hint { margin: 0; }
+.bee-detail-body { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 18px; display: flex; flex-direction: column; gap: 16px; }
+.bee-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.bee-facts ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; font-size: 12px; }
+.bee-facts .muted { color: var(--muted); font-size: 11px; }
+.bee-instructions { margin: 0; font-size: 12px; white-space: pre-wrap; color: var(--fg); }
+.bee-runs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.bee-run-row { padding: 8px 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--panel); }
+.bee-run-row .row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
 .bee-run-row time { color: var(--muted); font-variant-numeric: tabular-nums; }
 .bee-run-row .bee-run-status { flex: 1; }
-.bee-run-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--c-waiting); flex-shrink: 0; }
-.bee-run-row.running .bee-run-dot { background: var(--c-working, var(--accent)); animation: pulse 1.4s ease-in-out infinite; }
-.bee-run-row.error .bee-run-dot { background: var(--danger); }
-.bee-run-summary {
-  margin: 3px 0 0 13px; font-size: 11px; color: var(--muted); cursor: pointer; white-space: pre-wrap;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+.bee-run-prs { list-style: none; margin: 6px 0 0 15px; padding: 0; font-size: 12px; display: flex; flex-direction: column; gap: 2px; }
+.bee-run-summary { margin: 6px 0 0 15px; font-size: 12px; color: var(--muted); white-space: pre-wrap; user-select: text; }
+.bee-live-label {
+  flex-shrink: 0; padding: 5px 18px; font-size: 11px; color: var(--c-working);
+  border-top: 1px solid var(--border); background: var(--panel);
 }
-.bee-run-summary.open { display: block; cursor: default; user-select: text; }
-.bee-starts { display: flex; flex-direction: column; gap: 8px; }
+.bee-form { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.bee-form-body { flex: 1; min-height: 0; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; max-width: 760px; }
+.bee-form-body h2 { margin: 0; font-size: 18px; }
+.bee-form-body .hint { margin: 0; }
+.bee-form-body input:not([type]), .bee-form-body input[type="text"] {
+  background: var(--bg); border: 1px solid var(--border); border-radius: 5px; color: var(--fg);
+  font: inherit; font-size: 12px; padding: 7px 8px; outline: none; width: 100%;
+}
+.bee-form-body input:focus { border-color: var(--accent); }
+.bee-form-footer { display: flex; align-items: center; gap: 8px; justify-content: flex-end; padding: 10px 24px; border-top: 1px solid var(--border); }
+.bee-form-footer .bee-delete { margin-right: auto; }
+.bee-starts { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
 .bee-start {
-  display: flex; flex-direction: column; gap: 4px; text-align: left; padding: 12px; border-radius: 8px;
-  border: 1px solid var(--border); background: var(--bg); color: var(--fg); cursor: pointer; font: inherit;
+  display: flex; flex-direction: column; gap: 6px; text-align: left; padding: 16px; border-radius: 10px; min-height: 120px;
+  border: 1px solid var(--border); background: var(--panel); color: var(--fg); cursor: pointer; font: inherit;
 }
-.bee-start:hover:not(:disabled) { border-color: var(--accent); }
-.bee-start:disabled { opacity: .5; cursor: default; }
-.bee-start strong { font-size: 13px; }
+.bee-start:hover { border-color: var(--accent); }
+.bee-start strong { font-size: 14px; }
 .bee-start span { font-size: 12px; color: var(--muted); }
 .bee-start em { font-size: 11px; color: var(--c-permission); font-style: normal; }
 .bee-textarea {
@@ -394,17 +427,13 @@ button.ghost.auto { width: auto; }
   font: inherit; font-size: 12px; padding: 7px 8px; outline: none; resize: vertical;
 }
 .bee-textarea:focus { border-color: var(--accent); }
-.bee-repos { list-style: none; margin: 0; padding: 4px; max-height: 160px; overflow-y: auto; border: 1px solid var(--border); border-radius: 5px; }
+.bee-repos { list-style: none; margin: 0; padding: 4px; max-height: 220px; overflow-y: auto; border: 1px solid var(--border); border-radius: 5px; }
 .bee-repos label { display: flex; align-items: center; gap: 6px; padding: 3px 4px; font-size: 12px; cursor: pointer; }
 .bee-repos .muted { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bee-select, .bee-time {
   align-self: flex-start; background: var(--bg); border: 1px solid var(--border); border-radius: 5px;
   color: var(--fg); font: inherit; font-size: 12px; padding: 5px 6px;
 }
-.modal-footer .bee-delete { margin-right: auto; }
-.perm-item.bee-clean { border-left-color: var(--c-waiting); display: flex; flex-direction: column; gap: 6px; }
-.bee-clean .muted { color: var(--muted); font-size: 11px; }
-.bee-clean .question-text, .bee-clean .hint { margin: 0; }
 
 /* Settings › Conexões */
 .connections-head { align-items: center; justify-content: space-between; }

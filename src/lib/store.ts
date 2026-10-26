@@ -96,9 +96,10 @@ export type Modal =
   | { kind: "settings"; tab?: SettingsTab }
   | { kind: "newGroup" }
   | { kind: "switcher" }
-  | { kind: "pickFolder"; groupId: string }
-  /** Creates a bee, or edits the one given. */
-  | { kind: "bee"; beeId?: string };
+  | { kind: "pickFolder"; groupId: string };
+
+/** What the Worker bee shows in place of the terminals: a bee, its editor, or a new one. */
+export type BeeView = { mode: "detail" | "edit"; id: string } | { mode: "new" } | null;
 
 /** A plugin's band on one terminal. */
 export interface PluginBand {
@@ -142,6 +143,9 @@ interface Store {
   /** Repositories removed by hand, which the scan does not bring back. */
   dismissedRepos: string[];
   bees: Bee[];
+  /** Null shows the first bee. */
+  beeView: BeeView;
+  setBeeView: (view: BeeView) => void;
   /** Which dialog is open, if any. */
   modal: Modal;
   /** Open group context menu, with the cursor position that opened it. */
@@ -354,6 +358,8 @@ export const useStore = create<Store>()(
       repos: [],
       dismissedRepos: [],
       bees: [],
+      beeView: null,
+      setBeeView: (beeView) => set({ beeView, panelTab: "bees", panelOpen: true }),
       defaultFolderId: null,
       modal: null,
       groupMenu: null,

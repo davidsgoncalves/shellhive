@@ -30,6 +30,7 @@ import { scanRepos } from "./lib/repos";
 import { checkConnections } from "./lib/connections";
 import { finishBeeRun, startBeeScheduler, useBeeRuns } from "./lib/bees";
 import { callBeeTool, syncBeeCreators } from "./lib/beeCreator";
+import { BeeMain, LIVE_RECT, useWatchedBeeTab } from "./components/WorkerBee";
 import { applyLook, shareLook } from "./lib/theme";
 import { defaultGroupId, duplicateSession, ensureUngrouped, onScreen, openSession, openSessionInGroup, useStore } from "./lib/store";
 import { tabPatchFor } from "./lib/hookState";
@@ -652,6 +653,15 @@ function usePerfHistory() {
 
 /** On launch: the repositories of the groups' folders, and whether the tools the bees need are ready. */
 function useWorkSetup() {
+  // Picking a session shows its terminal, so the Worker bee gives the center back.
+  useEffect(
+    () =>
+      useStore.subscribe((s, prev) => {
+        if (s.pickedTab === prev.pickedTab || s.panelTab !== "bees") return;
+        s.setPanelTab(s.layout === "sidebar" ? "tabs" : "queue");
+      }),
+    [],
+  );
   useEffect(() => {
     void scanRepos();
     void checkConnections();
@@ -713,6 +723,9 @@ function App() {
 
   const live = tabs.filter((t) => t.state !== "dormant");
   const layout = useStore((s) => s.layout);
+  // The Worker bee takes the center; a bee's run in progress shows live under its details.
+  const beeMode = useStore((s) => s.panelOpen && s.panelTab === "bees");
+  const watched = useWatchedBeeTab();
   const barPosition = useStore((s) => s.barPosition);
   const groups = useStore((s) => s.groups);
   const borderWidth = useStore((s) => s.terminalBorder);
@@ -773,7 +786,8 @@ function App() {
               const bands = bandsOf(t.id);
               const above = sum(bands.top);
               const below = sum(bands.bottom);
-              const visible = slot !== -1 && !detached.includes(t.id);
+              const watching = t.id === watched;
+              const visible = watching || (slot !== -1 && !detached.includes(t.id));
               // Stacked from the edge of the pane they sit on.
               const stack = (list: typeof bands.top, from: string) => {
                 let offset = 0;
@@ -793,11 +807,14 @@ function App() {
                   key={t.id}
                   tab={t}
                   visible={visible}
-                  focused={slot === focusedPane}
+                  focused={watching || (!beeMode && slot === focusedPane)}
+                  raised={watching}
                   rect={
-                    above || below
-                      ? { ...rect, top: `calc(${rect.top} + ${above}px)`, height: `calc(${rect.height} - ${above + below}px)` }
-                      : rect
+                    watching
+                      ? LIVE_RECT
+                      : above || below
+                        ? { ...rect, top: `calc(${rect.top} + ${above}px)`, height: `calc(${rect.height} - ${above + below}px)` }
+                        : rect
                   }
                   color={colorOf(t)}
                   onFocus={() => slot !== -1 && focusPane(slot)}
@@ -864,6 +881,7 @@ function App() {
               );
             })}
             <PaneOverlay />
+            {beeMode && <BeeMain />}
           </div>
         </main>
       </div>

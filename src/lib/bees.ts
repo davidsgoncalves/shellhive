@@ -125,7 +125,7 @@ function fail(run: BeeRun, summary: string): void {
  * Starts a run of a bee in a hidden tab, unless one is still going. A review
  * bee first looks for pull requests to review, and runs only when it finds some.
  */
-export async function runBee(bee: Bee): Promise<void> {
+export async function runBee(bee: Bee, opts: { manual?: boolean } = {}): Promise<void> {
   const store = useStore.getState();
   store.updateBee(bee.id, { lastRunAt: Date.now() });
   if (runningRun(bee.id)) return;
@@ -168,12 +168,12 @@ export async function runBee(bee: Bee): Promise<void> {
     if (!group || runningRun(bee.id)) {
       const time = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
       const pending = candidates.filter((c) => c.head !== c.reviewed_head).length;
-      return note(
-        bee.id,
-        pending
-          ? `${time} · ${pending} PR(s) esperando: dentro dos 15 min após o pedido de revisão, ou já revisados neste commit.`
-          : `${time} · Nenhum PR pedindo sua revisão nestes repositórios (rascunhos ficam de fora).`,
-      );
+      const why = pending
+        ? `${pending} PR(s) esperando: dentro dos 15 min após o pedido de revisão, ou já revisados neste commit.`
+        : "Nenhum PR pedindo sua revisão nestes repositórios (rascunhos ficam de fora).";
+      // A run started by hand always leaves a line in the list; a scheduled look only updates the card.
+      if (opts.manual) useBeeRuns.getState().put({ ...run, status: "done", endedAt: Date.now(), summary: `Nada para revisar. ${why}` });
+      return note(bee.id, `${time} · ${why}`);
     }
     note(bee.id, "");
     const prs = group.map(toReviewPr);
