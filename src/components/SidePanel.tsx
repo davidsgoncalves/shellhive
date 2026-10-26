@@ -9,8 +9,9 @@ import { shortcutLabel } from "../lib/shortcuts";
 import { PLUGINS } from "../lib/plugins";
 import { ColumnResizer } from "./ColumnResizer";
 import { RailIcon } from "./RailIcon";
+import { BeePanel, NewBeeButton, useBeeWaiting } from "./WorkerBee";
 
-type PanelTab = "tabs" | "queue" | "sessions" | "events" | `plugin:${string}` | `official:${string}`;
+type PanelTab = "tabs" | "queue" | "sessions" | "bees" | "events" | `plugin:${string}` | `official:${string}`;
 
 /** Drag payload type for an icon of the rail. */
 const PANEL_TAB_DRAG = "application/x-panel-tab";
@@ -37,6 +38,7 @@ const ICONS = {
   queue: <RailIcon><path d="M4 13h4l2 3h4l2-3h4" /><path d="M4 13l2.5-7h11L20 13v6H4z" /></RailIcon>,
   sessions: <RailIcon><circle cx="12" cy="12" r="8" /><path d="M12 8v4l3 2" /></RailIcon>,
   events: <RailIcon><path d="M3 12h4l3-7 4 14 3-7h4" /></RailIcon>,
+  bees: <RailIcon><path d="M12 3l7.5 4.5v9L12 21l-7.5-4.5v-9z" /><path d="M9 10.5h6M9 13.5h6" /></RailIcon>,
 };
 
 /** Up to two letters standing for a plugin that has no icon of its own. */
@@ -55,6 +57,7 @@ export function SidePanel() {
   const layout = useStore((s) => s.layout);
   const queued = useQueued();
   const pending = queued.permissions.length + queued.questions.length + queued.commands.length + queued.approvals;
+  const beeWaiting = useBeeWaiting();
   const localPlugins = useStore((s) => s.localPlugins);
   const enabledPlugins = useStore((s) => s.enabledPlugins);
   const sidePlugins = localPlugins.filter(
@@ -77,6 +80,12 @@ export function SidePanel() {
       : []),
     { key: "queue", label: "Fila", icon: ICONS.queue, badge: pending, hint: shortcutLabel("events") },
     { key: "sessions", label: "Histórico", icon: ICONS.sessions },
+    {
+      key: "bees",
+      label: "Worker bee",
+      icon: ICONS.bees,
+      badge: beeWaiting.permissions.length + beeWaiting.questions.length,
+    },
     // Raw hook traffic, only for diagnosing the app; switched on under Sobre.
     ...(showEvents ? [{ key: "events" as const, label: "Eventos", icon: ICONS.events }] : []),
     ...officialTabs.map((p) => ({
@@ -173,6 +182,7 @@ export function SidePanel() {
           <ColumnResizer column="sidebar" />
           <header className="sidebar-header">
             <h1>{currentTab?.label}</h1>
+            {current === "bees" && <NewBeeButton />}
             <button className="icon-btn" title={`Recolher (${shortcutLabel("sidebar")})`} onClick={togglePanel}>
               «
             </button>
@@ -182,6 +192,11 @@ export function SidePanel() {
           {current === "queue" && (
             <div className="panel-body">
               <PermissionQueue />
+            </div>
+          )}
+          {current === "bees" && (
+            <div className="panel-body">
+              <BeePanel />
             </div>
           )}
           {current === "sessions" && (

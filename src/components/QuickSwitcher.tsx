@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../lib/store";
-import { STATE_LABEL, type Tab } from "../lib/types";
+import { STATE_LABEL, isBeeTab, type Tab } from "../lib/types";
 
 interface Entry {
   tab: Tab;
@@ -22,7 +22,7 @@ export function QuickSwitcher({ onClose }: { onClose: () => void }) {
 
   const entries = useMemo<Entry[]>(
     () =>
-      tabs.map((tab) => {
+      tabs.filter((t) => !isBeeTab(t)).map((tab) => {
         const group = groups.find((g) => g.id === tab.groupId);
         const folder = tab.cwd ?? "";
         const branch = gitByTab[tab.id]?.branch ?? null;

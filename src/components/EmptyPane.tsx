@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { defaultGroupId, openSession, openSessionInGroup, sessionFromDrag, useStore } from "../lib/store";
-import { paneCount, paneRect } from "../lib/types";
+import { isBeeTab, paneCount, paneRect } from "../lib/types";
 import { carriesSession, carriesTab } from "../lib/termExtras";
 
 /** Placeholder shown in a pane with no terminal, with its own opener. */
@@ -26,7 +26,9 @@ export function EmptyPane({ index }: { index: number }) {
 
   const shown = new Set(panes.slice(0, paneCount(splitMode)).filter(Boolean) as string[]);
   const hiddenGroups = new Set(groups.filter((g) => g.hidden).map((g) => g.id));
-  const available = tabs.filter((t) => !shown.has(t.id) && !hiddenGroups.has(t.groupId) && !detached.includes(t.id));
+  const available = tabs.filter(
+    (t) => !shown.has(t.id) && !hiddenGroups.has(t.groupId) && !detached.includes(t.id) && !isBeeTab(t),
+  );
 
   const startNew = () => {
     setOpen(false);

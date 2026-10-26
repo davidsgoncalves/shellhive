@@ -1,3 +1,4 @@
+mod bees;
 mod connections;
 mod db;
 mod errors;
@@ -70,6 +71,9 @@ pub fn run() {
             db::metrics_summary,
             git::git_info,
             connections::connections_check,
+            bees::bee_runs_get,
+            bees::bee_runs_set,
+            sessions::session_last_reply,
             connections::mcp_status,
             connections::git_origin,
             connections::git_origins_in,

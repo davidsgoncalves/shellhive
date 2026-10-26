@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { onScreen, useStore } from "../lib/store";
 import { describeTool, looksDestructive } from "../lib/describe";
 import { describeRule, ruleFor } from "../lib/permRules";
-import type { PermissionDecision, PermissionRequest, QuestionItem } from "../lib/types";
+import { isBeeTab, type PermissionDecision, type PermissionRequest, type QuestionItem } from "../lib/types";
 import { CommandCard } from "./CommandCard";
 import { PluginApprovals, pendingApprovals } from "./PluginApprovals";
 
@@ -23,7 +23,16 @@ function Countdown({ req }: { req: PermissionRequest }) {
   );
 }
 
-export function PermissionCard({ req, overlay = false }: { req: PermissionRequest; overlay?: boolean }) {
+export function PermissionCard({
+  req,
+  overlay = false,
+  onOpen,
+}: {
+  req: PermissionRequest;
+  overlay?: boolean;
+  /** Replaces going to the tab, for a tab that is not in the lists. */
+  onOpen?: () => void;
+}) {
   const { tabs, groups, activateTab, dropPermission, addGroupRule } = useStore();
   const [sent, setSent] = useState<PermissionDecision | null>(null);
   const tab = tabs.find((t) => t.id === req.tab_id);
@@ -50,7 +59,7 @@ export function PermissionCard({ req, overlay = false }: { req: PermissionReques
         {summary}
       </code>
       <div className="perm-meta">
-        <button className="link" onClick={() => tab && activateTab(tab.id)} title="Ir para a aba">
+        <button className="link" onClick={() => (onOpen ? onOpen() : tab && activateTab(tab.id))} title="Ir para a aba">
           {tab?.title ?? "aba desconhecida"}
         </button>
         {req.payload.cwd && <span className="muted">{req.payload.cwd.split("/").slice(-2).join("/")}</span>}
@@ -93,7 +102,7 @@ export function PermissionCard({ req, overlay = false }: { req: PermissionReques
  * A question is shown for context and to jump to its tab. Claude Code draws its
  * own picker in the terminal, so the answer is given there.
  */
-function QuestionCard({ item }: { item: QuestionItem }) {
+export function QuestionCard({ item, onOpen }: { item: QuestionItem; onOpen?: () => void }) {
   const { tabs, activateTab } = useStore();
   const tab = tabs.find((t) => t.id === item.tab_id);
   return (
@@ -117,7 +126,7 @@ function QuestionCard({ item }: { item: QuestionItem }) {
         </div>
       ))}
       <div className="perm-actions">
-        <button className="allow" onClick={() => tab && activateTab(tab.id)}>
+        <button className="allow" onClick={() => (onOpen ? onOpen() : tab && activateTab(tab.id))}>
           Responder em {tab?.title ?? "outra aba"}
         </button>
       </div>
@@ -131,7 +140,9 @@ function QuestionCard({ item }: { item: QuestionItem }) {
  */
 export function useQueued() {
   const s = useStore();
-  const away = (tabId: string | null | undefined) => !onScreen(s, tabId);
+  // A bee's requests wait in the Worker bee panel instead.
+  const bee = new Set(s.tabs.filter(isBeeTab).map((t) => t.id));
+  const away = (tabId: string | null | undefined) => !onScreen(s, tabId) && !bee.has(tabId ?? "");
   return {
     permissions: s.permissions.filter((p) => away(p.tab_id)),
     questions: s.questions.filter((q) => away(q.tab_id)),

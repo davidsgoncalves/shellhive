@@ -15,6 +15,8 @@ import {
   UNGROUPED_NAME,
   type Folder,
   type Repo,
+  type Bee,
+  BEE_GROUP_ID,
   type GitInfo,
   type Subagent,
   type CommandSuggestion,
@@ -94,7 +96,9 @@ export type Modal =
   | { kind: "settings"; tab?: SettingsTab }
   | { kind: "newGroup" }
   | { kind: "switcher" }
-  | { kind: "pickFolder"; groupId: string };
+  | { kind: "pickFolder"; groupId: string }
+  /** Creates a bee, or edits the one given. */
+  | { kind: "bee"; beeId?: string };
 
 /** A plugin's band on one terminal. */
 export interface PluginBand {
@@ -137,6 +141,7 @@ interface Store {
   repos: Repo[];
   /** Repositories removed by hand, which the scan does not bring back. */
   dismissedRepos: string[];
+  bees: Bee[];
   /** Which dialog is open, if any. */
   modal: Modal;
   /** Open group context menu, with the cursor position that opened it. */
@@ -231,7 +236,7 @@ interface Store {
 
   addTab: (
     groupId: string,
-    opts?: { cwd?: string | null; claudeSessionId?: string; title?: string; customTitle?: boolean },
+    opts?: { cwd?: string | null; claudeSessionId?: string; title?: string; customTitle?: boolean; background?: boolean },
   ) => string;
   closeTab: (id: string) => void;
   /** Frees the pane showing a tab; the tab and its shell keep running in the list. */
@@ -271,6 +276,9 @@ interface Store {
   /** Sets a repository's folder, adding it if new. */
   setRepo: (repo: Repo) => void;
   removeRepo: (slug: string) => void;
+  addBee: (bee: Bee) => void;
+  updateBee: (id: string, patch: Partial<Bee>) => void;
+  removeBee: (id: string) => void;
   openModal: (m: Modal) => void;
   setLayout: (l: Layout) => void;
   setBarPosition: (p: BarPosition) => void;
@@ -338,6 +346,7 @@ export const useStore = create<Store>()(
       folders: [],
       repos: [],
       dismissedRepos: [],
+      bees: [],
       defaultFolderId: null,
       modal: null,
       groupMenu: null,
@@ -461,6 +470,11 @@ export const useStore = create<Store>()(
           transcriptPath: null,
           claudeTitle: null,
         };
+        // A background tab runs without taking a pane or the focus.
+        if (opts.background) {
+          set((s) => ({ tabs: [...s.tabs, tab] }));
+          return id;
+        }
         set((s) => {
           const panes = [...s.panes];
           // An empty pane takes the new tab before the focused one is replaced.
@@ -695,6 +709,9 @@ export const useStore = create<Store>()(
             : [...s.repos, repo].sort((a, b) => a.slug.localeCompare(b.slug)),
           dismissedRepos: repo.manual ? s.dismissedRepos.filter((d) => d !== repo.slug) : s.dismissedRepos,
         })),
+      addBee: (bee) => set((s) => ({ bees: [...s.bees, bee] })),
+      updateBee: (id, patch) => set((s) => ({ bees: s.bees.map((b) => (b.id === id ? { ...b, ...patch } : b)) })),
+      removeBee: (id) => set((s) => ({ bees: s.bees.filter((b) => b.id !== id) })),
       removeRepo: (slug) =>
         set((s) => ({
           repos: s.repos.filter((r) => r.slug !== slug),
@@ -918,7 +935,10 @@ export const useStore = create<Store>()(
       // Ptys do not survive a restart, so every tab comes back dormant.
       partialize: (s) => ({
         groups: s.groups,
-        tabs: s.tabs.map((t) => ({ ...t, state: "dormant" as TabState, pendingMessage: null })),
+        // A bee's run ends with the app; its tab is not brought back.
+        tabs: s.tabs
+          .filter((t) => t.groupId !== BEE_GROUP_ID)
+          .map((t) => ({ ...t, state: "dormant" as TabState, pendingMessage: null })),
         activeTabId: s.activeTabId,
         panelOpen: s.panelOpen,
         panelTab: s.panelTab,
@@ -928,6 +948,7 @@ export const useStore = create<Store>()(
         folders: s.folders,
         repos: s.repos,
         dismissedRepos: s.dismissedRepos,
+        bees: s.bees,
         defaultFolderId: s.defaultFolderId,
         layout: s.layout,
         barPosition: s.barPosition,

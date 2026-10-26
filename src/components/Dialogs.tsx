@@ -11,6 +11,7 @@ import { shortcutLabel, withShortcuts } from "../lib/shortcuts";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useStore, type SettingsTab } from "../lib/store";
 import { ConnectionsTab, ReposTab } from "./WorkSettings";
+import { BeeDialog } from "./WorkerBee";
 import { DEFAULT_FONT_SIZE, THEMES, type ThemeId } from "../lib/theme";
 import { Modal } from "./Modal";
 import { AddFolder, FolderChoice } from "./FolderFields";
@@ -938,5 +939,6 @@ export function Dialogs() {
   if (modal.kind === "settings") return <SettingsDialog initialTab={modal.tab} onClose={close} />;
   if (modal.kind === "newGroup") return <NewGroupDialog onClose={close} />;
   if (modal.kind === "switcher") return <QuickSwitcher onClose={close} />;
+  if (modal.kind === "bee") return <BeeDialog key={modal.beeId ?? "new"} beeId={modal.beeId} onClose={close} />;
   return <PickFolderDialog groupId={modal.groupId} onClose={close} />;
 }

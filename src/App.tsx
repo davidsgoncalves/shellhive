@@ -28,6 +28,7 @@ import { CommandCard, typeCommand } from "./components/CommandCard";
 import { PermissionCard } from "./components/PermissionQueue";
 import { scanRepos } from "./lib/repos";
 import { checkConnections } from "./lib/connections";
+import { finishBeeRun, startBeeScheduler, useBeeRuns } from "./lib/bees";
 import { applyLook, shareLook } from "./lib/theme";
 import { defaultGroupId, duplicateSession, ensureUngrouped, onScreen, openSession, openSessionInGroup, useStore } from "./lib/store";
 import { tabPatchFor } from "./lib/hookState";
@@ -63,6 +64,7 @@ import { actionOf, tabNumberOf } from "./lib/shortcuts";
 import { syncTabTitle } from "./lib/titles";
 import {
   WATCHDOG_MINUTES,
+  isBeeTab,
   paneCount,
   paneRect,
   type HookEvent,
@@ -145,7 +147,11 @@ function useBackendBridge() {
         store().dropQuestion({ tabId: tab.id });
       }
       if (patch.state === "waiting" && tab.state === "working") {
-        void notify("Sessão terminou", patch.title ?? tab.title);
+        if (isBeeTab(tab) || useBeeRuns.getState().runs.some((r) => r.tabId === tab.id && r.status === "running")) {
+          void finishBeeRun(tab.id);
+        } else {
+          void notify("Sessão terminou", patch.title ?? tab.title);
+        }
       }
       trackQuestions(e, tab.id);
       // A /rename inside Claude lands in the transcript; pick it up on the
@@ -171,7 +177,7 @@ function useBackendBridge() {
         pendingMessage: `${req.payload.tool_name ?? "ferramenta"}: ${summary}`,
       });
       void notify(
-        `Permissão: ${req.payload.tool_name ?? "ferramenta"}`,
+        `${tab && isBeeTab(tab) ? "Abelha pede permissão" : "Permissão"}: ${req.payload.tool_name ?? "ferramenta"}`,
         `${tab?.title ?? "sessão"} · ${summary}`,
         !onScreen(store(), req.tab_id),
       );
@@ -245,7 +251,7 @@ function useShortcuts() {
       const number = tabNumberOf(e);
       if (!action && number === null) return;
       const s = useStore.getState();
-      const live = s.tabs.filter((t) => t.state !== "dormant");
+      const live = s.tabs.filter((t) => t.state !== "dormant" && !isBeeTab(t));
       const idx = live.findIndex((t) => t.id === s.activeTabId);
       e.preventDefault();
 
@@ -643,6 +649,7 @@ function useWorkSetup() {
   useEffect(() => {
     void scanRepos();
     void checkConnections();
+    return startBeeScheduler();
   }, []);
 }
 

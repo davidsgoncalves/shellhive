@@ -348,6 +348,60 @@ button.ghost.auto { width: auto; }
 .folder-name { font-size: 12px; font-weight: 600; flex-shrink: 0; }
 .folder-manage li button.link { flex-shrink: 0; }
 
+/* ---------- worker bee ---------- */
+.bee-new { margin-left: auto; margin-right: 4px; padding: 3px 8px; font-size: 11px; }
+.bee-panel { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 10px 12px; }
+.bee-panel h4 { margin: 0 0 6px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.bee-waiting .perm-list { padding: 0; overflow: visible; }
+.bee-empty { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.bee-empty .ghost { width: auto; }
+.bee-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.bee-card {
+  display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--bg);
+}
+.bee-card.off .bee-name, .bee-card.off .bee-meta { opacity: .55; }
+.bee-head { display: flex; align-items: center; gap: 8px; }
+.bee-toggle { display: flex; align-items: center; cursor: pointer; }
+.bee-name { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bee-meta { font-size: 11px; color: var(--muted); }
+.bee-run { align-self: flex-start; width: auto; padding: 3px 10px; font-size: 11px; }
+.bee-runs { list-style: none; margin: 2px 0 0; padding: 6px 0 0; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
+.bee-run-row .row { display: flex; align-items: center; gap: 6px; font-size: 11px; }
+.bee-run-row time { color: var(--muted); font-variant-numeric: tabular-nums; }
+.bee-run-row .bee-run-status { flex: 1; }
+.bee-run-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--c-waiting); flex-shrink: 0; }
+.bee-run-row.running .bee-run-dot { background: var(--c-working, var(--accent)); animation: pulse 1.4s ease-in-out infinite; }
+.bee-run-row.error .bee-run-dot { background: var(--danger); }
+.bee-run-summary {
+  margin: 3px 0 0 13px; font-size: 11px; color: var(--muted); cursor: pointer; white-space: pre-wrap;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.bee-run-summary.open { display: block; cursor: default; user-select: text; }
+.bee-starts { display: flex; flex-direction: column; gap: 8px; }
+.bee-start {
+  display: flex; flex-direction: column; gap: 4px; text-align: left; padding: 12px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--bg); color: var(--fg); cursor: pointer; font: inherit;
+}
+.bee-start:hover:not(:disabled) { border-color: var(--accent); }
+.bee-start:disabled { opacity: .5; cursor: default; }
+.bee-start strong { font-size: 13px; }
+.bee-start span { font-size: 12px; color: var(--muted); }
+.bee-start em { font-size: 11px; color: var(--c-permission); font-style: normal; }
+.bee-textarea {
+  background: var(--bg); border: 1px solid var(--border); border-radius: 5px; color: var(--fg);
+  font: inherit; font-size: 12px; padding: 7px 8px; outline: none; resize: vertical;
+}
+.bee-textarea:focus { border-color: var(--accent); }
+.bee-repos { list-style: none; margin: 0; padding: 4px; max-height: 160px; overflow-y: auto; border: 1px solid var(--border); border-radius: 5px; }
+.bee-repos label { display: flex; align-items: center; gap: 6px; padding: 3px 4px; font-size: 12px; cursor: pointer; }
+.bee-repos .muted { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bee-select, .bee-time {
+  align-self: flex-start; background: var(--bg); border: 1px solid var(--border); border-radius: 5px;
+  color: var(--fg); font: inherit; font-size: 12px; padding: 5px 6px;
+}
+.modal-footer .bee-delete { margin-right: auto; }
+
 /* Settings › Conexões */
 .connections-head { align-items: center; justify-content: space-between; }
 .connections-head .ghost { width: auto; }

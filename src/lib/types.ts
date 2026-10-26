@@ -42,6 +42,54 @@ export interface PermissionRule {
 
 /** Catch-all group, so a session never needs a group created first. */
 export const UNGROUPED_ID = "ungrouped";
+/**
+ * Group of the tabs worker bees run in. No group has this id, so the lists
+ * that go by group never show them.
+ */
+export const BEE_GROUP_ID = "worker-bee";
+
+/** True for a tab a worker bee runs in, kept out of sight. */
+export const isBeeTab = (t: { groupId: string }) => t.groupId === BEE_GROUP_ID;
+
+export type BeeTrigger =
+  | { kind: "manual" }
+  | { kind: "interval"; minutes: number }
+  /** Days are 0 (Sunday) to 6; time is "HH:MM". */
+  | { kind: "schedule"; days: number[]; time: string };
+
+/** A routine Claude runs in the background, in a hidden tab. */
+export interface Bee {
+  id: string;
+  name: string;
+  /** "free" runs the dev's prompt as is. */
+  template: "free" | "review";
+  /** The prompt of a free bee, or the dev's additions to a template. */
+  instructions: string;
+  /** Repository slugs, from the Repositórios list. */
+  repos: string[];
+  trigger: BeeTrigger;
+  /** What a run missed while the app was closed does on launch. */
+  missed: "run" | "skip";
+  enabled: boolean;
+  createdAt: number;
+  /** Start of the last run, or of the last missed one skipped. */
+  lastRunAt: number | null;
+}
+
+export interface BeeRun {
+  id: string;
+  beeId: string;
+  /** The hidden tab while it runs. */
+  tabId: string | null;
+  sessionId: string | null;
+  startedAt: number;
+  endedAt: number | null;
+  status: "running" | "done" | "error";
+  /** Claude's last reply, or what went wrong. */
+  summary: string | null;
+  /** Opened in a normal tab while running, so it stays open at the end. */
+  revealed?: boolean;
+}
 export const UNGROUPED_NAME = "Sem grupo";
 export const UNGROUPED_COLOR = "#6b7280";
 
