@@ -1,15 +1,16 @@
 import { useEffect } from "react";
 import { useStore } from "../../src/lib/store";
 import { useDiagrams } from "./state";
-import { openDiagram } from "./window";
+import { useShown } from "./shown";
 
 const when = (at: number) =>
   new Date(at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 
-/** Every diagram the agent made, in the right column; each opens in its window. */
+/** Every diagram the agent made; each opens in place of the active tab's terminal. */
 export function DiagramList() {
   const { diagrams, loaded, load, remove } = useDiagrams();
   const tabs = useStore((s) => s.tabs);
+  const activeTabId = useStore((s) => s.activeTabId);
   useEffect(() => void load(), [load]);
 
   if (!loaded) return <p className="hint pad">Carregando…</p>;
@@ -19,7 +20,11 @@ export function DiagramList() {
     <ul className="diagram-list">
       {diagrams.map((d) => (
         <li key={d.id}>
-          <button className="diagram-item" onClick={() => void openDiagram(d)} title="Abrir numa janela">
+          <button
+            className="diagram-item"
+            onClick={() => activeTabId && useShown.getState().show(activeTabId, d)}
+            title="Abrir no lugar do terminal"
+          >
             <span className="diagram-item-title">{d.title}</span>
             <span className="diagram-item-meta">
               {tabs.find((t) => t.id === d.tabId)?.title ?? d.tabTitle ?? "aba fechada"} · {when(d.at)}
