@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useStore } from "../lib/store";
-import { PermissionQueue } from "./PermissionQueue";
-import { pendingApprovals } from "./PluginApprovals";
+import { PermissionQueue, useQueued } from "./PermissionQueue";
 import { PluginSidePanel } from "./LocalPluginPanel";
 import { SessionsBrowser } from "./SessionsBrowser";
 import { EventsList } from "./EventsPanel";
@@ -52,10 +51,10 @@ function initials(title: string): string {
  * open icon closes the panel; icons are dragged to reorder them.
  */
 export function SidePanel() {
-  const { panelOpen, togglePanel, permissions, questions, commands, showEvents, groupTint } = useStore();
+  const { panelOpen, togglePanel, showEvents, groupTint } = useStore();
   const layout = useStore((s) => s.layout);
-  const approvals = useStore((s) => pendingApprovals(s.localPlugins, s.deferredApprovals).length);
-  const pending = permissions.length + questions.length + commands.length + approvals;
+  const queued = useQueued();
+  const pending = queued.permissions.length + queued.questions.length + queued.commands.length + queued.approvals;
   const localPlugins = useStore((s) => s.localPlugins);
   const enabledPlugins = useStore((s) => s.enabledPlugins);
   const sidePlugins = localPlugins.filter(

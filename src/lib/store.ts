@@ -68,6 +68,13 @@ function freePane(s: Pick<Store, "panes" | "tabs" | "splitMode">): number | null
   return null;
 }
 
+/** Whether a tab's terminal is in a visible pane of the main window. */
+export function onScreen(s: Pick<Store, "panes" | "splitMode" | "detached">, id: string | null | undefined): boolean {
+  if (!id || s.detached.includes(id)) return false;
+  const at = s.panes.indexOf(id);
+  return at !== -1 && at < paneCount(s.splitMode);
+}
+
 function rememberClosed(list: ClosedTab[], tabs: Tab[]): ClosedTab[] {
   const added = tabs.map(({ groupId, cwd, claudeSessionId, title, customTitle }) => ({
     groupId,

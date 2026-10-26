@@ -25,8 +25,9 @@ import { TerminalSearch } from "./components/TerminalSearch";
 import { carriesFiles, pasteDroppedFiles } from "./lib/termExtras";
 import { startLagTracker } from "./lib/perfDiag";
 import { CommandCard, typeCommand } from "./components/CommandCard";
+import { PermissionCard } from "./components/PermissionQueue";
 import { applyLook, shareLook } from "./lib/theme";
-import { defaultGroupId, duplicateSession, ensureUngrouped, openSession, openSessionInGroup, useStore } from "./lib/store";
+import { defaultGroupId, duplicateSession, ensureUngrouped, onScreen, openSession, openSessionInGroup, useStore } from "./lib/store";
 import { tabPatchFor } from "./lib/hookState";
 import { decodeBase64, serializers, terminals } from "./lib/terminals";
 import {
@@ -98,7 +99,7 @@ function trackQuestions(e: HookEvent, tabId: string): void {
       questions: input.questions,
     });
     const first = input.questions[0]?.question ?? "Pergunta";
-    void notify("Claude perguntou", first);
+    void notify("Claude perguntou", first, !onScreen(store, tabId));
     return;
   }
   if (name === "PostToolUse") {
@@ -167,7 +168,11 @@ function useBackendBridge() {
         state: "permission",
         pendingMessage: `${req.payload.tool_name ?? "ferramenta"}: ${summary}`,
       });
-      void notify(`Permissão: ${req.payload.tool_name ?? "ferramenta"}`, `${tab?.title ?? "sessão"} · ${summary}`);
+      void notify(
+        `Permissão: ${req.payload.tool_name ?? "ferramenta"}`,
+        `${tab?.title ?? "sessão"} · ${summary}`,
+        !onScreen(store(), req.tab_id),
+      );
     }).then((u) => unlisteners.push(u));
 
     // `:<name>` typed in a tab, stopped before Claude by the prompt hook.
@@ -180,7 +185,11 @@ function useBackendBridge() {
     listen<CommandSuggestion>("command-suggestion", (ev) => {
       store().addCommand(ev.payload);
       const tab = store().tabs.find((t) => t.id === ev.payload.tab_id);
-      void notify("Comando para você rodar", `${tab?.title ?? "sessão"} · ${ev.payload.command}`);
+      void notify(
+        "Comando para você rodar",
+        `${tab?.title ?? "sessão"} · ${ev.payload.command}`,
+        !onScreen(store(), ev.payload.tab_id),
+      );
     }).then((u) => unlisteners.push(u));
 
     listen<PermissionResolved>("permission-resolved", (ev) => {
@@ -682,7 +691,7 @@ function App() {
   const barPosition = useStore((s) => s.barPosition);
   const groups = useStore((s) => s.groups);
   const borderWidth = useStore((s) => s.terminalBorder);
-  const { splitMode, panes, focusedPane, focusPane, detached, searchTabId, openSearch, commands, questions, enabledPlugins } =
+  const { splitMode, panes, focusedPane, focusPane, detached, searchTabId, openSearch, permissions, commands, questions, enabledPlugins } =
     useStore();
   const localPlugins = useStore((s) => s.localPlugins);
   const slots = paneCount(splitMode);
@@ -815,10 +824,14 @@ function App() {
             )}
             {Array.from({ length: slots }, (_, slot) => {
               const tabId = panes[slot];
+              const asks = permissions.filter((p) => p.tab_id && p.tab_id === tabId);
               const here = commands.filter((c) => c.tab_id && c.tab_id === tabId);
-              if (!tabId || here.length === 0 || detached.includes(tabId)) return null;
+              if (!tabId || asks.length + here.length === 0 || detached.includes(tabId)) return null;
               return (
                 <ul key={`cmd-${slot}`} className="pane-commands" style={paneRect(splitMode, slot)}>
+                  {asks.map((p) => (
+                    <PermissionCard key={p.id} req={p} overlay />
+                  ))}
                   {here.map((c) => (
                     <CommandCard key={c.id} item={c} overlay />
                   ))}

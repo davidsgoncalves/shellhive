@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { useStore } from "../lib/store";
+import { onScreen, useStore } from "../lib/store";
 import { describeTool, looksDestructive } from "../lib/describe";
 import { describeRule, ruleFor } from "../lib/permRules";
 import type { PermissionDecision, PermissionRequest, QuestionItem } from "../lib/types";
@@ -23,7 +23,7 @@ function Countdown({ req }: { req: PermissionRequest }) {
   );
 }
 
-function Item({ req }: { req: PermissionRequest }) {
+export function PermissionCard({ req, overlay = false }: { req: PermissionRequest; overlay?: boolean }) {
   const { tabs, groups, activateTab, dropPermission, addGroupRule } = useStore();
   const [sent, setSent] = useState<PermissionDecision | null>(null);
   const tab = tabs.find((t) => t.id === req.tab_id);
@@ -40,7 +40,7 @@ function Item({ req }: { req: PermissionRequest }) {
   };
 
   return (
-    <li className={`perm-item ${risky ? "risky" : ""} ${sent ? "sent" : ""}`}>
+    <li className={`perm-item ${risky ? "risky" : ""} ${sent ? "sent" : ""} ${overlay ? "overlay" : ""}`}>
       <div className="perm-head">
         <span className="perm-tool">{tool ?? "ferramenta"}</span>
         {risky && <span className="risk-tag" title="Padrão destrutivo detectado">risco</span>}
@@ -125,11 +125,23 @@ function QuestionCard({ item }: { item: QuestionItem }) {
   );
 }
 
+/**
+ * What waits in the Fila: requests from tabs off screen. A tab on screen shows
+ * its own over its terminal, and a question there is already in the terminal.
+ */
+export function useQueued() {
+  const s = useStore();
+  const away = (tabId: string | null | undefined) => !onScreen(s, tabId);
+  return {
+    permissions: s.permissions.filter((p) => away(p.tab_id)),
+    questions: s.questions.filter((q) => away(q.tab_id)),
+    commands: s.commands.filter((c) => away(c.tab_id)),
+    approvals: pendingApprovals(s.localPlugins, s.deferredApprovals).length,
+  };
+}
+
 export function PermissionQueue() {
-  const permissions = useStore((s) => s.permissions);
-  const questions = useStore((s) => s.questions);
-  const commands = useStore((s) => s.commands);
-  const approvals = useStore((s) => pendingApprovals(s.localPlugins, s.deferredApprovals).length);
+  const { permissions, questions, commands, approvals } = useQueued();
   if (permissions.length === 0 && questions.length === 0 && commands.length === 0 && approvals === 0) {
     return <p className="hint pad">Nada pendente.</p>;
   }
@@ -137,7 +149,7 @@ export function PermissionQueue() {
     <ul className="perm-list">
       <PluginApprovals />
       {permissions.map((p) => (
-        <Item key={p.id} req={p} />
+        <PermissionCard key={p.id} req={p} />
       ))}
       {questions.map((q) => (
         <QuestionCard key={q.id} item={q} />
