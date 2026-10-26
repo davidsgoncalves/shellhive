@@ -74,6 +74,7 @@ pub fn run() {
             connections::connections_check,
             bees::bee_runs_get,
             bees::bee_runs_set,
+            mcp::bee_creator_tabs,
             review::review_candidates,
             review::review_findings_path,
             review::review_publish,

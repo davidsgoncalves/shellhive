@@ -236,7 +236,14 @@ interface Store {
 
   addTab: (
     groupId: string,
-    opts?: { cwd?: string | null; claudeSessionId?: string; title?: string; customTitle?: boolean; background?: boolean },
+    opts?: {
+      cwd?: string | null;
+      claudeSessionId?: string;
+      title?: string;
+      customTitle?: boolean;
+      background?: boolean;
+      beeCreator?: boolean;
+    },
   ) => string;
   closeTab: (id: string) => void;
   /** Frees the pane showing a tab; the tab and its shell keep running in the list. */
@@ -469,6 +476,7 @@ export const useStore = create<Store>()(
           pendingMessage: null,
           transcriptPath: null,
           claudeTitle: null,
+          ...(opts.beeCreator ? { beeCreator: true } : {}),
         };
         // A background tab runs without taking a pane or the focus.
         if (opts.background) {

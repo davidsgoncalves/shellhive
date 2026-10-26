@@ -15,6 +15,8 @@ export interface Tab {
   transcriptPath: string | null;
   /** Last `/rename` value seen in the transcript, to detect a new rename. */
   claudeTitle: string | null;
+  /** Opened to create worker bees with Claude; only it gets the bee tools. */
+  beeCreator?: boolean;
 }
 
 export interface Group {

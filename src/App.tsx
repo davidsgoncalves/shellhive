@@ -29,6 +29,7 @@ import { PermissionCard } from "./components/PermissionQueue";
 import { scanRepos } from "./lib/repos";
 import { checkConnections } from "./lib/connections";
 import { finishBeeRun, startBeeScheduler, useBeeRuns } from "./lib/bees";
+import { callBeeTool, syncBeeCreators } from "./lib/beeCreator";
 import { applyLook, shareLook } from "./lib/theme";
 import { defaultGroupId, duplicateSession, ensureUngrouped, onScreen, openSession, openSessionInGroup, useStore } from "./lib/store";
 import { tabPatchFor } from "./lib/hookState";
@@ -499,6 +500,11 @@ function usePluginToolCalls() {
       async ({ payload }) => {
         const reply = (text: string, isError: boolean) =>
           invoke("plugin_tool_result", { callId: payload.call_id, text, isError }).catch(console.error);
+        // The bee tools belong to the core, not to a plugin.
+        if (payload.plugin === "worker-bee") {
+          const out = await callBeeTool(payload.tool, payload.args ?? {}).catch((err) => ({ text: String(err), isError: true }));
+          return void reply(out.text, !!out.isError);
+        }
         const on = useStore.getState().enabledPlugins.includes(payload.plugin);
         const handler = on ? PLUGINS.find((x) => x.manifest.id === payload.plugin)?.tools?.[payload.tool] : undefined;
         if (!handler) return void reply(`O plugin ${payload.plugin} não trata ${payload.tool}.`, true);
@@ -649,6 +655,7 @@ function useWorkSetup() {
   useEffect(() => {
     void scanRepos();
     void checkConnections();
+    syncBeeCreators();
     return startBeeScheduler();
   }, []);
 }

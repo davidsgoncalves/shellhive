@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useStore } from "../lib/store";
 import { DAY_NAMES, describeTrigger, openBeeRun, runBee, setDecision, useBeeRuns } from "../lib/bees";
+import { openBeeCreator } from "../lib/beeCreator";
 import { isBeeTab, type Bee, type BeeRun, type BeeTrigger, type ReviewPr } from "../lib/types";
 import { Modal } from "./Modal";
 import { PermissionCard, QuestionCard } from "./PermissionQueue";
@@ -250,7 +251,7 @@ export function BeeDialog({ beeId, onClose }: { beeId?: string; onClose: () => v
   };
 
   if (step === "start") {
-    const options: Array<{ id: Start; title: string; text: string; soon?: string }> = [
+    const options: Array<{ id: Start; title: string; text: string }> = [
       {
         id: "template",
         title: "Com template",
@@ -261,7 +262,6 @@ export function BeeDialog({ beeId, onClose }: { beeId?: string; onClose: () => v
         id: "claude",
         title: "Com o Claude",
         text: "Você descreve o que quer numa sessão com o Claude, e ele monta a abelha para você conferir.",
-        soon: "Chega numa próxima beta.",
       },
     ];
     return (
@@ -272,17 +272,18 @@ export function BeeDialog({ beeId, onClose }: { beeId?: string; onClose: () => v
             <button
               key={o.id}
               className="bee-start"
-              disabled={!!o.soon}
-              title={o.soon}
               onClick={() => {
                 if (o.id === "template") return setStep("template");
+                if (o.id === "claude") {
+                  onClose();
+                  return openBeeCreator();
+                }
                 setTemplate("free");
                 setStep("config");
               }}
             >
               <strong>{o.title}</strong>
               <span>{o.text}</span>
-              {o.soon && <em>{o.soon}</em>}
             </button>
           ))}
         </div>
