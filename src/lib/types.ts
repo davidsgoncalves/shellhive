@@ -89,6 +89,27 @@ export interface BeeRun {
   summary: string | null;
   /** Opened in a normal tab while running, so it stays open at the end. */
   revealed?: boolean;
+  /** The pull requests a review bee's run looked at. */
+  review?: { prs: ReviewPr[] };
+}
+
+/** A pull request in a review run, and what came of it. */
+export interface ReviewPr {
+  repo: string;
+  number: number;
+  url: string;
+  title: string;
+  branch: string;
+  /** The commit reviewed. */
+  head: string;
+  /** The commit of the user's previous review, for a follow-up round. */
+  reviewedHead: string | null;
+  /** Set once published; "clean" means nothing was found and nothing published. */
+  verdict?: "REQUEST_CHANGES" | "COMMENT" | "clean" | "error";
+  comments?: number;
+  error?: string | null;
+  /** The user's call on a clean one; "stale" once the PR moved on. */
+  decision?: "approved" | "changes" | "stale";
 }
 export const UNGROUPED_NAME = "Sem grupo";
 export const UNGROUPED_COLOR = "#6b7280";

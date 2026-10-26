@@ -401,6 +401,9 @@ button.ghost.auto { width: auto; }
   color: var(--fg); font: inherit; font-size: 12px; padding: 5px 6px;
 }
 .modal-footer .bee-delete { margin-right: auto; }
+.perm-item.bee-clean { border-left-color: var(--c-waiting); display: flex; flex-direction: column; gap: 6px; }
+.bee-clean .muted { color: var(--muted); font-size: 11px; }
+.bee-clean .question-text, .bee-clean .hint { margin: 0; }
 
 /* Settings › Conexões */
 .connections-head { align-items: center; justify-content: space-between; }

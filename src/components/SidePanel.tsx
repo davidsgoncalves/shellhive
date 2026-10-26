@@ -84,7 +84,7 @@ export function SidePanel() {
       key: "bees",
       label: "Worker bee",
       icon: ICONS.bees,
-      badge: beeWaiting.permissions.length + beeWaiting.questions.length,
+      badge: beeWaiting.permissions.length + beeWaiting.questions.length + beeWaiting.clean.length,
     },
     // Raw hook traffic, only for diagnosing the app; switched on under Sobre.
     ...(showEvents ? [{ key: "events" as const, label: "Eventos", icon: ICONS.events }] : []),
