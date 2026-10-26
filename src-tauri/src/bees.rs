@@ -8,6 +8,16 @@ fn runs_path() -> Option<PathBuf> {
     Some(crate::paths::data_dir()?.join("bee-runs.json"))
 }
 
+/// The empty folder bees run in. From the home folder, Claude and the
+/// prompt's commands would read Desktop, Documents and Downloads, and macOS
+/// asks for each of them.
+#[tauri::command]
+pub fn bee_workdir() -> Result<String, String> {
+    let dir = crate::paths::data_dir().ok_or("no data dir")?.join("worker-bee");
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir.to_string_lossy().into_owned())
+}
+
 #[tauri::command]
 pub fn bee_runs_get() -> serde_json::Value {
     runs_path()

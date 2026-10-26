@@ -82,6 +82,8 @@ export interface BeeRun {
   /** The hidden tab while it runs. */
   tabId: string | null;
   sessionId: string | null;
+  /** Where it ran; runs from before the bees' own folder have none and ran in the home folder. */
+  cwd?: string;
   startedAt: number;
   endedAt: number | null;
   status: "running" | "done" | "error";
