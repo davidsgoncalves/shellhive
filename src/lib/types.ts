@@ -65,8 +65,10 @@ export interface Bee {
   name: string;
   /** "free" runs the dev's prompt as is. */
   template: "free" | "review";
-  /** The prompt of a free bee, or the dev's additions to a template. */
+  /** The bee's whole prompt, with {{variables}} the app fills on each run. */
   instructions: string;
+  /** The template it started from, if any. */
+  templateId?: string;
   /** Repository slugs, from the Repositórios list. */
   repos: string[];
   trigger: BeeTrigger;

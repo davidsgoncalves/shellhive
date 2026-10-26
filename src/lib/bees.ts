@@ -5,7 +5,8 @@ import { markPendingPrompt } from "./restored";
 import { notify } from "./notify";
 import type { Check } from "./connections";
 import { BEE_GROUP_ID, type Bee, type BeeRun, type BeeTrigger, type ReviewPr } from "./types";
-import { nextGroup, reviewPrompt, staleCleanPrs, toReviewPr, type Candidate } from "./reviewBee";
+import { nextGroup, prLines, staleCleanPrs, toReviewPr, type Candidate } from "./reviewBee";
+import { fillPrompt, repoLines, reviewPromptOf } from "./beeTemplates";
 
 interface Published {
   repo: string;
@@ -102,18 +103,21 @@ function dueAt(bee: Bee, now: number): number | null {
   return null;
 }
 
-/** The prompt a free bee's run starts with. */
-function promptFor(bee: Bee): string {
-  const repos = useStore.getState().repos.filter((r) => bee.repos.includes(r.slug));
-  const where = repos.length
-    ? `\n\nRepositórios desta abelha (repositório: pasta):\n${repos.map((r) => `- ${r.slug}: ${r.path}`).join("\n")}`
-    : "";
-  return (
-    `Você está rodando como a abelha "${bee.name}" do Worker bee do Shellhive, sem ninguém acompanhando o terminal.\n\n` +
-    `Tarefa:\n${bee.instructions.trim()}${where}\n\n` +
-    "Não faça perguntas: quando precisar decidir, escolha o caminho mais seguro e diga no fim o que escolheu. " +
-    "Termine com um resumo curto do que fez e do que ficou pendente."
-  );
+/** The prompt a bee's run starts with: its own text, with the variables filled. */
+function promptFor(bee: Bee, extra: Record<string, string> = {}): string {
+  const repos = useStore.getState().repos;
+  const vars = { nome: bee.name, repositorios: repoLines(bee, repos), ...extra };
+  if (bee.template === "review") return fillPrompt(reviewPromptOf(bee), vars);
+  // A bee written before prompts had variables gets the frame it ran with then.
+  if (!bee.instructions.includes("{{")) {
+    return (
+      `Você está rodando como a abelha "${bee.name}" do Worker bee do Shellhive, sem ninguém acompanhando o terminal.\n\n` +
+      `Tarefa:\n${bee.instructions.trim()}\n\nRepositórios desta abelha (repositório: pasta):\n${vars.repositorios}\n\n` +
+      "Não faça perguntas: quando precisar decidir, escolha o caminho mais seguro e diga no fim o que escolheu. " +
+      "Termine com um resumo curto do que fez e do que ficou pendente."
+    );
+  }
+  return fillPrompt(bee.instructions, vars);
 }
 
 /** Records a run that could not start, unless the last one failed the same way. */
@@ -152,7 +156,7 @@ export async function runBee(bee: Bee, opts: { manual?: boolean } = {}): Promise
     }
   }
   const repos = useStore.getState().repos;
-  let prompt = promptFor(bee);
+  let prompt = bee.template === "review" ? "" : promptFor(bee);
   let cwd = repos.find((r) => bee.repos.includes(r.slug))?.path ?? null;
   if (bee.template === "review") {
     note(bee.id, "Buscando PRs…");
@@ -181,7 +185,7 @@ export async function runBee(bee: Bee, opts: { manual?: boolean } = {}): Promise
     const prs = group.map(toReviewPr);
     const findings = await invoke<string>("review_findings_path", { runId: run.id });
     const worktrees = findings.replace(/bee-reviews\/[^/]+$/, `bee-worktrees/${run.id}`);
-    prompt = reviewPrompt(bee, prs, repos, findings, worktrees);
+    prompt = promptFor(bee, { prs: prLines(prs, repos), arquivo_achados: findings, pasta_worktrees: worktrees });
     cwd = repos.find((r) => r.slug === prs[0].repo)?.path ?? cwd;
     run.review = { prs };
   }

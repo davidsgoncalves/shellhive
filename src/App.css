@@ -390,7 +390,10 @@ button.ghost.auto { width: auto; }
 .bee-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
 .bee-facts ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; font-size: 12px; }
 .bee-facts .muted { color: var(--muted); font-size: 11px; }
-.bee-instructions { margin: 0; font-size: 12px; white-space: pre-wrap; color: var(--fg); }
+.bee-instructions {
+  margin: 0; font-family: var(--font-mono); font-size: 11px; white-space: pre-wrap; color: var(--fg);
+  max-height: 260px; overflow-y: auto; user-select: text;
+}
 .bee-runs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .bee-run-row { padding: 8px 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--panel); }
 .bee-run-row .row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
@@ -427,6 +430,8 @@ button.ghost.auto { width: auto; }
   font: inherit; font-size: 12px; padding: 7px 8px; outline: none; resize: vertical;
 }
 .bee-textarea:focus { border-color: var(--accent); }
+.bee-prompt { font-family: var(--font-mono); font-size: 11.5px; line-height: 1.5; }
+.bee-warn { color: var(--c-permission); }
 .bee-repos { list-style: none; margin: 0; padding: 4px; max-height: 220px; overflow-y: auto; border: 1px solid var(--border); border-radius: 5px; }
 .bee-repos label { display: flex; align-items: center; gap: 6px; padding: 3px 4px; font-size: 12px; cursor: pointer; }
 .bee-repos .muted { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

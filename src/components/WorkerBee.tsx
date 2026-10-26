@@ -4,6 +4,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { useStore } from "../lib/store";
 import { DAY_NAMES, describeTrigger, openBeeRun, runBee, setDecision, stopBeeRun, useBeeNotes, useBeeRuns } from "../lib/bees";
 import { openBeeCreator } from "../lib/beeCreator";
+import { BLANK_PROMPT, COMMON_VARIABLES, REVIEW_VARIABLES, TEMPLATES, reviewPromptOf, type BeeTemplate } from "../lib/beeTemplates";
 import { isBeeTab, type Bee, type BeeRun, type BeeTrigger, type ReviewPr } from "../lib/types";
 import { PermissionCard, QuestionCard } from "./PermissionQueue";
 
@@ -238,7 +239,9 @@ function BeeDetail({ bee, live }: { bee: Bee; live: boolean }) {
         <div>
           <h2>{bee.name}</h2>
           <p className="hint">
-            {bee.template === "review" ? "Review" : "Sem template"} · {describeTrigger(bee.trigger)}
+            {TEMPLATES.find((t) => t.id === (bee.templateId ?? (bee.template === "review" ? "review" : "")))?.name ??
+              "Sem template"}{" "}
+            · {describeTrigger(bee.trigger)}
             {bee.trigger.kind !== "manual" && ` · horário perdido: ${bee.missed === "run" ? "roda ao abrir" : "pula"}`}
           </p>
         </div>
@@ -276,8 +279,8 @@ function BeeDetail({ bee, live }: { bee: Bee; live: boolean }) {
             )}
           </div>
           <div>
-            <h4>{bee.template === "review" ? "Suas instruções" : "Prompt"}</h4>
-            <p className="bee-instructions">{bee.instructions || "Nenhuma; vale o método de revisão."}</p>
+            <h4>Prompt</h4>
+            <p className="bee-instructions">{bee.template === "review" ? reviewPromptOf(bee) : bee.instructions}</p>
           </div>
         </section>
         {beeNote && !running && <p className="hint">Última busca: {beeNote}</p>}
@@ -361,26 +364,42 @@ function BeeEditor({ beeId, onDone }: { beeId?: string; onDone: (id?: string) =>
   const editing = bees.find((b) => b.id === beeId);
   const [step, setStep] = useState<"start" | "template" | "config">(editing ? "config" : "start");
   const [template, setTemplate] = useState<Bee["template"]>(editing?.template ?? "free");
+  const [templateId, setTemplateId] = useState<string | undefined>(editing?.templateId);
   const [name, setName] = useState(editing?.name ?? "");
-  const [instructions, setInstructions] = useState(editing?.instructions ?? "");
+  // The whole prompt is the bee's, templates included; an old review bee shows the one it runs with.
+  const [instructions, setInstructions] = useState(
+    editing ? (editing.template === "review" ? reviewPromptOf(editing) : editing.instructions) : BLANK_PROMPT,
+  );
   const [picked, setPicked] = useState<string[]>(editing?.repos ?? []);
   const [filter, setFilter] = useState("");
   const [trigger, setTrigger] = useState<BeeTrigger>(editing?.trigger ?? { kind: "manual" });
   const [missed, setMissed] = useState<Bee["missed"]>(editing?.missed ?? "run");
 
   const review = template === "review";
-  // A review bee's instructions are optional additions; a free bee's prompt is the bee.
+  // A review run fills these in; without them it has nowhere to put its findings.
+  const missing = review ? REVIEW_VARIABLES.filter((v) => !instructions.includes(v)) : [];
+  const unfilled = /\[[^\]\n]{3,}\]/.test(instructions);
   const ready =
     name.trim() &&
-    (review ? picked.length > 0 : instructions.trim()) &&
+    instructions.trim() &&
+    missing.length === 0 &&
+    (!review || picked.length > 0) &&
     (trigger.kind !== "schedule" || trigger.days.length > 0);
   const save = () => {
     if (!ready) return;
-    const fields = { name: name.trim(), instructions: instructions.trim(), repos: picked, trigger, missed };
+    const fields = { name: name.trim(), instructions: instructions.trim(), repos: picked, trigger, missed, templateId };
     if (editing) return void (updateBee(editing.id, fields), onDone(editing.id));
     const id = crypto.randomUUID();
     addBee({ id, template, enabled: true, createdAt: Date.now(), lastRunAt: null, ...fields });
     onDone(id);
+  };
+  const pick = (t: BeeTemplate) => {
+    setTemplate(t.kind);
+    setTemplateId(t.id);
+    setName(t.name);
+    setTrigger(t.trigger);
+    setInstructions(t.prompt);
+    setStep("config");
   };
 
   if (step === "start") {
@@ -419,6 +438,8 @@ function BeeEditor({ beeId, onDone }: { beeId?: string; onDone: (id?: string) =>
                   return openBeeCreator();
                 }
                 setTemplate("free");
+                setTemplateId(undefined);
+                setInstructions(BLANK_PROMPT);
                 setStep("config");
               }}
             >
@@ -443,22 +464,13 @@ function BeeEditor({ beeId, onDone }: { beeId?: string; onDone: (id?: string) =>
         }
       >
         <div className="bee-starts">
-          <button
-            className="bee-start"
-            onClick={() => {
-              setTemplate("review");
-              if (!name) setName("Review");
-              setTrigger({ kind: "interval", minutes: 15 });
-              setStep("config");
-            }}
-          >
-            <strong>Review</strong>
-            <span>
-              Revisa os PRs que pedem a sua revisão, junta os PRs da mesma tarefa e publica só os problemas. Quando não acha
-              nada, avisa você para aprovar.
-            </span>
-            <em>Precisa de: GitHub (gh)</em>
-          </button>
+          {TEMPLATES.map((t) => (
+            <button key={t.id} className="bee-start" onClick={() => pick(t)}>
+              <strong>{t.name}</strong>
+              <span>{t.description}</span>
+              {t.needs && <em>Precisa de: {t.needs}</em>}
+            </button>
+          ))}
         </div>
       </Frame>
     );
@@ -474,7 +486,13 @@ function BeeEditor({ beeId, onDone }: { beeId?: string; onDone: (id?: string) =>
   return (
     <Frame
       title={editing ? `Editar ${editing.name}` : "Configure a abelha"}
-      step={editing ? undefined : review ? "Nova abelha · etapa 3 de 3 · template Review" : "Nova abelha · etapa 2 de 2"}
+      step={
+        editing
+          ? undefined
+          : templateId
+            ? `Nova abelha · etapa 3 de 3 · template ${TEMPLATES.find((t) => t.id === templateId)?.name ?? ""}`
+            : "Nova abelha · etapa 2 de 2"
+      }
       footer={
         <>
           {editing ? (
@@ -488,7 +506,7 @@ function BeeEditor({ beeId, onDone }: { beeId?: string; onDone: (id?: string) =>
               Excluir
             </button>
           ) : (
-            <button className="ghost auto bee-delete" onClick={() => setStep(review ? "template" : "start")}>
+            <button className="ghost auto bee-delete" onClick={() => setStep(templateId ? "template" : "start")}>
               Voltar
             </button>
           )}
@@ -506,18 +524,20 @@ function BeeEditor({ beeId, onDone }: { beeId?: string; onDone: (id?: string) =>
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Limpar worktrees" autoFocus />
       </label>
       <label className="field">
-        <span>{review ? "Suas instruções (opcional)" : "Prompt da abelha"}</span>
+        <span>Prompt da abelha</span>
         <textarea
-          className="bee-textarea"
-          rows={5}
+          className="bee-textarea bee-prompt"
+          rows={18}
+          spellCheck={false}
           value={instructions}
           onChange={(e) => setInstructions(e.target.value)}
-          placeholder={
-            review
-              ? "Como você revisa: o que olhar primeiro, o que ignorar. Entra junto do método de revisão."
-              : "O que o Claude deve fazer a cada execução, por exemplo: apague as worktrees de branches já mergeadas."
-          }
         />
+        <span className="hint">
+          Troque as partes entre [colchetes]. O app preenche a cada execução:{" "}
+          {[...COMMON_VARIABLES, ...(review ? REVIEW_VARIABLES : [])].join(", ")}.
+        </span>
+        {unfilled && <span className="hint bee-warn">Ainda há partes entre [colchetes] para trocar.</span>}
+        {missing.length > 0 && <span className="error">O prompt da abelha de review precisa de {missing.join(", ")}.</span>}
       </label>
       <div className="field">
         <span>Repositórios {picked.length > 0 && `· ${picked.length} escolhido(s)`}</span>

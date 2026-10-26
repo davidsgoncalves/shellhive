@@ -4,20 +4,22 @@ import { markPendingPrompt } from "./restored";
 import { describeTrigger, runBee } from "./bees";
 import type { ToolReply } from "./plugins";
 import type { Bee, BeeTrigger } from "./types";
+import { reviewPromptOf } from "./beeTemplates";
 
 /** The first message of a bee-creation session: what bees are and how to make one. */
 const GUIDE = `Esta é a sessão de criação de abelhas do Worker bee do Shellhive. Ajude o usuário a montar uma abelha e crie com a ferramenta create_bee.
 
-Uma abelha é uma rotina que o Shellhive roda numa sessão do Claude escondida, sem ninguém acompanhando:
-- Tipo "free": roda o prompt escrito em instructions, nos repositórios escolhidos. Exemplos: limpar worktrees de branches mergeadas, resumir os PRs abertos do time.
-- Tipo "review": revisa os PRs que pedem a revisão do usuário nos repositórios escolhidos, publica só os problemas e nunca aprova. Em instructions vai só o jeito do usuário revisar, como acréscimo ao método pronto.
+Uma abelha é uma rotina que o Shellhive roda numa sessão do Claude escondida, sem ninguém acompanhando. Todo o comportamento dela está no prompt, em instructions:
+- Tipo "free": roda o prompt nos repositórios escolhidos. Exemplos: limpar worktrees de branches mergeadas, resumir os PRs abertos do time.
+- Tipo "review": o Shellhive acha os PRs que pedem a revisão do usuário, roda o prompt para cada grupo e publica só os problemas, nunca aprovando. Deixe instructions vazio para usar o prompt pronto do template, ou passe só o jeito do usuário revisar, que entra no lugar indicado do prompt pronto.
+- No prompt, o Shellhive preenche a cada execução {{nome}} e {{repositorios}} (a lista "repositório: pasta do clone"); escreva o prompt usando {{repositorios}} em vez de copiar as pastas.
 - Repositórios: só os da lista do Shellhive, que list_bees mostra.
 - Quando roda: manual, a cada intervalo em minutos, ou em dias da semana e horário. Só roda com o app aberto; um horário perdido com o app fechado roda uma vez ao abrir (padrão) ou é pulado.
 
 Como conduzir:
 1. Chame list_bees para ver as abelhas que já existem e os repositórios disponíveis.
 2. Pergunte o que a abelha deve fazer, em quais repositórios e quando, uma coisa por vez e sem se estender.
-3. Escreva o prompt da abelha livre como uma tarefa autônoma: ela roda sem poder perguntar nada.
+3. Escreva o prompt da abelha livre como uma tarefa autônoma e completa: ela roda sem poder perguntar nada, e o prompt é tudo o que ela sabe.
 4. Antes de criar, mostre um resumo (nome, tipo, repositórios, quando roda, horário perdido, prompt) e peça confirmação.
 5. A abelha nasce desligada. Depois de criar, diga que ela está no painel do Worker bee para conferir e ligar, e ofereça rodar uma vez agora com run_bee.
 
@@ -89,6 +91,8 @@ export async function callBeeTool(tool: string, args: Record<string, unknown>): 
     if (!name) return { text: "Informe o nome.", isError: true };
     if (!template) return { text: 'template deve ser "free" ou "review".', isError: true };
     if (template === "free" && !instructions) return { text: "Uma abelha free precisa do prompt em instructions.", isError: true };
+    // The review template's prompt, with the user's way of reviewing where it marks.
+    const prompt = template === "review" ? reviewPromptOf({ instructions } as Bee) : instructions;
     if (template === "review" && !repos.length) return { text: "A abelha de review precisa de ao menos um repositório.", isError: true };
     if (unknown.length) return { text: `Fora da lista de repositórios: ${unknown.join(", ")}. Veja em list_bees.`, isError: true };
     if (typeof trigger === "string") return { text: trigger, isError: true };
@@ -96,7 +100,8 @@ export async function callBeeTool(tool: string, args: Record<string, unknown>): 
       id: crypto.randomUUID(),
       name,
       template,
-      instructions,
+      templateId: template === "review" ? "review" : undefined,
+      instructions: prompt,
       repos,
       trigger,
       missed: args.missed === "skip" ? "skip" : "run",
