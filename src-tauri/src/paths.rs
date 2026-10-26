@@ -53,8 +53,13 @@ pub fn is_wsl() -> bool {
             .unwrap_or(false)
 }
 
-/// Name of the app's data folder inside the system config dir.
-const DATA_DIR: &str = "shellhive";
+/// Name of the app's data folder inside the system config dir. The preview
+/// build keeps its own, so it runs beside the installed app.
+const DATA_DIR: &str = if cfg!(feature = "preview") {
+    "shellhive-preview"
+} else {
+    "shellhive"
+};
 /// Where versions up to 0.1.21, named Claude Terminal, kept their data.
 const LEGACY_DATA_DIR: &str = "claude-terminal";
 /// Left by the Sobre option; the next launch copies the legacy data in again.
@@ -89,6 +94,10 @@ fn copy_dir(from: &Path, to: &Path) -> std::io::Result<()> {
 /// rename copies the Claude Terminal folder over, leaving the original in
 /// place as a backup; the Sobre option asks for the same copy again.
 pub fn migrate_legacy_data() {
+    // The preview build starts empty instead of copying anyone's data.
+    if cfg!(feature = "preview") {
+        return;
+    }
     if let Some(config) = dirs::config_dir() {
         migrate_in(&config);
     }

@@ -46,6 +46,10 @@ async fn find_update(
     app: &AppHandle,
     beta: bool,
 ) -> Result<Option<tauri_plugin_updater::Update>, String> {
+    // The preview build is replaced by hand, never by a release.
+    if cfg!(feature = "preview") {
+        return Ok(None);
+    }
     let mut builder = app.updater_builder();
     // A package install is replaced by a newer .deb, not by the updater bundle.
     if install_kind() == "package" {

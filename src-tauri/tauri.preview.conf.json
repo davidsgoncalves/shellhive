@@ -1,0 +1,18 @@
+{
+  "productName": "Shellhive Preview",
+  "identifier": "com.davidgoncalves.shellhive.preview",
+  "bundle": {
+    "createUpdaterArtifacts": false
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Shellhive Preview",
+        "width": 1280,
+        "height": 800,
+        "dragDropEnabled": false,
+        "transparent": true
+      }
+    ]
+  }
+}

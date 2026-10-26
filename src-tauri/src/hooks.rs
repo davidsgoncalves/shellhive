@@ -10,7 +10,11 @@ use tiny_http::{Header, Response, Server};
 use crate::db::Db;
 use crate::permissions::{Permissions, DECISION_TIMEOUT};
 
-pub const PORT: u16 = 47831;
+pub const PORT: u16 = if cfg!(feature = "preview") {
+    47832
+} else {
+    47831
+};
 
 /// What SessionStart tells Claude about running inside this app.
 /// What Claude is told when a session starts: that it runs inside Shellhive,
