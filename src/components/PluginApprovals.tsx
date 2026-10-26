@@ -51,7 +51,7 @@ function ApprovalCard({ plugin }: { plugin: LocalPlugin }) {
             : ""}
         </p>
       )}
-      {plugin.sidePanel && <p className="plugin-approval-label">Aba "{plugin.sidePanel.title}" na coluna da direita</p>}
+      {plugin.sidePanel && <p className="plugin-approval-label">Painel "{plugin.sidePanel.title}" na barra lateral</p>}
       {plugin.menu.length > 0 && (
         <p className="plugin-approval-label">No menu das abas: {plugin.menu.map((m) => m.label).join(", ")}</p>
       )}

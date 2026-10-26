@@ -85,22 +85,37 @@ html, body, #root {
 .shortcuts { cursor: help; }
 
 /* ---------- shared panel chrome ---------- */
-.sidebar, .events-panel {
+.sidebar {
   flex-shrink: 0; background: var(--panel); display: flex; flex-direction: column;
   overflow: hidden; transition: width .15s ease;
 }
-.sidebar { width: 240px; border-right: 1px solid var(--border); }
-.events-panel { width: 300px; border-left: 1px solid var(--border); }
-/* Drag handle on each column's inner edge. */
-.sidebar:not(.collapsed), .events-panel:not(.collapsed) { position: relative; }
+.sidebar { width: 280px; border-right: 1px solid var(--border); position: relative; }
+/* Drag handle on the panel's inner edge. */
 .column-resizer { position: absolute; top: 0; bottom: 0; width: 6px; z-index: 5; cursor: col-resize; }
 .column-resizer.sidebar { right: 0; }
-.column-resizer.events { left: 0; }
 .column-resizer:hover, [data-resizing] .column-resizer { background: color-mix(in srgb, var(--accent) 35%, transparent); }
 [data-resizing], [data-resizing] * { cursor: col-resize !important; user-select: none !important; }
-[data-resizing] :is(.sidebar, .events-panel) { transition: none; }
+[data-resizing] .sidebar { transition: none; }
 [data-resizing] iframe { pointer-events: none; }
-.sidebar.collapsed, .events-panel.collapsed { width: 40px; align-items: center; padding-top: 8px; gap: 8px; }
+
+/* ---------- activity rail ---------- */
+.activity-rail {
+  width: 44px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 8px 0; background: var(--panel); border-right: 1px solid var(--border);
+}
+.rail-btn {
+  position: relative; width: 32px; height: 32px; border: none; border-radius: 7px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent; color: var(--muted); cursor: pointer;
+}
+.rail-btn:hover { background: var(--panel-2); color: var(--fg); }
+.rail-btn.active { background: var(--panel-2); color: var(--fg); box-shadow: inset 2px 0 0 var(--accent); }
+.rail-btn .badge { position: absolute; top: -2px; right: -4px; }
+.rail-initials { font-size: 11px; font-weight: 700; letter-spacing: .02em; }
+/* Where a dragged icon will land: it takes this icon's place. */
+.rail-btn.drop-target { box-shadow: inset 0 2px 0 var(--accent); }
+.activity-rail.drop-end { box-shadow: inset 0 -2px 0 var(--accent); }
+.sessions-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 
 .sidebar-header {
   height: 40px; padding: 0 8px 0 12px; display: flex; align-items: center; justify-content: space-between;
@@ -187,12 +202,6 @@ button.ghost:disabled { opacity: .4; cursor: default; }
 .tab-row.state-dormant .tab-title { color: var(--muted); }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 
-.rail { display: flex; flex-direction: column; gap: 6px; }
-.rail-group {
-  width: 24px; height: 24px; border-radius: 6px; display: flex; align-items: center; justify-content: center;
-  font-size: 11px; font-weight: 700; color: var(--on-color);
-}
-.rail-group.pending { box-shadow: 0 0 0 2px var(--c-permission); }
 
 /* ---------- events panel ---------- */
 .actions { padding: 10px 12px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
@@ -213,30 +222,7 @@ button.ghost:disabled { opacity: .4; cursor: default; }
 .events time { color: var(--muted); font-size: 11px; white-space: nowrap; }
 .events .meta { color: var(--muted); font-size: 11px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* ---------- right panel tabs ---------- */
-.panel-tabs {
-  position: relative; height: 40px; display: flex; align-items: center; gap: 2px; padding: 0 6px 0 8px;
-  border-bottom: 1px solid var(--border); flex-shrink: 0; overflow: hidden;
-}
-/* Tabs that do not fit go into the "⋯" menu; this copy measures them. */
-.panel-tabs-measure {
-  position: absolute; left: 0; top: 0; visibility: hidden; pointer-events: none;
-  display: flex; gap: 2px; white-space: nowrap;
-}
-.panel-tabs-tail { margin-left: auto; display: flex; align-items: center; flex-shrink: 0; }
-.panel-tabs-menu { transform-origin: top right; }
-.panel-tabs-menu .menu-item { display: flex; align-items: center; gap: 6px; }
-/* Where a dragged tab will land: it takes this tab's place. */
-.panel-tabs .drop-target { box-shadow: inset 2px 0 0 var(--accent); }
-.panel-tabs-menu .menu-item.drop-target { box-shadow: inset 0 2px 0 var(--accent); }
-.panel-tabs.drop-end .panel-tabs-tail { box-shadow: inset 2px 0 0 var(--accent); }
-.panel-tabs button { flex-shrink: 0; white-space: nowrap; }
-.panel-tabs > button:not(.icon-btn), .panel-tabs-measure > button {
-  background: transparent; border: none; color: var(--muted); cursor: pointer;
-  padding: 5px 8px; border-radius: 5px; font-size: 12px; display: inline-flex; align-items: center; gap: 5px;
-}
-.panel-tabs > button:not(.icon-btn):hover { background: var(--panel-2); color: var(--fg); }
-.panel-tabs > button.active, .panel-tabs-measure > button.active { background: var(--panel-2); color: var(--fg); font-weight: 600; }
+/* ---------- side panel ---------- */
 .panel-body { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .hint.pad { padding: 12px; }
 
@@ -293,11 +279,14 @@ button.link { background: none; border: none; color: var(--c-waiting); cursor: p
 /* ---------- watchdog ---------- */
 .tab-row.stale { background: color-mix(in srgb, var(--danger) 10%, transparent); }
 .tab-row.stale .tab-title::after { content: " ⏱"; color: var(--danger); }
-.events-panel.collapsed .badge { margin-top: 4px; }
 
 /* ---------- boot & pinned sessions ---------- */
 .boot { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--muted); }
 .session-list li.pinned { border-left: 3px solid var(--accent); }
+.session-list li.session-section {
+  background: none; border: none; padding: 6px 2px 0; cursor: default;
+  font-size: 11px; font-weight: 600; color: var(--muted);
+}
 .session-list .pin {
   background: none; border: none; cursor: pointer; padding: 0 2px; font-size: 12px; line-height: 1;
   color: var(--muted); opacity: 0; flex-shrink: 0;
@@ -887,7 +876,7 @@ button.ghost.danger { border-color: var(--danger); color: var(--danger); }
 }
 [data-layers] .topbar.at-bottom { margin: 0 8px 6px; border-top: 1px solid var(--border); }
 [data-layers] .sidebar,
-[data-layers] .events-panel,
+[data-layers] .activity-rail,
 [data-layers] .tab-strip {
   border: 1px solid var(--border); border-radius: 16px;
   background: var(--panel); backdrop-filter: var(--glass-blur);
@@ -896,12 +885,11 @@ button.ghost.danger { border-color: var(--danger); color: var(--danger); }
 [data-layers] .tab-strip { border-radius: 14px; margin-bottom: 8px; }
 [data-layers] .terminals { padding: 0; }
 [data-layers] .sidebar-header,
-[data-layers] .panel-tabs,
 [data-layers] .sidebar-footer,
 [data-layers] .sessions-search { border-color: transparent; }
 [data-layers] .sidebar-header h1 { text-transform: none; letter-spacing: 0; font-size: 13px; color: var(--fg); }
-[data-layers] :is(.panel-tabs > button:not(.icon-btn), .panel-tabs-measure > button) { font-size: 11px; font-weight: 500; border-radius: 8px; }
 [data-layers] .icon-btn { border-radius: 999px; }
+[data-layers] .rail-btn.active { background: var(--selected); }
 
 /* Limits bar */
 [data-layers] .meter { background: rgba(255,255,255,.06); border-radius: 999px; padding: 5px 12px; }
@@ -1142,11 +1130,7 @@ button.ghost.danger { border-color: var(--danger); color: var(--danger); }
   background: var(--list-fill); border-color: var(--list-border);
   box-shadow: inset 0 1px 0 var(--list-edge), var(--glass-shadow), 0 0 48px -10px var(--list-glow);
 }
-:is([data-theme="glow"], [data-theme="glow-amber"]) .events-panel {
-  background: var(--queue-fill); border-color: var(--queue-border);
-  box-shadow: inset 0 1px 0 var(--queue-edge), var(--glass-shadow), 0 0 48px -10px var(--queue-glow);
-}
-:is([data-theme="glow"], [data-theme="glow-amber"]) .events-panel :is(.perm-item, .session-list li, .events li) {
+:is([data-theme="glow"], [data-theme="glow-amber"]) .side-panel :is(.perm-item, .session-list li:not(.session-section), .events li) {
   background: var(--card-fill); border-color: var(--card-border);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
 }
@@ -1180,7 +1164,6 @@ button.ghost.danger { border-color: var(--danger); color: var(--danger); }
   background: var(--selected); border-color: var(--accent); color: var(--fg);
   box-shadow: inset 0 0 0 1px var(--accent);
 }
-[data-layers] .panel-tabs > button.active { background: var(--selected); color: var(--fg); }
 [data-layers] :is(.menu-item, .hidden-row):hover { background: rgba(255,255,255,.12); }
 [data-layers] .tab-row:hover,
 [data-layers] .sidebar:not(.tint-none) .group:not(.fixed) .tab-row:hover { background: rgba(255,255,255,.09); }

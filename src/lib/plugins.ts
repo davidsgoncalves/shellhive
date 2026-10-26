@@ -1,4 +1,4 @@
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
 
 /** Where a pane sits in the terminals area, in percentages. */
 export interface PaneRect {
@@ -40,8 +40,8 @@ export interface ShellhivePlugin {
   manifest: PluginManifest;
   /** Drawn over the terminals area while the plugin is on. */
   Overlay?: ComponentType<{ host: PluginHost }>;
-  /** A tab of its own in the right column while the plugin is on. */
-  SideTab?: { title: string; Component: ComponentType };
+  /** A panel of its own on the rail while the plugin is on. */
+  SideTab?: { title: string; Component: ComponentType; icon?: ReactNode };
   /** Drawn in the plugin's own window, labelled `plugin-<id>`. */
   Window?: ComponentType;
   /** Handlers of the manifest's tools that run in the interface, by name. */

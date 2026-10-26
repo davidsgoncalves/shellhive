@@ -4,10 +4,9 @@ import { emitTo, listen } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import "@xterm/xterm/css/xterm.css";
 import "./App.css";
-import { Sidebar } from "./components/Sidebar";
 import { TabStrip } from "./components/TabStrip";
 import { TerminalView } from "./components/TerminalView";
-import { RightPanel } from "./components/RightPanel";
+import { SidePanel } from "./components/SidePanel";
 import { TopBar } from "./components/TopBar";
 import { Dialogs } from "./components/Dialogs";
 import { GroupMenu } from "./components/GroupMenu";
@@ -258,9 +257,9 @@ function useShortcuts() {
           return void (target && !s.detached.includes(target) && s.openSearch(target));
         }
         case "sidebar":
-          return s.toggleSidebar();
+          return s.togglePanel();
         case "events":
-          return s.toggleEvents();
+          return s.panelOpen && s.panelTab === "queue" ? s.togglePanel() : s.setPanelTab("queue");
         case "settings":
           return s.openModal({ kind: "settings" });
         case "miniPanel":
@@ -727,7 +726,7 @@ function App() {
       <ErrorReportsPrompt />
       {barPosition === "top" && <TopBar />}
       <div className="body">
-        {layout === "sidebar" && <Sidebar />}
+        <SidePanel />
         <main className="main">
           {layout === "topbar" && <TabStrip />}
           <div
@@ -829,7 +828,6 @@ function App() {
             <PaneOverlay />
           </div>
         </main>
-        <RightPanel />
       </div>
       {barPosition === "bottom" && <TopBar />}
       <Dialogs />

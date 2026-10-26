@@ -125,7 +125,7 @@ pub struct LocalPlugin {
     dir: String,
     tools: Vec<ToolInfo>,
     panel: Option<PanelInfo>,
-    /// A tab of its own in the right column, visible from any session.
+    /// A panel of its own on the rail, visible from any session.
     #[serde(rename = "sidePanel")]
     side_panel: Option<PanelInfo>,
     menu: Vec<MenuItem>,

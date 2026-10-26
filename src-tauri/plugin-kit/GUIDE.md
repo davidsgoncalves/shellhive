@@ -2,7 +2,7 @@
 
 Um plugin acrescenta ferramentas que o agente pode chamar e pedaços de interface:
 - um painel abaixo do terminal de uma aba;
-- uma aba própria na coluna da direita, visível em qualquer sessão;
+- um painel próprio na barra lateral, com ícone na barra de ícones, visível em qualquer sessão;
 - uma vista do tamanho de um terminal, ocupando um espaço da tela dividida;
 - uma janela própria;
 - um indicador na barra de cima;
@@ -58,7 +58,7 @@ Qualquer alteração em um arquivo da pasta pede aprovação de novo. Se o plugi
 - `description` e `agentContext`: opcionais.
 - `tools`: opcional. Cada ferramenta precisa de `name`, que começa com `<id>_`, de `description` e de `run`. O `inputSchema` é JSON Schema; sem ele, a ferramenta aceita qualquer objeto.
 - `panel`: opcional. Painel abaixo do terminal da aba.
-- `sidePanel`: opcional. Aba do plugin na coluna da direita, ao lado de Fila e Histórico; trabalha sobre a aba ativa.
+- `sidePanel`: opcional. Painel do plugin na barra lateral, com ícone ao lado de Fila e Histórico; trabalha sobre a aba ativa.
 - `menu`: opcional. Itens no menu de clique direito das abas; cada um chama uma ferramenta do próprio plugin, com `{ "tab": { … } }` como argumentos.
 - `view`: opcional. Vista que ocupa um espaço inteiro da tela dividida, no lugar de um terminal; trabalha sobre a aba ativa.
 - `window`: opcional. Janela própria do plugin, com `width` e `height` em pixels.

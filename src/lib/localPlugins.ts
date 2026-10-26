@@ -10,7 +10,7 @@ export interface LocalPlugin {
   dir: string;
   tools: Array<{ name: string; description: string; run: string[] }>;
   panel: { title: string } | null;
-  /** A tab of its own in the right column. */
+  /** A panel of its own on the rail. */
   sidePanel: { title: string } | null;
   menu: Array<{ label: string; tool: string }>;
   schedule: Array<{ tool: string; every: number }>;

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { openSession, SESSION_DRAG, useStore, type SessionRef } from "../lib/store";
 import { sessionLabel } from "../lib/titles";
@@ -25,8 +25,8 @@ function place(s: SessionInfo): string {
   return dir.split("/").filter(Boolean).slice(-1)[0] ?? dir;
 }
 
-/** Every recorded session, or only the pinned ones when `onlyPinned` is set. */
-export function SessionsBrowser({ onlyPinned = false }: { onlyPinned?: boolean }) {
+/** Every recorded session, the pinned ones first under their own heading. */
+export function SessionsBrowser() {
   const { tabs, pinned, togglePinned } = useStore();
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [matches, setMatches] = useState<SessionMatch[] | null>(null);
@@ -81,7 +81,7 @@ export function SessionsBrowser({ onlyPinned = false }: { onlyPinned?: boolean }
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
-    let list = onlyPinned ? sessions.filter((s) => pinned.includes(s.id)) : sessions;
+    let list = sessions;
     if (q.length >= 2) {
       const byText = list.filter(
         (s) => label(s).toLowerCase().includes(q) || place(s).toLowerCase().includes(q),
@@ -96,7 +96,7 @@ export function SessionsBrowser({ onlyPinned = false }: { onlyPinned?: boolean }
       return i === -1 ? pinned.length : i;
     };
     return [...list].sort((a, b) => rank(a) - rank(b));
-  }, [sessions, query, snippetById, pinned, onlyPinned]);
+  }, [sessions, query, snippetById, pinned]);
 
   const refOf = (s: SessionInfo): SessionRef => ({ id: s.id, cwd: s.cwd, title: label(s) });
   const open = (s: SessionInfo) => openSession(refOf(s));
@@ -116,45 +116,46 @@ export function SessionsBrowser({ onlyPinned = false }: { onlyPinned?: boolean }
       {loading && <p className="hint pad">Lendo transcripts…</p>}
       {!loading && visible.length === 0 && (
         <p className="hint pad">
-          {query
-            ? "Nada encontrado."
-            : onlyPinned
-              ? "Nenhuma sessão fixada. Fixe uma pela ☆ no Histórico."
-              : "Nenhuma sessão gravada."}
+          {query ? "Nada encontrado." : "Nenhuma sessão gravada."}
         </p>
       )}
       {searching && <p className="hint pad">Buscando no conteúdo…</p>}
       <ul className="session-list">
-        {visible.map((s) => (
-          <li
-            key={s.id}
-            className={`${openSessions.has(s.id) ? "open" : ""} ${pinned.includes(s.id) ? "pinned" : ""}`}
-            onClick={() => open(s)}
-            draggable
-            onDragStart={(e) => e.dataTransfer.setData(SESSION_DRAG, JSON.stringify(refOf(s)))}
-            title={`${s.cwd ?? s.project}\n${(s.size_bytes / 1024).toFixed(0)} KB`}
-          >
-            <div className="row">
-              <span className="session-title">{label(s)}</span>
-              <button
-                className={`pin ${pinned.includes(s.id) ? "on" : ""}`}
-                title={pinned.includes(s.id) ? "Desafixar" : "Fixar no topo"}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  togglePinned(s.id);
-                }}
-              >
-                {pinned.includes(s.id) ? "★" : "☆"}
-              </button>
-              <time>{relativeDate(s.modified_at)}</time>
-            </div>
-            <div className="meta">
-              <span>{place(s)}</span>
-              {s.git_branch && <span className="branch">{s.git_branch}</span>}
-              {openSessions.has(s.id) && <span className="tag">aberta</span>}
-            </div>
-            {snippetById.has(s.id) && <div className="snippet">{snippetById.get(s.id)}</div>}
-          </li>
+        {visible.map((s, i) => (
+          <Fragment key={s.id}>
+            {i === 0 && pinned.includes(s.id) && <li className="session-section">Fixadas</li>}
+            {i > 0 && pinned.includes(visible[i - 1].id) && !pinned.includes(s.id) && (
+              <li className="session-section">Todas</li>
+            )}
+            <li
+              className={`${openSessions.has(s.id) ? "open" : ""} ${pinned.includes(s.id) ? "pinned" : ""}`}
+              onClick={() => open(s)}
+              draggable
+              onDragStart={(e) => e.dataTransfer.setData(SESSION_DRAG, JSON.stringify(refOf(s)))}
+              title={`${s.cwd ?? s.project}\n${(s.size_bytes / 1024).toFixed(0)} KB`}
+            >
+              <div className="row">
+                <span className="session-title">{label(s)}</span>
+                <button
+                  className={`pin ${pinned.includes(s.id) ? "on" : ""}`}
+                  title={pinned.includes(s.id) ? "Desafixar" : "Fixar no topo"}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    togglePinned(s.id);
+                  }}
+                >
+                  {pinned.includes(s.id) ? "★" : "☆"}
+                </button>
+                <time>{relativeDate(s.modified_at)}</time>
+              </div>
+              <div className="meta">
+                <span>{place(s)}</span>
+                {s.git_branch && <span className="branch">{s.git_branch}</span>}
+                {openSessions.has(s.id) && <span className="tag">aberta</span>}
+              </div>
+              {snippetById.has(s.id) && <div className="snippet">{snippetById.get(s.id)}</div>}
+            </li>
+          </Fragment>
         ))}
       </ul>
     </div>

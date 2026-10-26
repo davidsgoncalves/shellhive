@@ -104,8 +104,8 @@ interface Store {
   groups: Group[];
   tabs: Tab[];
   activeTabId: string | null;
-  sidebarOpen: boolean;
-  eventsOpen: boolean;
+  /** Whether the side panel is open next to the rail. */
+  panelOpen: boolean;
   /** Widths the user dragged the side columns to; null is the default. */
   columnWidths: { sidebar: number | null; events: number | null };
   setColumnWidth: (column: "sidebar" | "events", width: number | null) => void;
@@ -157,9 +157,9 @@ interface Store {
   pluginStatus: Record<string, { text: string; title?: string }>;
   /** Data handed to each plugin view, by plugin id. */
   viewData: Record<string, unknown>;
-  /** The tab shown in the right column. */
-  rightPanelTab: string;
-  /** Order the user dragged the right column's tabs into; tabs not listed follow. */
+  /** The rail icon whose panel is shown. */
+  panelTab: string;
+  /** Order the user dragged the rail icons into; icons not listed follow. */
   panelTabOrder: string[];
   /** Badges plugins put under tab names: tab id -> plugin id -> text. */
   pluginBadges: Record<string, Record<string, string>>;
@@ -227,6 +227,8 @@ interface Store {
   /** Ends a tab's terminal and keeps the tab, dormant, to resume its session later. */
   sleepTab: (id: string) => void;
   activateTab: (id: string) => void;
+  /** The last tab brought up, a new object each time, even for the tab already active. */
+  pickedTab: { id: string } | null;
   renameTab: (id: string, title: string) => void;
   moveTab: (id: string, groupId: string) => void;
   detachTab: (id: string, at?: { x: number; y: number }) => void;
@@ -240,8 +242,7 @@ interface Store {
   rememberSessionGroups: () => void;
   patchTab: (id: string, patch: Partial<Tab>) => void;
 
-  toggleSidebar: () => void;
-  toggleEvents: () => void;
+  togglePanel: () => void;
   pushEvent: (e: HookEvent) => void;
   clearEvents: () => void;
   setSetup: (s: HookSetup) => void;
@@ -282,7 +283,7 @@ interface Store {
   /** Shows a plugin's band on a tab's terminal with this data; null removes it. */
   setPluginBand: (tabId: string, pluginId: string, data: unknown) => void;
   setPluginBandHeight: (tabId: string, pluginId: string, height: number) => void;
-  setRightPanelTab: (tab: string) => void;
+  setPanelTab: (tab: string) => void;
   setPanelTabOrder: (order: string[]) => void;
   /** Shows a plugin's view in a pane: its own if open, else a free one, else the focused one. */
   openPluginView: (pluginId: string, data: unknown) => void;
@@ -309,8 +310,7 @@ export const useStore = create<Store>()(
       groups: [],
       tabs: [],
       activeTabId: null,
-      sidebarOpen: true,
-      eventsOpen: true,
+      panelOpen: true,
       columnWidths: { sidebar: null, events: null },
       setColumnWidth: (column, width) => set((s) => ({ columnWidths: { ...s.columnWidths, [column]: width } })),
       events: [],
@@ -345,7 +345,7 @@ export const useStore = create<Store>()(
       pluginBands: {},
       pluginStatus: {},
       viewData: {},
-      rightPanelTab: "queue",
+      panelTab: "tabs",
       panelTabOrder: [],
       miniPanel: false,
       showEvents: false,
@@ -513,6 +513,7 @@ export const useStore = create<Store>()(
             subagentsByTab,
           };
         }),
+      pickedTab: null,
       activateTab: (id) => {
         if (get().detached.includes(id)) return focusDetachedWindow(id);
         // Reopening a closed tab continues the session it was running.
@@ -528,6 +529,7 @@ export const useStore = create<Store>()(
           panes[target] = id;
           return {
             activeTabId: id,
+            pickedTab: { id },
             focusedPane: target,
             panes,
             tabs: s.tabs.map((t) => (t.id === id && t.state === "dormant" ? { ...t, state: "shell" as TabState } : t)),
@@ -631,8 +633,7 @@ export const useStore = create<Store>()(
       patchTab: (id, patch) =>
         set((s) => ({ tabs: s.tabs.map((t) => (t.id === id ? { ...t, ...patch } : t)) })),
 
-      toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
-      toggleEvents: () => set((s) => ({ eventsOpen: !s.eventsOpen })),
+      togglePanel: () => set((s) => ({ panelOpen: !s.panelOpen })),
       pushEvent: (e) => set((s) => ({ events: [e, ...s.events].slice(0, 500) })),
       clearEvents: () => set({ events: [] }),
       setSetup: (setup) => set({ setup }),
@@ -750,7 +751,7 @@ export const useStore = create<Store>()(
           const { [pluginId]: _old, ...rest } = s.pluginStatus;
           return { pluginStatus: status ? { ...rest, [pluginId]: status } : rest };
         }),
-      setRightPanelTab: (rightPanelTab) => set({ rightPanelTab, eventsOpen: true }),
+      setPanelTab: (panelTab) => set({ panelTab, panelOpen: true }),
       setPanelTabOrder: (panelTabOrder) => set({ panelTabOrder }),
       openPluginView: (pluginId, data) =>
         set((s) => {
@@ -890,8 +891,8 @@ export const useStore = create<Store>()(
         groups: s.groups,
         tabs: s.tabs.map((t) => ({ ...t, state: "dormant" as TabState, pendingMessage: null })),
         activeTabId: s.activeTabId,
-        sidebarOpen: s.sidebarOpen,
-        eventsOpen: s.eventsOpen,
+        panelOpen: s.panelOpen,
+        panelTab: s.panelTab,
         columnWidths: s.columnWidths,
         panelTabOrder: s.panelTabOrder,
         pinned: s.pinned,

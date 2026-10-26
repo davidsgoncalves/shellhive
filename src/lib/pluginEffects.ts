@@ -71,7 +71,7 @@ export function openSurface(plugin: LocalPlugin, surface: Surface, tabId: string
   const s = useStore.getState();
   if (!s.enabledPlugins.includes(plugin.id) || plugin.status !== "approved") return;
   if (surface === "panel" && plugin.panel) s.openPluginPanel({ plugin: plugin.id, tabId, data: data ?? null });
-  if (surface === "side" && plugin.sidePanel) s.setRightPanelTab(`plugin:${plugin.id}`);
+  if (surface === "side" && plugin.sidePanel) s.setPanelTab(`plugin:${plugin.id}`);
   if (surface === "view" && plugin.view) s.openPluginView(plugin.id, data ?? null);
   if (surface === "window" && plugin.window) void openPluginWindow(plugin, data);
 }
