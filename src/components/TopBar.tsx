@@ -9,7 +9,7 @@ import logo from "../assets/logo.png";
 
 /** Vite sets this only on the dev server, so a packaged build never shows it. */
 const IS_DEV = import.meta.env.DEV;
-const APP_NAME = IS_DEV ? "Shellhive - dev" : "Shellhive";
+const APP_NAME = IS_DEV ? "ShellHive - dev" : "ShellHive";
 
 function useNow(intervalMs = 30_000) {
   const [now, setNow] = useState(() => Date.now());
@@ -86,7 +86,10 @@ export function TopBar() {
     <header className={`topbar ${barPosition === "bottom" ? "at-bottom" : ""}`}>
       <div className={`brand ${IS_DEV ? "dev" : ""}`}>
         <img className="brand-logo" src={logo} alt="" />
-        {APP_NAME}
+        <span>
+          Shell<span className="brand-hive">Hive</span>
+          {IS_DEV && " - dev"}
+        </span>
       </div>
 
       <div className={`limits ${stale ? "stale" : ""}`} title={stale ? "Último dado há mais de 10 min" : undefined}>
