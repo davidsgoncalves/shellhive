@@ -183,7 +183,7 @@ fn claude_function() -> Option<String> {
              '{{\"mcpServers\":{{\"shellhive\":{{\"type\":\"http\",\"url\":\"http://127.0.0.1:{port}/mcp\",\"headers\":{{\"X-Tab-Id\":\"' + $t + '\"}}}}}}}}' | Set-Content -Encoding ascii $m; \
              $real = (Get-Command claude -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1).Source; \
              if (-not $real) {{ Write-Error 'claude nao encontrado no PATH'; return }}; \
-             & $real --settings '{settings}' --mcp-config $m @args }}; Clear-Host\r"
+             & $real @args --settings '{settings}' --mcp-config $m }}; Clear-Host\r"
         ))
     }
     #[cfg(not(windows))]

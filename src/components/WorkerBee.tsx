@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useStore } from "../lib/store";
-import { DAY_NAMES, describeTrigger, openBeeRun, runBee, setDecision, useBeeNotes, useBeeRuns } from "../lib/bees";
+import { DAY_NAMES, describeTrigger, openBeeRun, runBee, setDecision, stopBeeRun, useBeeNotes, useBeeRuns } from "../lib/bees";
 import { openBeeCreator } from "../lib/beeCreator";
 import { isBeeTab, type Bee, type BeeRun, type BeeTrigger, type ReviewPr } from "../lib/types";
 import { PermissionCard, QuestionCard } from "./PermissionQueue";
@@ -249,9 +249,15 @@ function BeeDetail({ bee, live }: { bee: Bee; live: boolean }) {
         <button className="ghost auto" onClick={() => setBeeView({ mode: "edit", id: bee.id })}>
           Editar
         </button>
-        <button className="primary" disabled={!!running} onClick={() => void runBee(bee, { manual: true })}>
-          {running ? "Rodando…" : "Rodar agora"}
-        </button>
+        {running ? (
+          <button className="ghost auto" onClick={() => stopBeeRun(running)}>
+            Parar
+          </button>
+        ) : (
+          <button className="primary" onClick={() => void runBee(bee, { manual: true })}>
+            Rodar agora
+          </button>
+        )}
       </header>
       <div className="bee-detail-body">
         <section className="bee-facts">

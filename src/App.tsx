@@ -28,7 +28,7 @@ import { CommandCard, typeCommand } from "./components/CommandCard";
 import { PermissionCard } from "./components/PermissionQueue";
 import { scanRepos } from "./lib/repos";
 import { checkConnections } from "./lib/connections";
-import { finishBeeRun, startBeeScheduler, useBeeRuns } from "./lib/bees";
+import { finishBeeRun, startBeeScheduler, stopBeeRun, useBeeRuns } from "./lib/bees";
 import { callBeeTool, syncBeeCreators } from "./lib/beeCreator";
 import { BeeMain, LIVE_RECT, useWatchedBeeTab } from "./components/WorkerBee";
 import { applyLook, shareLook } from "./lib/theme";
@@ -147,6 +147,9 @@ function useBackendBridge() {
       if (patch.state && patch.state !== tab.state) store().clearAlerted(tab.id);
       if (patch.state === "shell" || patch.state === "dormant") {
         store().dropQuestion({ tabId: tab.id });
+        // Claude left a bee's tab before stopping: the run failed.
+        const run = useBeeRuns.getState().runs.find((r) => r.tabId === tab.id && r.status === "running");
+        if (run) stopBeeRun(run, "O Claude saiu antes de terminar.");
       }
       if (patch.state === "waiting" && tab.state === "working") {
         if (isBeeTab(tab) || useBeeRuns.getState().runs.some((r) => r.tabId === tab.id && r.status === "running")) {

@@ -20,6 +20,8 @@ const KEEP_RUNS = 20;
 /** How often the schedule is looked at. */
 const TICK_MS = 30_000;
 const DAY_MS = 86_400_000;
+/** How long a run's Claude has to start before the run counts as failed. */
+const START_TIMEOUT_MS = 2 * 60_000;
 
 export const DAY_NAMES = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
@@ -251,6 +253,13 @@ export async function finishBeeRun(tabId: string): Promise<void> {
   if (bee?.template === "review" && bee.enabled) void runBee(bee);
 }
 
+/** Ends a run by hand, or when its Claude is gone: the tab closes and the run is marked failed. */
+export function stopBeeRun(run: BeeRun, reason = "Parada por você."): void {
+  const tabId = run.tabId;
+  useBeeRuns.getState().put({ ...run, status: "error", endedAt: Date.now(), tabId: null, summary: reason });
+  if (tabId && !run.revealed) useStore.getState().closeTab(tabId);
+}
+
 /** A bee tab that went away before Claude stopped. */
 export function dropBeeRun(tabId: string, reason: string): void {
   const run = useBeeRuns.getState().runs.find((r) => r.tabId === tabId && r.status === "running");
@@ -292,6 +301,10 @@ export function startBeeScheduler(): () => void {
       const tab = tabs.find((t) => t.id === run.tabId);
       if (!tab) dropBeeRun(run.tabId, "A aba foi fechada antes do fim.");
       else if (tab.state === "dormant") dropBeeRun(run.tabId, "O terminal fechou antes do fim.");
+      // Claude never got going: no session after a couple of minutes.
+      else if (!tab.claudeSessionId && now - run.startedAt > START_TIMEOUT_MS) {
+        stopBeeRun(run, "O Claude não iniciou. Abra a sessão pelo histórico do terminal para ver o erro.");
+      }
     }
     for (const bee of useStore.getState().bees) {
       if (!bee.enabled) continue;
