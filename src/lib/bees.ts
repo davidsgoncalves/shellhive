@@ -60,6 +60,10 @@ export const useBeeRuns = create<RunStore>()((set, get) => ({
   },
 }));
 
+/** What each bee's last look turned up when it did not start a run, by bee id. Not kept across restarts. */
+export const useBeeNotes = create<Record<string, string>>()(() => ({}));
+const note = (beeId: string, text: string) => useBeeNotes.setState({ [beeId]: text });
+
 export const runningRun = (beeId: string) =>
   useBeeRuns.getState().runs.find((r) => r.beeId === beeId && r.status === "running");
 
@@ -149,17 +153,29 @@ export async function runBee(bee: Bee): Promise<void> {
   let prompt = promptFor(bee);
   let cwd = repos.find((r) => bee.repos.includes(r.slug))?.path ?? null;
   if (bee.template === "review") {
+    note(bee.id, "Buscando PRs…");
     let candidates: Candidate[];
     try {
       candidates = await invoke<Candidate[]>("review_candidates", { repos: bee.repos });
     } catch (err) {
+      note(bee.id, "");
       return fail(run, `Não consegui buscar os PRs: ${err}`);
     }
     const runs = useBeeRuns.getState().runs.filter((r) => r.beeId === bee.id);
     // A clean PR that got a new commit, or left the list, needs no answer anymore.
     for (const { run: old, pr } of staleCleanPrs(runs, candidates)) setDecision(old.id, pr, "stale");
     const group = nextGroup(candidates, runs, Date.now());
-    if (!group || runningRun(bee.id)) return;
+    if (!group || runningRun(bee.id)) {
+      const time = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+      const pending = candidates.filter((c) => c.head !== c.reviewed_head).length;
+      return note(
+        bee.id,
+        pending
+          ? `${time} · ${pending} PR(s) esperando: dentro dos 15 min após o pedido de revisão, ou já revisados neste commit.`
+          : `${time} · Nenhum PR pedindo sua revisão nestes repositórios (rascunhos ficam de fora).`,
+      );
+    }
+    note(bee.id, "");
     const prs = group.map(toReviewPr);
     const findings = await invoke<string>("review_findings_path", { runId: run.id });
     const worktrees = findings.replace(/bee-reviews\/[^/]+$/, `bee-worktrees/${run.id}`);

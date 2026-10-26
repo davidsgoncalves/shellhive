@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useStore } from "../lib/store";
-import { DAY_NAMES, describeTrigger, openBeeRun, runBee, setDecision, useBeeRuns } from "../lib/bees";
+import { DAY_NAMES, describeTrigger, openBeeRun, runBee, setDecision, useBeeNotes, useBeeRuns } from "../lib/bees";
 import { openBeeCreator } from "../lib/beeCreator";
 import { isBeeTab, type Bee, type BeeRun, type BeeTrigger, type ReviewPr } from "../lib/types";
 import { Modal } from "./Modal";
@@ -156,6 +156,7 @@ function BeeCard({ bee }: { bee: Bee }) {
   const all = useBeeRuns((s) => s.runs);
   const runs = all.filter((r) => r.beeId === bee.id).slice(0, 5);
   const running = runs.some((r) => r.status === "running");
+  const beeNote = useBeeNotes((n) => n[bee.id]);
 
   return (
     <li className={`bee-card ${bee.enabled ? "" : "off"}`}>
@@ -172,6 +173,7 @@ function BeeCard({ bee }: { bee: Bee }) {
         {describeTrigger(bee.trigger)}
         {bee.repos.length > 0 && ` · ${bee.repos.length === 1 ? bee.repos[0] : `${bee.repos.length} repositórios`}`}
       </div>
+      {beeNote && !running && <p className="hint bee-note">{beeNote}</p>}
       <button className="ghost bee-run" disabled={running} onClick={() => void runBee(bee)}>
         {running ? "Rodando…" : "Rodar agora"}
       </button>

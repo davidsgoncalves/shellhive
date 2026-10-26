@@ -365,6 +365,7 @@ button.ghost.auto { width: auto; }
 .bee-toggle { display: flex; align-items: center; cursor: pointer; }
 .bee-name { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bee-meta { font-size: 11px; color: var(--muted); }
+.bee-note { margin: 0; }
 .bee-run { align-self: flex-start; width: auto; padding: 3px 10px; font-size: 11px; }
 .bee-runs { list-style: none; margin: 2px 0 0; padding: 6px 0 0; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
 .bee-run-row .row { display: flex; align-items: center; gap: 6px; font-size: 11px; }
