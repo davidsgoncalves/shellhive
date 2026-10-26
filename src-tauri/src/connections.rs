@@ -148,91 +148,9 @@ pub async fn mcp_status() -> Result<Vec<McpServer>, String> {
     .map_err(|e| e.to_string())?
 }
 
-#[derive(serde::Serialize)]
-pub struct Origin {
-    /// `owner/name` on GitHub.
-    pub slug: String,
-    /// The main clone, even when `path` is one of its worktrees.
-    pub root: String,
-}
-
-/// `owner/name` from a GitHub remote URL, over SSH or HTTPS.
-fn github_slug(url: &str) -> Option<String> {
-    let rest = url
-        .trim()
-        .strip_prefix("git@github.com:")
-        .or_else(|| url.trim().split_once("github.com/").map(|(_, r)| r))?;
-    let slug = rest.trim_end_matches('/').trim_end_matches(".git");
-    let mut parts = slug.split('/');
-    let (owner, name) = (parts.next()?, parts.next()?);
-    (!owner.is_empty() && !name.is_empty() && parts.next().is_none())
-        .then(|| format!("{owner}/{name}"))
-}
-
-/// The GitHub repository a folder is a clone of, if its `origin` is on GitHub.
-#[tauri::command]
-pub async fn git_origin(path: String) -> Option<Origin> {
-    origin_of(path)
-}
-
-/// The repositories in a folder: the folder itself when it is a clone,
-/// otherwise the clones right inside it.
-#[tauri::command]
-pub async fn git_origins_in(path: String) -> Vec<Origin> {
-    tauri::async_runtime::spawn_blocking(move || {
-        if let Some(origin) = origin_of(path.clone()) {
-            return vec![origin];
-        }
-        let Ok(entries) = std::fs::read_dir(&path) else {
-            return Vec::new();
-        };
-        entries
-            .flatten()
-            .filter(|e| e.path().is_dir() && !e.file_name().to_string_lossy().starts_with('.'))
-            .filter_map(|e| origin_of(e.path().to_string_lossy().into_owned()))
-            .collect()
-    })
-    .await
-    .unwrap_or_default()
-}
-
-fn origin_of(path: String) -> Option<Origin> {
-    let git = |args: &[&str]| -> Option<String> {
-        let out = tool("git").arg("-C").arg(&path).args(args).output().ok()?;
-        out.status
-            .success()
-            .then(|| String::from_utf8_lossy(&out.stdout).trim().to_string())
-    };
-    let slug = github_slug(&git(&["remote", "get-url", "origin"])?)?;
-    // Worktrees share the main clone's .git, which sits right inside it.
-    let common = git(&["rev-parse", "--path-format=absolute", "--git-common-dir"])?;
-    let root = match common.strip_suffix("/.git") {
-        Some(main) => main.to_string(),
-        None => git(&["rev-parse", "--show-toplevel"]).unwrap_or(path.clone()),
-    };
-    Some(Origin { slug, root })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn reads_github_remotes() {
-        assert_eq!(
-            github_slug("git@github.com:acme/api.git").as_deref(),
-            Some("acme/api")
-        );
-        assert_eq!(
-            github_slug("https://github.com/acme/web").as_deref(),
-            Some("acme/web")
-        );
-        assert_eq!(
-            github_slug("https://github.com/acme/web.git/").as_deref(),
-            Some("acme/web")
-        );
-        assert_eq!(github_slug("git@gitlab.com:acme/api.git"), None);
-    }
 
     #[test]
     fn reads_mcp_list() {

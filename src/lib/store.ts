@@ -14,7 +14,6 @@ import {
   UNGROUPED_ID,
   UNGROUPED_NAME,
   type Folder,
-  type Repo,
   type Bee,
   BEE_GROUP_ID,
   type GitInfo,
@@ -89,7 +88,7 @@ function rememberClosed(list: ClosedTab[], tabs: Tab[]): ClosedTab[] {
   return [...list, ...added].slice(-CLOSED_TABS_MAX);
 }
 
-export type SettingsTab = "aparencia" | "pastas" | "repos" | "conexoes" | "plugins" | "sobre";
+export type SettingsTab = "aparencia" | "pastas" | "conexoes" | "plugins" | "sobre";
 
 export type Modal =
   | null
@@ -138,10 +137,6 @@ interface Store {
   folders: Folder[];
   /** Folder id used when a session opens without an explicit choice. */
   defaultFolderId: string | null;
-  /** GitHub repositories and their clones, for the worker bees. */
-  repos: Repo[];
-  /** Repositories removed by hand, which the scan does not bring back. */
-  dismissedRepos: string[];
   bees: Bee[];
   /** Null shows the first bee. */
   beeView: BeeView;
@@ -288,8 +283,6 @@ interface Store {
   removeFolder: (id: string) => void;
   setDefaultFolder: (id: string | null) => void;
   /** Sets a repository's folder, adding it if new. */
-  setRepo: (repo: Repo) => void;
-  removeRepo: (slug: string) => void;
   addBee: (bee: Bee) => void;
   updateBee: (id: string, patch: Partial<Bee>) => void;
   removeBee: (id: string) => void;
@@ -359,8 +352,6 @@ export const useStore = create<Store>()(
       alerted: [],
       pinned: [],
       folders: [],
-      repos: [],
-      dismissedRepos: [],
       bees: [],
       beeView: null,
       setBeeView: (beeView) => set({ beeView, panelTab: "bees", panelOpen: true }),
@@ -722,21 +713,9 @@ export const useStore = create<Store>()(
           groups: s.groups.map((g) => (g.folderId === id ? { ...g, folderId: null } : g)),
         })),
       setDefaultFolder: (id) => set({ defaultFolderId: id }),
-      setRepo: (repo) =>
-        set((s) => ({
-          repos: s.repos.some((r) => r.slug === repo.slug)
-            ? s.repos.map((r) => (r.slug === repo.slug ? repo : r))
-            : [...s.repos, repo].sort((a, b) => a.slug.localeCompare(b.slug)),
-          dismissedRepos: repo.manual ? s.dismissedRepos.filter((d) => d !== repo.slug) : s.dismissedRepos,
-        })),
       addBee: (bee) => set((s) => ({ bees: [...s.bees, bee] })),
       updateBee: (id, patch) => set((s) => ({ bees: s.bees.map((b) => (b.id === id ? { ...b, ...patch } : b)) })),
       removeBee: (id) => set((s) => ({ bees: s.bees.filter((b) => b.id !== id) })),
-      removeRepo: (slug) =>
-        set((s) => ({
-          repos: s.repos.filter((r) => r.slug !== slug),
-          dismissedRepos: [...s.dismissedRepos.filter((d) => d !== slug), slug],
-        })),
       openModal: (modal) => set({ modal }),
       setLayout: (layout) => set({ layout }),
       setBarPosition: (barPosition) => set({ barPosition }),
@@ -967,8 +946,6 @@ export const useStore = create<Store>()(
         panelTabOrder: s.panelTabOrder,
         pinned: s.pinned,
         folders: s.folders,
-        repos: s.repos,
-        dismissedRepos: s.dismissedRepos,
         bees: s.bees,
         defaultFolderId: s.defaultFolderId,
         layout: s.layout,
