@@ -253,15 +253,6 @@ export const DEFAULT_TAB_TITLE = "Nova sessão";
 /** Minutes a tab may sit waiting before the watchdog flags it. */
 export const WATCHDOG_MINUTES = 5;
 
-/** A GitHub repository and the folder of its clone on this machine. */
-export interface Repo {
-  /** `owner/name`. */
-  slug: string;
-  path: string;
-  /** Set or changed by hand, so the scan of the groups leaves it alone. */
-  manual: boolean;
-}
-
 /** A project folder registered in settings; new sessions open in one of these. */
 export interface Folder {
   id: string;

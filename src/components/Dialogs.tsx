@@ -10,7 +10,7 @@ import type { ReportsState } from "../lib/errors";
 import { shortcutLabel, withShortcuts } from "../lib/shortcuts";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useStore, type SettingsTab } from "../lib/store";
-import { ConnectionsTab, ReposTab } from "./WorkSettings";
+import { ConnectionsTab } from "./WorkSettings";
 import { DEFAULT_FONT_SIZE, THEMES, type ThemeId } from "../lib/theme";
 import { Modal } from "./Modal";
 import { AddFolder, FolderChoice } from "./FolderFields";
@@ -615,9 +615,6 @@ function SettingsDialog({ initialTab, onClose }: { initialTab?: SettingsTab; onC
         <button className={tab === "pastas" ? "on" : ""} onClick={() => setTab("pastas")}>
           Pastas
         </button>
-        <button className={tab === "repos" ? "on" : ""} onClick={() => setTab("repos")}>
-          Repositórios
-        </button>
         <button className={tab === "conexoes" ? "on" : ""} onClick={() => setTab("conexoes")}>
           Conexões
         </button>
@@ -632,8 +629,6 @@ function SettingsDialog({ initialTab, onClose }: { initialTab?: SettingsTab; onC
       {tab === "sobre" && <AboutTab />}
 
       {tab === "plugins" && <PluginsTab />}
-
-      {tab === "repos" && <ReposTab />}
 
       {tab === "conexoes" && <ConnectionsTab />}
 
@@ -863,7 +858,7 @@ function NewGroupDialog({ onClose }: { onClose: () => void }) {
         <span>Nome</span>
         <input
           autoFocus
-          placeholder="Vakinha, API, estudos…"
+          placeholder="Trabalho, API, estudos…"
           value={name}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && create()}

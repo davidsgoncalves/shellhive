@@ -27,7 +27,6 @@ import { carriesFiles, pasteDroppedFiles } from "./lib/termExtras";
 import { startLagTracker } from "./lib/perfDiag";
 import { CommandCard, typeCommand } from "./components/CommandCard";
 import { PermissionCard } from "./components/PermissionQueue";
-import { scanRepos } from "./lib/repos";
 import { checkConnections } from "./lib/connections";
 import { finishBeeRun, startBeeScheduler, stopBeeRun, useBeeRuns } from "./lib/bees";
 import { callBeeTool, syncBeeCreators } from "./lib/beeCreator";
@@ -667,7 +666,6 @@ function useWorkSetup() {
     [],
   );
   useEffect(() => {
-    void scanRepos();
     void checkConnections();
     syncBeeCreators();
     return startBeeScheduler();

@@ -77,8 +77,6 @@ pub fn run() {
             mcp::bee_creator_tabs,
             sessions::session_last_reply,
             connections::mcp_status,
-            connections::git_origin,
-            connections::git_origins_in,
             errors::error_reports_get,
             errors::error_reports_set,
             errors::report_error,
