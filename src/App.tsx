@@ -182,7 +182,7 @@ function useBackendBridge() {
         pendingMessage: `${req.payload.tool_name ?? "ferramenta"}: ${summary}`,
       });
       void notify(
-        `${tab && isBeeTab(tab) ? "Abelha pede permissão" : "Permissão"}: ${req.payload.tool_name ?? "ferramenta"}`,
+        `${tab && isBeeTab(tab) ? "Worker bee pede permissão" : "Permissão"}: ${req.payload.tool_name ?? "ferramenta"}`,
         `${tab?.title ?? "sessão"} · ${summary}`,
         !onScreen(store(), req.tab_id),
       );

@@ -113,7 +113,7 @@ export async function runBee(bee: Bee): Promise<void> {
     summary: null,
   };
   // A prompt still holding {{...}} parts would send Claude placeholders instead of a task.
-  if (!bee.instructions.trim()) return fail(run, "A abelha não tem prompt. Use Editar para escrever.");
+  if (!bee.instructions.trim()) return fail(run, "A worker bee não tem prompt. Use Editar para escrever.");
   if (PLACEHOLDER.test(bee.instructions)) return fail(run, "O prompt ainda tem partes {{...}} para substituir. Use Editar.");
   // Without Claude Code ready there is nothing to run the bee with.
   const checks = await invoke<Check[]>("connections_check").catch(() => []);
@@ -145,7 +145,7 @@ export async function finishBeeRun(tabId: string): Promise<void> {
     tabId: run.revealed ? tabId : null,
   });
   if (!run.revealed) s.closeTab(tabId);
-  void notify(`Abelha ${bee?.name ?? ""} terminou`, summary?.slice(0, 160) ?? "Sem resumo.", true);
+  void notify(`Worker bee ${bee?.name ?? ""} terminou`, summary?.slice(0, 160) ?? "Sem resumo.", true);
 }
 
 /** Ends a run by hand, or when its Claude is gone: the tab closes and the run is marked failed. */
@@ -179,7 +179,7 @@ export function openBeeRun(run: BeeRun): void {
   }
   if (!run.sessionId) return;
   const bee = s.bees.find((b) => b.id === run.beeId);
-  openSession({ id: run.sessionId, cwd: null, title: bee?.name ?? "Abelha" }, { groupId });
+  openSession({ id: run.sessionId, cwd: null, title: bee?.name ?? "Worker bee" }, { groupId });
 }
 
 /** Runs the enabled bees when due; one missed while the app was closed follows the bee's setting. */

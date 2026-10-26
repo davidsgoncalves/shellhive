@@ -18,14 +18,14 @@ export interface BeeTemplate {
 export const PLACEHOLDER = /\{\{[^}\n]+\}\}/;
 
 /** The starting text of a bee with no template. */
-export const BLANK_PROMPT = `Você está rodando como uma abelha do Worker bee do Shellhive, sem ninguém acompanhando o terminal. Não faça perguntas: quando precisar decidir, escolha o caminho mais seguro e diga no fim o que escolheu.
+export const BLANK_PROMPT = `Você está rodando como uma worker bee do Shellhive, sem ninguém acompanhando o terminal. Não faça perguntas: quando precisar decidir, escolha o caminho mais seguro e diga no fim o que escolheu.
 
 Tarefa:
-{{Descreva o que a abelha deve fazer, em quais repositórios e pastas.}}
+{{Descreva o que a worker bee deve fazer, em quais repositórios e pastas.}}
 
 No fim, responda com um resumo curto do que fez e do que ficou pendente.`;
 
-const WORKTREES_PROMPT = `Você está rodando como uma abelha do Worker bee do Shellhive, sem ninguém acompanhando o terminal. Não faça perguntas.
+const WORKTREES_PROMPT = `Você está rodando como uma worker bee do Shellhive, sem ninguém acompanhando o terminal. Não faça perguntas.
 
 Tarefa: apagar as worktrees que não servem mais.
 
@@ -45,7 +45,7 @@ Em cada clone:
 
 No fim, responda com a lista de worktrees removidas e mantidas, cada uma com o motivo.`;
 
-const REVIEW_PROMPT = `Você está rodando como uma abelha de review do Worker bee do Shellhive, sem ninguém acompanhando o terminal. Não faça perguntas.
+const REVIEW_PROMPT = `Você está rodando como uma worker bee de review do Shellhive, sem ninguém acompanhando o terminal. Não faça perguntas.
 
 Repositórios a revisar e a pasta do clone de cada um:
 {{Liste um por linha, no formato dono/repositório: pasta do clone. Ex.: acme/api: ~/projects/api}}
@@ -79,7 +79,7 @@ Como publicar:
 
 No fim, responda com um resumo: para cada PR, quantos achados e cada bloqueante em uma linha; e a lista dos PRs sem achados, com o link, dizendo que falta eu aprovar.`;
 
-const DAILY_PROMPT = `Você está rodando como uma abelha do Worker bee do Shellhive, sem ninguém acompanhando o terminal. Não faça perguntas.
+const DAILY_PROMPT = `Você está rodando como uma worker bee do Shellhive, sem ninguém acompanhando o terminal. Não faça perguntas.
 
 Tarefa: escrever o resumo do meu dia de trabalho, pronto para eu colar na daily.
 

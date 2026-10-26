@@ -48,17 +48,17 @@ fn bee_tools() -> Vec<serde_json::Value> {
     let tools = serde_json::json!([
         {
             "name": "list_bees",
-            "description": "Lista as abelhas do Worker bee (id, nome, se está ligada, quando roda) e os templates prontos, com o prompt de cada um.",
+            "description": "Lista as worker bees (id, nome, se está ligada, quando roda) e os templates prontos, com o prompt de cada um.",
             "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false }
         },
         {
             "name": "create_bee",
-            "description": "Cria uma abelha do Worker bee, desligada até o usuário conferir no painel e ligar. Só chame depois de o usuário confirmar o resumo e o prompt.",
+            "description": "Cria uma worker bee, desligada até o usuário conferir no painel e ligar. Só chame depois de o usuário confirmar o resumo e o prompt.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "name": { "type": "string", "description": "Nome curto da abelha." },
-                    "prompt": { "type": "string", "description": "O prompt completo que a abelha roda, sem nenhum {{...}} sobrando." },
+                    "name": { "type": "string", "description": "Nome curto da worker bee." },
+                    "prompt": { "type": "string", "description": "O prompt completo que a worker bee roda, sem nenhum {{...}} sobrando." },
                     "template": { "type": "string", "description": "Id do template usado de base, se houver." },
                     "trigger": {
                         "type": "object",
@@ -79,7 +79,7 @@ fn bee_tools() -> Vec<serde_json::Value> {
         },
         {
             "name": "run_bee",
-            "description": "Roda agora uma abelha, pelo id de list_bees.",
+            "description": "Roda agora uma worker bee, pelo id de list_bees.",
             "inputSchema": {
                 "type": "object",
                 "properties": { "id": { "type": "string" } },

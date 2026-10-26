@@ -7,22 +7,22 @@ import type { Bee, BeeTrigger } from "./types";
 import { PLACEHOLDER, TEMPLATES } from "./beeTemplates";
 
 /** The first message of a bee-creation session: what bees are and how to make one. */
-const GUIDE = `Esta é a sessão de criação de abelhas do Worker bee do Shellhive. Ajude o usuário a montar uma abelha e crie com a ferramenta create_bee.
+const GUIDE = `Esta é a sessão de criação de worker bees do Shellhive. Ajude o usuário a montar uma worker bee e crie com a ferramenta create_bee.
 
-Uma abelha é um prompt que o Shellhive roda numa sessão do Claude escondida, sem ninguém acompanhando, na hora marcada. O prompt é tudo o que ela sabe: tarefa, pastas e repositórios, regras e o que responder no fim. Ela não pode fazer perguntas enquanto roda.
+Uma worker bee é um prompt que o Shellhive roda numa sessão do Claude escondida, sem ninguém acompanhando, na hora marcada. O prompt é tudo o que ela sabe: tarefa, pastas e repositórios, regras e o que responder no fim. Ela não pode fazer perguntas enquanto roda.
 
 Quando roda: manual, a cada intervalo em minutos, ou em dias da semana e horário. Só roda com o app aberto; um horário perdido com o app fechado roda uma vez ao abrir (padrão) ou é pulado.
 
 Há templates prontos que você pode usar de base com list_bees (campo templates): troque cada {{...}} pelo conteúdo do usuário.
 
 Como conduzir:
-1. Chame list_bees para ver as abelhas que já existem e os templates.
-2. Pergunte o que a abelha deve fazer, onde (pastas, repositórios) e quando, uma coisa por vez e sem se estender.
+1. Chame list_bees para ver as worker bees que já existem e os templates.
+2. Pergunte o que a worker bee deve fazer, onde (pastas, repositórios) e quando, uma coisa por vez e sem se estender.
 3. Escreva o prompt completo, autônomo, com as pastas e repositórios escritos nele, sem nenhum {{...}} sobrando.
 4. Antes de criar, mostre o resumo (nome, quando roda, horário perdido) e o prompt inteiro, e peça confirmação.
-5. A abelha nasce desligada. Depois de criar, diga que ela está no painel do Worker bee para conferir e ligar, e ofereça rodar uma vez agora com run_bee.
+5. A worker bee nasce desligada. Depois de criar, diga que ela está no painel do Worker bee para conferir e ligar, e ofereça rodar uma vez agora com run_bee.
 
-Comece perguntando o que a abelha deve fazer.`;
+Comece perguntando o que a worker bee deve fazer.`;
 
 /** Opens the session that creates bees with Claude, in the active tab's group. */
 export function openBeeCreator(): void {
@@ -30,7 +30,7 @@ export function openBeeCreator(): void {
   const active = s.tabs.find((t) => t.id === s.activeTabId);
   const groupId = active?.groupId ?? s.groups.find((g) => !g.fixed)?.id ?? s.groups[0]?.id;
   if (!groupId) return;
-  const id = s.addTab(groupId, { title: "Criar abelha", customTitle: true, beeCreator: true });
+  const id = s.addTab(groupId, { title: "Criar worker bee", customTitle: true, beeCreator: true });
   syncBeeCreators();
   markPendingPrompt(id, GUIDE);
   // The new session takes the center from the Worker bee.
@@ -69,16 +69,16 @@ export async function callBeeTool(tool: string, args: Record<string, unknown>): 
   }
   if (tool === "run_bee") {
     const bee = s.bees.find((b) => b.id === args.id);
-    if (!bee) return { text: "Abelha não encontrada; veja os ids em list_bees.", isError: true };
+    if (!bee) return { text: "Worker bee não encontrada; veja os ids em list_bees.", isError: true };
     void runBee(bee);
-    return { text: `A abelha ${bee.name} começou a rodar; o resultado aparece no painel do Worker bee.` };
+    return { text: `A worker bee ${bee.name} começou a rodar; o resultado aparece no painel do Worker bee.` };
   }
   if (tool === "create_bee") {
     const name = typeof args.name === "string" ? args.name.trim() : "";
     const prompt = typeof args.prompt === "string" ? args.prompt.trim() : "";
     const trigger = parseTrigger(args.trigger);
     if (!name) return { text: "Informe o nome.", isError: true };
-    if (!prompt) return { text: "Informe o prompt da abelha.", isError: true };
+    if (!prompt) return { text: "Informe o prompt da worker bee.", isError: true };
     if (PLACEHOLDER.test(prompt)) return { text: "O prompt ainda tem partes {{...}}; troque pelo conteúdo do usuário.", isError: true };
     if (typeof trigger === "string") return { text: trigger, isError: true };
     const templateId = TEMPLATES.some((t) => t.id === args.template) ? String(args.template) : undefined;
@@ -94,7 +94,7 @@ export async function callBeeTool(tool: string, args: Record<string, unknown>): 
       lastRunAt: null,
     };
     s.addBee(bee);
-    return { text: `Abelha criada, desligada: ${name} (id ${bee.id}). O usuário confere e liga no painel do Worker bee.` };
+    return { text: `Worker bee criada, desligada: ${name} (id ${bee.id}). O usuário confere e liga no painel do Worker bee.` };
   }
   return { text: `Ferramenta desconhecida: ${tool}`, isError: true };
 }

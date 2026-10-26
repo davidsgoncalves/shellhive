@@ -78,7 +78,7 @@ export function BeePanel() {
         </section>
       )}
       {bees.length === 0 ? (
-        <p className="hint">Nenhuma abelha ainda. Uma abelha roda uma tarefa do Claude em segundo plano, na hora que você escolher.</p>
+        <p className="hint">Nenhuma worker bee ainda. Uma worker bee roda uma tarefa do Claude em segundo plano, na hora que você escolher.</p>
       ) : (
         <ul className="bee-list">
           {bees.map((b) => {
@@ -115,7 +115,7 @@ export function NewBeeButton() {
   const setBeeView = useStore((s) => s.setBeeView);
   return (
     <button className="ghost auto bee-new" onClick={() => setBeeView({ mode: "new" })}>
-      + Nova abelha
+      + Nova worker bee
     </button>
   );
 }
@@ -134,9 +134,9 @@ export function BeeMain() {
   else
     body = (
       <div className="bee-blank">
-        <p className="hint">Nenhuma abelha ainda.</p>
+        <p className="hint">Nenhuma worker bee ainda.</p>
         <button className="primary" onClick={() => setBeeView({ mode: "new" })}>
-          + Nova abelha
+          + Nova worker bee
         </button>
       </div>
     );
@@ -288,17 +288,17 @@ function BeeEditor({ beeId, onDone }: { beeId?: string; onDone: (id?: string) =>
         title: "Com template",
         text: "Parte de um prompt pronto, como o de review. Você troca as partes marcadas pelo seu conteúdo.",
       },
-      { id: "free", title: "Sem template", text: "Você escreve o prompt da abelha e escolhe quando ela roda." },
+      { id: "free", title: "Sem template", text: "Você escreve o prompt da worker bee e escolhe quando ela roda." },
       {
         id: "claude",
         title: "Com o Claude",
-        text: "Você descreve o que quer numa sessão com o Claude, e ele monta a abelha para você conferir.",
+        text: "Você descreve o que quer numa sessão com o Claude, e ele monta a worker bee para você conferir.",
       },
     ];
     return (
       <Frame
         title="Como você quer começar?"
-        step="Nova abelha · etapa 1"
+        step="Nova worker bee · etapa 1"
         footer={
           <button className="ghost auto" onClick={onClose}>
             Cancelar
@@ -334,7 +334,7 @@ function BeeEditor({ beeId, onDone }: { beeId?: string; onDone: (id?: string) =>
     return (
       <Frame
         title="Escolha o template"
-        step="Nova abelha · etapa 2 de 3"
+        step="Nova worker bee · etapa 2 de 3"
         footer={
           <button className="ghost auto bee-delete" onClick={() => setStep("start")}>
             Voltar
@@ -360,13 +360,13 @@ function BeeEditor({ beeId, onDone }: { beeId?: string; onDone: (id?: string) =>
 
   return (
     <Frame
-      title={editing ? `Editar ${editing.name}` : "Configure a abelha"}
+      title={editing ? `Editar ${editing.name}` : "Configure a worker bee"}
       step={
         editing
           ? undefined
           : templateId
-            ? `Nova abelha · etapa 3 de 3 · template ${TEMPLATES.find((t) => t.id === templateId)?.name ?? ""}`
-            : "Nova abelha · etapa 2 de 2"
+            ? `Nova worker bee · etapa 3 de 3 · template ${TEMPLATES.find((t) => t.id === templateId)?.name ?? ""}`
+            : "Nova worker bee · etapa 2 de 2"
       }
       footer={
         <>
@@ -399,8 +399,8 @@ function BeeEditor({ beeId, onDone }: { beeId?: string; onDone: (id?: string) =>
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Limpar worktrees" autoFocus />
       </label>
       <label className="field">
-        <span>Prompt da abelha</span>
-        <span className="hint">Substitua os {"{{...}}"} pelo seu próprio conteúdo. A abelha roda exatamente este texto.</span>
+        <span>Prompt da worker bee</span>
+        <span className="hint">Substitua os {"{{...}}"} pelo seu próprio conteúdo. A worker bee roda exatamente este texto.</span>
         <textarea
           className="bee-textarea bee-prompt"
           rows={20}
