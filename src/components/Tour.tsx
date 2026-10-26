@@ -1,6 +1,7 @@
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { useStore } from "../lib/store";
 import { shortcutLabel } from "../lib/shortcuts";
+import swarm from "../assets/swarm-update.jpg";
 
 interface Step {
   /** The panel shown while the step is on screen. */
@@ -69,7 +70,8 @@ export function Tour() {
   // -1 is the intro screen.
   const [index, setIndex] = useState(-1);
   const [rect, setRect] = useState<DOMRect | null>(null);
-  const list = steps(layout);
+  // Kept between renders: the effects below run again whenever the step changes.
+  const list = useMemo(() => steps(layout), [layout]);
   const step = index >= 0 ? list[index] : null;
 
   useEffect(() => {
@@ -113,8 +115,7 @@ export function Tour() {
     return (
       <div className="tour-backdrop">
         <div className="tour-intro">
-          <img src="/icon.png" alt="" />
-          <h2>Shellhive - Swarm update</h2>
+          <img src={swarm} alt="ShellHive - Swarm update" />
           <ul>
             <li>Uma barra de ícones à esquerda troca o painel, e os terminais ganham o resto da tela.</li>
             <li>Pedidos de permissão aparecem em cima da aba que pediu.</li>
