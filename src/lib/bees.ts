@@ -121,19 +121,24 @@ export async function runBee(bee: Bee): Promise<void> {
   if (!claude?.ok) {
     return fail(run, `Claude Code não está pronto: ${claude?.detail ?? "não foi possível conferir."} Veja em Configurações › Conexões.`);
   }
-  const tabId = store.addTab(BEE_GROUP_ID, { title: bee.name, customTitle: true, background: true });
+  const cwd = await invoke<string>("bee_workdir").catch(() => null);
+  if (!cwd) return fail(run, "Não consegui criar a pasta onde as worker bees rodam.");
+  const tabId = store.addTab(BEE_GROUP_ID, { title: bee.name, customTitle: true, background: true, cwd });
   markPendingPrompt(tabId, bee.instructions);
-  useBeeRuns.getState().put({ ...run, tabId });
+  useBeeRuns.getState().put({ ...run, tabId, cwd });
 }
 
 /** Ends the run a bee tab holds, once Claude stops: keeps its reply and closes the tab. */
-export async function finishBeeRun(tabId: string): Promise<void> {
+export async function finishBeeRun(tabId: string, reply?: string): Promise<void> {
   const run = useBeeRuns.getState().runs.find((r) => r.tabId === tabId && r.status === "running");
   if (!run) return;
   const s = useStore.getState();
   const tab = s.tabs.find((t) => t.id === tabId);
   const bee = s.bees.find((b) => b.id === run.beeId);
-  const summary = tab?.transcriptPath
+  // The Stop event carries the last reply; the transcript may not have it written yet.
+  const summary = reply?.trim()
+    ? reply
+    : tab?.transcriptPath
     ? await invoke<string | null>("session_last_reply", { path: tab.transcriptPath }).catch(() => null)
     : null;
   useBeeRuns.getState().put({
@@ -179,7 +184,8 @@ export function openBeeRun(run: BeeRun): void {
   }
   if (!run.sessionId) return;
   const bee = s.bees.find((b) => b.id === run.beeId);
-  openSession({ id: run.sessionId, cwd: null, title: bee?.name ?? "Worker bee" }, { groupId });
+  // Claude finds a session by the folder it ran in.
+  openSession({ id: run.sessionId, cwd: run.cwd ?? null, title: bee?.name ?? "Worker bee" }, { groupId });
 }
 
 /** Runs the enabled bees when due; one missed while the app was closed follows the bee's setting. */

@@ -153,7 +153,8 @@ function useBackendBridge() {
       }
       if (patch.state === "waiting" && tab.state === "working") {
         if (isBeeTab(tab) || useBeeRuns.getState().runs.some((r) => r.tabId === tab.id && r.status === "running")) {
-          void finishBeeRun(tab.id);
+          const reply = e.payload.last_assistant_message;
+          void finishBeeRun(tab.id, typeof reply === "string" ? reply : undefined);
         } else {
           void notify("Sessão terminou", patch.title ?? tab.title);
         }

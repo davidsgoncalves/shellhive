@@ -74,6 +74,7 @@ pub fn run() {
             connections::connections_check,
             bees::bee_runs_get,
             bees::bee_runs_set,
+            bees::bee_workdir,
             mcp::bee_creator_tabs,
             sessions::session_last_reply,
             connections::mcp_status,
