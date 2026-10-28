@@ -120,6 +120,7 @@ export function SessionsBrowser() {
         </p>
       )}
       {searching && <p className="hint pad">Buscando no conteúdo…</p>}
+      {!query && <ArchivedGroups />}
       <ul className="session-list">
         {visible.map((s, i) => (
           <Fragment key={s.id}>
@@ -159,5 +160,41 @@ export function SessionsBrowser() {
         ))}
       </ul>
     </div>
+  );
+}
+
+/** Groups closed with their sessions kept; restoring reopens them all. */
+function ArchivedGroups() {
+  const { archivedGroups, restoreGroup, dropArchivedGroup } = useStore();
+  const [confirming, setConfirming] = useState<string | null>(null);
+  if (archivedGroups.length === 0) return null;
+  return (
+    <ul className="session-list">
+      <li className="session-section">Grupos arquivados</li>
+      {archivedGroups.map((g) => (
+        <li key={g.id} className="archived-group" title={g.sessions.map((x) => x.title).join("\n")}>
+          <div className="row">
+            <span className="pick-dot" style={{ background: g.color }} />
+            <span className="session-title">
+              {g.emoji ? `${g.emoji} ` : ""}
+              {g.name}
+            </span>
+            <time>{relativeDate(Math.floor(g.archivedAt / 1000))}</time>
+          </div>
+          <div className="meta">
+            <span>{g.sessions.length} sessão(ões)</span>
+            <button className="link" onClick={() => restoreGroup(g.id)}>
+              Restaurar
+            </button>
+            <button
+              className={`link ${confirming === g.id ? "danger" : ""}`}
+              onClick={() => (confirming === g.id ? dropArchivedGroup(g.id) : setConfirming(g.id))}
+            >
+              {confirming === g.id ? "Confirmar" : "Esquecer"}
+            </button>
+          </div>
+        </li>
+      ))}
+    </ul>
   );
 }

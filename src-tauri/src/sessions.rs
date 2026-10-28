@@ -137,6 +137,118 @@ pub fn session_last_reply(path: String) -> Option<String> {
     text.lines().rev().find_map(last_reply_in)
 }
 
+/// Characters kept of a tool's input or result in a subagent's conversation.
+const SUBAGENT_SNIPPET: usize = 400;
+
+#[derive(serde::Serialize)]
+pub struct SubagentEntry {
+    /// "prompt", "text", "tool" or "result".
+    pub kind: &'static str,
+    pub text: String,
+}
+
+/// The few words that say what a tool call did, from its input.
+fn tool_summary(name: &str, input: &serde_json::Value) -> String {
+    let field = [
+        "command",
+        "file_path",
+        "pattern",
+        "url",
+        "query",
+        "path",
+        "description",
+    ]
+    .iter()
+    .find_map(|k| input.get(*k).and_then(|v| v.as_str()));
+    let detail = field
+        .map(str::to_string)
+        .unwrap_or_else(|| input.to_string());
+    format!("{name}: {}", truncate(&detail, SUBAGENT_SNIPPET))
+}
+
+fn result_text(block: &serde_json::Value) -> String {
+    match block.get("content") {
+        Some(serde_json::Value::String(s)) => s.clone(),
+        Some(serde_json::Value::Array(parts)) => parts
+            .iter()
+            .filter_map(|p| p.get("text").and_then(|t| t.as_str()))
+            .collect::<Vec<_>>()
+            .join(" "),
+        _ => String::new(),
+    }
+}
+
+/// The conversation of the subagent a tool call started, read from the
+/// session's subagents folder, whose meta files name that call.
+#[tauri::command]
+pub fn subagent_transcript(path: String, tool_use_id: String) -> Option<Vec<SubagentEntry>> {
+    let dir = Path::new(path.strip_suffix(".jsonl")?).join("subagents");
+    let file = std::fs::read_dir(&dir).ok()?.flatten().find_map(|e| {
+        let meta = e.path();
+        let name = meta.file_name()?.to_str()?.to_string();
+        let stem = name.strip_suffix(".meta.json")?;
+        let v: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&meta).ok()?).ok()?;
+        (v.get("toolUseId")?.as_str()? == tool_use_id).then(|| dir.join(format!("{stem}.jsonl")))
+    })?;
+    let text = std::fs::read_to_string(file).ok()?;
+    let mut out = Vec::new();
+    for line in text.lines() {
+        let Ok(v) = serde_json::from_str::<serde_json::Value>(line) else {
+            continue;
+        };
+        let Some(content) = v.get("message").and_then(|m| m.get("content")) else {
+            continue;
+        };
+        let role = v.get("type").and_then(|t| t.as_str()).unwrap_or("");
+        if let serde_json::Value::String(s) = content {
+            if role == "user" {
+                out.push(SubagentEntry {
+                    kind: "prompt",
+                    text: s.clone(),
+                });
+            }
+            continue;
+        }
+        for block in content.as_array().into_iter().flatten() {
+            match block.get("type").and_then(|t| t.as_str()) {
+                Some("text") => {
+                    let t = block.get("text").and_then(|t| t.as_str()).unwrap_or("");
+                    if !t.trim().is_empty() {
+                        let kind = if role == "user" { "prompt" } else { "text" };
+                        out.push(SubagentEntry {
+                            kind,
+                            text: t.to_string(),
+                        });
+                    }
+                }
+                Some("tool_use") => {
+                    let name = block
+                        .get("name")
+                        .and_then(|n| n.as_str())
+                        .unwrap_or("ferramenta");
+                    let input = block.get("input").cloned().unwrap_or_default();
+                    out.push(SubagentEntry {
+                        kind: "tool",
+                        text: tool_summary(name, &input),
+                    });
+                }
+                Some("tool_result") => {
+                    let t = result_text(block);
+                    if !t.trim().is_empty() {
+                        out.push(SubagentEntry {
+                            kind: "result",
+                            text: truncate(&t, SUBAGENT_SNIPPET),
+                        });
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    Some(out)
+}
+
 /// Tail of a transcript read for the prompt cache; the last request sits at the end.
 const CACHE_TAIL_BYTES: u64 = 2 * 1024 * 1024;
 
@@ -479,5 +591,34 @@ mod tests {
         assert_eq!(info.at, "2026-10-28T10:05:00Z");
         assert_eq!(info.ttl, 3600);
         assert_eq!(info.tokens, 2014);
+    }
+
+    #[test]
+    fn reads_a_subagent_by_its_tool_call() {
+        let root = std::env::temp_dir().join("shellhive-subagent-test");
+        let dir = root.join("session").join("subagents");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("agent-x.meta.json"), r#"{"toolUseId":"toolu_1"}"#).unwrap();
+        let lines = [
+            r#"{"type":"user","message":{"content":"Find the bug"}}"#,
+            r#"{"type":"assistant","message":{"content":[{"type":"text","text":"Looking"},{"type":"tool_use","name":"Bash","input":{"command":"ls"}}]}}"#,
+            r#"{"type":"user","message":{"content":[{"type":"tool_result","content":"a.rs"}]}}"#,
+        ];
+        std::fs::write(dir.join("agent-x.jsonl"), lines.join("\n")).unwrap();
+        let path = root.join("session.jsonl").to_string_lossy().to_string();
+        let entries = super::subagent_transcript(path.clone(), "toolu_1".into()).unwrap();
+        let other = super::subagent_transcript(path, "toolu_2".into());
+        std::fs::remove_dir_all(&root).ok();
+        let got: Vec<(&str, &str)> = entries.iter().map(|e| (e.kind, e.text.as_str())).collect();
+        assert_eq!(
+            got,
+            [
+                ("prompt", "Find the bug"),
+                ("text", "Looking"),
+                ("tool", "Bash: ls"),
+                ("result", "a.rs")
+            ]
+        );
+        assert!(other.is_none());
     }
 }

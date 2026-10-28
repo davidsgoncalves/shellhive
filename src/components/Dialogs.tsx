@@ -9,7 +9,7 @@ import { useUpdater } from "../lib/updater";
 import type { ReportsState } from "../lib/errors";
 import { shortcutLabel, withShortcuts } from "../lib/shortcuts";
 import { open } from "@tauri-apps/plugin-dialog";
-import { useStore, type SettingsTab } from "../lib/store";
+import { newTabInGroup, useStore, type SettingsTab } from "../lib/store";
 import { ConnectionsTab } from "./WorkSettings";
 import { DEFAULT_FONT_SIZE, THEMES, type ThemeId } from "../lib/theme";
 import { Modal } from "./Modal";
@@ -753,14 +753,94 @@ function NewGroupDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
+const MODELS = ["fable", "opus", "sonnet", "haiku"];
+
+const PERMISSION_MODES: Array<[string, string]> = [
+  ["manual", "Perguntar tudo"],
+  ["acceptEdits", "Aceitar edições"],
+  ["auto", "Automático"],
+  ["plan", "Só planejar"],
+  ["dontAsk", "Não perguntar"],
+  ["bypassPermissions", "Ignorar permissões"],
+];
+
+/** How `claude` starts in a group's tabs: model, permission mode and first prompt. */
+function GroupLaunchDialog({ groupId, onClose }: { groupId: string; onClose: () => void }) {
+  const { groups, setGroupLaunch } = useStore();
+  const group = groups.find((g) => g.id === groupId);
+  const [model, setModel] = useState(group?.launch?.model ?? "");
+  const [mode, setMode] = useState(group?.launch?.permissionMode ?? "");
+  const [prompt, setPrompt] = useState(group?.launch?.prompt ?? "");
+  if (!group) return null;
+
+  const save = () => {
+    setGroupLaunch(groupId, {
+      model: model.trim() || null,
+      permissionMode: mode || null,
+      prompt: prompt.trim() || null,
+    });
+    onClose();
+  };
+
+  return (
+    <Modal
+      title={`Abas novas em ${group.name}`}
+      onClose={onClose}
+      footer={
+        <>
+          <button className="ghost auto" onClick={onClose}>
+            Cancelar
+          </button>
+          <button className="primary" onClick={save}>
+            Salvar
+          </button>
+        </>
+      }
+    >
+      <p className="hint">
+        Vale para o claude iniciado nas abas abertas depois de salvar. Campo vazio deixa o padrão do Claude.
+      </p>
+      <label className="field">
+        <span>Modelo</span>
+        <input list="group-models" placeholder="Padrão do Claude" value={model} onChange={(e) => setModel(e.target.value)} />
+        <datalist id="group-models">
+          {MODELS.map((m) => (
+            <option key={m} value={m} />
+          ))}
+        </datalist>
+      </label>
+      <label className="field">
+        <span>Modo de permissão</span>
+        <select className="bee-select" value={mode} onChange={(e) => setMode(e.target.value)}>
+          <option value="">Padrão do Claude</option>
+          {PERMISSION_MODES.map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="field">
+        <span>Prompt inicial</span>
+        <textarea
+          rows={4}
+          placeholder="Enviado ao Claude quando uma aba nova abre no grupo"
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+        />
+      </label>
+    </Modal>
+  );
+}
+
 function PickFolderDialog({ groupId, onClose }: { groupId: string; onClose: () => void }) {
-  const { folders, addTab, setGroupFolder, groups } = useStore();
+  const { folders, setGroupFolder, groups } = useStore();
   const group = groups.find((g) => g.id === groupId);
   const [remember, setRemember] = useState(false);
 
   const openIn = (path: string, name: string, folderId?: string) => {
     if (remember && folderId) setGroupFolder(groupId, folderId);
-    addTab(groupId, { cwd: path, title: name });
+    newTabInGroup(groupId, path, name);
     onClose();
   };
 
@@ -824,5 +904,6 @@ export function Dialogs() {
   if (modal.kind === "newGroup") return <NewGroupDialog onClose={close} />;
   if (modal.kind === "switcher") return <QuickSwitcher onClose={close} />;
   if (modal.kind === "searchAll") return <SearchAll onClose={close} />;
+  if (modal.kind === "groupLaunch") return <GroupLaunchDialog groupId={modal.groupId} onClose={close} />;
   return <PickFolderDialog groupId={modal.groupId} onClose={close} />;
 }

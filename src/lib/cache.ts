@@ -44,6 +44,15 @@ export async function refreshCache(tabId: string): Promise<void> {
   useCache.getState().put(tabId, raw && !Number.isNaN(at) ? { at, ttl: raw.ttl * 1000, tokens: raw.tokens } : null);
 }
 
+/** Delays of the reads after a turn ends; the reply can reach the transcript after the hook. */
+const LATE_READS_MS = [1500, 5000, 15000];
+
+/** Reads the cache now and a few times more, for a turn that just ended. */
+export function refreshCacheAfterTurn(tabId: string): void {
+  void refreshCache(tabId);
+  for (const ms of LATE_READS_MS) setTimeout(() => void refreshCache(tabId), ms);
+}
+
 /** The cache a tab's card shows: a session waiting on the user, with context worth keeping. */
 export function cacheCardOf(tab: Tab, byTab: Record<string, CacheInfo>): CacheInfo | null {
   const info = byTab[tab.id];

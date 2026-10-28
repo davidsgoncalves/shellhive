@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { useStore } from "../lib/store";
-import { DAY_NAMES, describeTrigger, openBeeRun, runBee, stopBeeRun, useBeeRuns } from "../lib/bees";
+import { DAY_NAMES, describeEvent, describeTrigger, openBeeRun, runBee, stopBeeRun, useBeeRuns } from "../lib/bees";
 import { openBeeCreator } from "../lib/beeCreator";
 import { BLANK_PROMPT, PLACEHOLDER, TEMPLATES, type BeeTemplate } from "../lib/beeTemplates";
-import { isBeeTab, type Bee, type BeeRun, type BeeTrigger } from "../lib/types";
+import { BEE_GROUP_ID, isBeeTab, type Bee, type BeeEvent, type BeeRun, type BeeTrigger } from "../lib/types";
 import { PermissionCard, QuestionCard } from "./PermissionQueue";
 
 /** Requests from the bees' hidden tabs: permissions and questions. */
@@ -309,7 +309,11 @@ function BeeEditor({ beeId, onDone }: { beeId?: string; onDone: (id?: string) =>
   const [missed, setMissed] = useState<Bee["missed"]>(editing?.missed ?? "run");
 
   const unfilled = PLACEHOLDER.test(prompt);
-  const ready = name.trim() && prompt.trim() && (trigger.kind !== "schedule" || trigger.days.length > 0);
+  const ready =
+    name.trim() &&
+    prompt.trim() &&
+    (trigger.kind !== "schedule" || trigger.days.length > 0) &&
+    (trigger.kind !== "event" || trigger.event.on !== "beeDone" || !!trigger.event.beeId);
   const save = () => {
     if (!ready) return;
     const fields = { name: name.trim(), instructions: prompt.trim(), trigger, missed, templateId };
@@ -473,7 +477,14 @@ function BeeEditor({ beeId, onDone }: { beeId?: string; onDone: (id?: string) =>
           >
             Dias e horário
           </button>
+          <button
+            className={`chip ${trigger.kind === "event" ? "on" : ""}`}
+            onClick={() => setTrigger({ kind: "event", event: { on: "stop" }, groupId: null, cooldown: 10 })}
+          >
+            Por evento
+          </button>
         </div>
+        {trigger.kind === "event" && <EventFields trigger={trigger} selfId={editing?.id} onChange={setTrigger} />}
         {trigger.kind === "interval" && (
           <select
             className="bee-select"
@@ -503,7 +514,7 @@ function BeeEditor({ beeId, onDone }: { beeId?: string; onDone: (id?: string) =>
           </div>
         )}
       </div>
-      {trigger.kind !== "manual" && (
+      {(trigger.kind === "interval" || trigger.kind === "schedule") && (
         <div className="field">
           <span>Horário perdido com o app fechado</span>
           <div className="chip-row">
@@ -517,5 +528,112 @@ function BeeEditor({ beeId, onDone }: { beeId?: string; onDone: (id?: string) =>
         </div>
       )}
     </Frame>
+  );
+}
+
+type EventTrigger = Extract<BeeTrigger, { kind: "event" }>;
+
+/** A fresh event of each kind, for the event picker. */
+const EVENTS: BeeEvent[] = [
+  { on: "stop" },
+  { on: "sessionEnd" },
+  { on: "tool", tool: "Bash", match: null },
+  { on: "notification" },
+  { on: "subagentStop" },
+  { on: "beeDone", beeId: "" },
+  { on: "usage", window: "session", percent: 80 },
+  { on: "appOpen" },
+];
+
+const TOOLS = ["Bash", "Edit", "Write", "Read", "WebFetch", "Agent"];
+const COOLDOWNS = [1, 5, 10, 30, 60, 240];
+const PERCENTS = [50, 60, 70, 80, 90, 95];
+
+/** Which event starts the bee, its filters, and the least time between runs. */
+function EventFields({ trigger, selfId, onChange }: { trigger: EventTrigger; selfId?: string; onChange: (t: BeeTrigger) => void }) {
+  const groups = useStore((s) => s.groups.filter((g) => g.id !== BEE_GROUP_ID));
+  const bees = useStore((s) => s.bees.filter((b) => b.id !== selfId));
+  const e = trigger.event;
+  const set = (event: BeeEvent) => onChange({ ...trigger, event });
+  const fromSession = ["stop", "sessionEnd", "tool", "notification", "subagentStop"].includes(e.on);
+
+  return (
+    <div className="bee-event">
+      <select
+        className="bee-select"
+        value={e.on}
+        onChange={(ev) => set(EVENTS.find((x) => x.on === ev.target.value)!)}
+      >
+        {EVENTS.map((x) => (
+          <option key={x.on} value={x.on}>
+            {x.on === "tool" ? "Depois de usar uma ferramenta" : x.on === "beeDone" ? "Depois de outra worker bee" : x.on === "usage" ? "Quando o uso passa de um limite" : describeEvent(x)}
+          </option>
+        ))}
+      </select>
+      {e.on === "tool" && (
+        <div className="bee-event-row">
+          <input list="bee-tools" placeholder="Qualquer ferramenta" value={e.tool} onChange={(ev) => set({ ...e, tool: ev.target.value.trim() })} />
+          <datalist id="bee-tools">
+            {TOOLS.map((t) => (
+              <option key={t} value={t} />
+            ))}
+          </datalist>
+          <input
+            placeholder="Contendo o texto (opcional), ex.: git push"
+            value={e.match ?? ""}
+            onChange={(ev) => set({ ...e, match: ev.target.value || null })}
+          />
+        </div>
+      )}
+      {e.on === "beeDone" && (
+        <select className="bee-select" value={e.beeId} onChange={(ev) => set({ ...e, beeId: ev.target.value })}>
+          <option value="">Escolha a worker bee</option>
+          {bees.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.name}
+            </option>
+          ))}
+        </select>
+      )}
+      {e.on === "usage" && (
+        <div className="bee-event-row">
+          <select className="bee-select" value={e.window} onChange={(ev) => set({ ...e, window: ev.target.value as "session" | "weekly" })}>
+            <option value="session">Sessão (5h)</option>
+            <option value="weekly">Semanal (7d)</option>
+          </select>
+          <select className="bee-select" value={e.percent} onChange={(ev) => set({ ...e, percent: Number(ev.target.value) })}>
+            {PERCENTS.map((p) => (
+              <option key={p} value={p}>
+                {p}%
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+      {fromSession && (
+        <label className="bee-quota-row">
+          <span>Em abas de</span>
+          <select className="bee-select" value={trigger.groupId ?? ""} onChange={(ev) => onChange({ ...trigger, groupId: ev.target.value || null })}>
+            <option value="">Qualquer grupo</option>
+            {groups.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      <label className="bee-quota-row">
+        <span>Intervalo mínimo entre execuções</span>
+        <select className="bee-select" value={trigger.cooldown} onChange={(ev) => onChange({ ...trigger, cooldown: Number(ev.target.value) })}>
+          {COOLDOWNS.map((m) => (
+            <option key={m} value={m}>
+              {m < 60 ? `${m} min` : `${m / 60}h`}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="hint">As abas das próprias worker bees nunca disparam eventos.</p>
+    </div>
   );
 }

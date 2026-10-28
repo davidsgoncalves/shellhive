@@ -18,6 +18,18 @@ pub struct PtyHandle {
 #[derive(Default)]
 pub struct PtyState(pub Mutex<HashMap<String, PtyHandle>>);
 
+impl PtyState {
+    /// The shell process of each tab, by tab id.
+    pub fn shell_pids(&self) -> Vec<(String, u32)> {
+        self.0
+            .lock()
+            .unwrap()
+            .iter()
+            .filter_map(|(id, h)| Some((id.clone(), h.child.process_id()?)))
+            .collect()
+    }
+}
+
 /// Folder each tab's shell started in, for plugin programs to work in.
 static TAB_CWD: Mutex<Option<HashMap<String, String>>> = Mutex::new(None);
 
@@ -131,6 +143,63 @@ fn zsh_integration(cmd: &mut CommandBuilder) -> Result<(), String> {
     Ok(())
 }
 
+/// Permission modes `claude` accepts in its settings.
+const PERMISSION_MODES: &[&str] = &[
+    "acceptEdits",
+    "auto",
+    "bypassPermissions",
+    "manual",
+    "dontAsk",
+    "plan",
+];
+
+/// A copy of the app's settings for one tab, with the model and permission
+/// mode its group sets. `claude` reads it through SHELLHIVE_SETTINGS, so a
+/// `--model` typed by hand still wins. None when the group sets neither.
+fn tab_settings(
+    id: &str,
+    model: Option<&str>,
+    mode: Option<&str>,
+) -> Result<Option<PathBuf>, String> {
+    let model = model.map(str::trim).filter(|m| {
+        !m.is_empty()
+            && m.chars()
+                .all(|c| c.is_ascii_alphanumeric() || "-._[]".contains(c))
+    });
+    let mode = mode.filter(|m| PERMISSION_MODES.contains(m));
+    if model.is_none() && mode.is_none() {
+        return Ok(None);
+    }
+    let base = crate::hooks::settings_path().ok_or("no config dir")?;
+    let text = std::fs::read_to_string(&base).map_err(|e| e.to_string())?;
+    let mut settings: serde_json::Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
+    let obj = settings
+        .as_object_mut()
+        .ok_or("settings are not an object")?;
+    if let Some(m) = model {
+        obj.insert("model".into(), m.into());
+    }
+    if let Some(m) = mode {
+        let perms = obj
+            .entry("permissions")
+            .or_insert_with(|| serde_json::json!({}));
+        if let Some(p) = perms.as_object_mut() {
+            p.insert("defaultMode".into(), m.into());
+        }
+    }
+    let valid_id = id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-');
+    if !valid_id {
+        return Err("invalid tab id".into());
+    }
+    let dir = crate::paths::data_dir()
+        .ok_or("no config dir")?
+        .join("tab-settings");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let path = dir.join(format!("{id}.json"));
+    std::fs::write(&path, settings.to_string()).map_err(|e| e.to_string())?;
+    Ok(Some(path))
+}
+
 /// Session ids are UUIDs; anything else could smuggle shell syntax in.
 fn valid_session(session: &str) -> bool {
     !session.is_empty()
@@ -183,7 +252,8 @@ fn claude_function() -> Option<String> {
              '{{\"mcpServers\":{{\"shellhive\":{{\"type\":\"http\",\"url\":\"http://127.0.0.1:{port}/mcp\",\"headers\":{{\"X-Tab-Id\":\"' + $t + '\"}}}}}}}}' | Set-Content -Encoding ascii $m; \
              $real = (Get-Command claude -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1).Source; \
              if (-not $real) {{ Write-Error 'claude nao encontrado no PATH'; return }}; \
-             & $real @args --settings '{settings}' --mcp-config $m }}; Clear-Host\r"
+             $s = if ($env:SHELLHIVE_SETTINGS) {{ $env:SHELLHIVE_SETTINGS }} else {{ '{settings}' }}; \
+             & $real @args --settings $s --mcp-config $m }}; Clear-Host\r"
         ))
     }
     #[cfg(not(windows))]
@@ -209,6 +279,8 @@ pub fn pty_spawn(
     resume: Option<String>,
     fork: Option<bool>,
     prompt: Option<String>,
+    model: Option<String>,
+    permission_mode: Option<String>,
 ) -> Result<(), String> {
     if state.0.lock().unwrap().contains_key(&id) {
         return Ok(());
@@ -269,6 +341,13 @@ pub fn pty_spawn(
     // file paths and URLs as OSC 8 links, which the terminal makes clickable.
     cmd.env("FORCE_HYPERLINK", "1");
     cmd.env("SHELLHIVE_TAB_ID", &id);
+    match tab_settings(&id, model.as_deref(), permission_mode.as_deref()) {
+        Ok(Some(path)) => {
+            cmd.env("SHELLHIVE_SETTINGS", path);
+        }
+        Ok(None) => {}
+        Err(e) => crate::errors::record("pty", &format!("tab settings: {e}")),
+    }
     #[cfg(not(windows))]
     let zsh_ready = is_zsh(&cmd)
         && zsh_integration(&mut cmd)
@@ -396,6 +475,11 @@ pub fn pty_kill(state: tauri::State<PtyState>, id: String) -> Result<(), String>
     let mut map = state.0.lock().unwrap();
     if let Some(mut handle) = map.remove(&id) {
         let _ = handle.child.kill();
+    }
+    // The tab's own settings copy, if its group set a model or mode.
+    let valid_id = id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-');
+    if let (true, Some(dir)) = (valid_id, crate::paths::data_dir()) {
+        let _ = std::fs::remove_file(dir.join("tab-settings").join(format!("{id}.json")));
     }
     Ok(())
 }

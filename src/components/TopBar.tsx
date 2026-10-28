@@ -6,6 +6,7 @@ import { useStore } from "../lib/store";
 import { SPLIT_MODES, isBeeTab, type RateWindow, type TabState } from "../lib/types";
 import { shortcutLabel } from "../lib/shortcuts";
 import logo from "../assets/logo.png";
+import { ProcessesButton } from "./ProcessesPopup";
 
 /** Vite sets this only on the dev server, so a packaged build never shows it. */
 const IS_DEV = import.meta.env.DEV;
@@ -136,6 +137,7 @@ export function TopBar() {
       </div>
 
       <PluginStatus />
+      <ProcessesButton />
       <Announcements />
       <button className="icon-btn" title={`Configurações (${shortcutLabel("settings")})`} onClick={() => openModal({ kind: "settings" })}>
         ⚙

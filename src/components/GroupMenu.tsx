@@ -18,9 +18,10 @@ function firstGrapheme(text: string): string | null {
 }
 
 export function GroupMenu() {
-  const { groupMenu, openGroupMenu, groups, tabs, setGroupColor, setGroupEmoji, renameGroup, toggleGroupCollapsed, setGroupHidden, ungroupTabs, closeGroup, removeGroupRule, theme } =
+  const { groupMenu, openGroupMenu, groups, tabs, setGroupColor, setGroupEmoji, renameGroup, toggleGroupCollapsed, setGroupHidden, ungroupTabs, closeGroup, removeGroupRule, archiveGroup, openModal, theme } =
     useStore();
   const [confirming, setConfirming] = useState(false);
+  const [archiving, setArchiving] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [draft, setDraft] = useState("");
   const ref = useRef<HTMLDivElement>(null);
@@ -29,6 +30,7 @@ export function GroupMenu() {
 
   useEffect(() => {
     setConfirming(false);
+    setArchiving(false);
     setRenaming(false);
     setDraft(group?.name ?? "");
   }, [groupMenu?.groupId, group?.name]);
@@ -151,6 +153,30 @@ export function GroupMenu() {
       >
         Ocultar grupo
       </button>
+
+      <button
+        className="menu-item"
+        onClick={() => {
+          openModal({ kind: "groupLaunch", groupId: group.id });
+          close();
+        }}
+      >
+        Abas novas: modelo e prompt…
+      </button>
+
+      {!group.fixed && (
+        <button
+          className={`menu-item ${archiving ? "confirming" : ""}`}
+          title="Fecha as abas e guarda as sessões no Histórico, para reabrir todas juntas"
+          onClick={() => {
+            if (!archiving) return setArchiving(true);
+            archiveGroup(group.id);
+            close();
+          }}
+        >
+          {archiving ? `Confirmar: fechar ${count} aba(s)` : "Arquivar grupo"}
+        </button>
+      )}
 
       {(group.allowRules?.length ?? 0) > 0 && (
         <>

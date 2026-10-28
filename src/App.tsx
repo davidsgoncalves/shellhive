@@ -28,12 +28,13 @@ import { startLagTracker } from "./lib/perfDiag";
 import { CommandCard, typeCommand } from "./components/CommandCard";
 import { PermissionCard } from "./components/PermissionQueue";
 import { checkConnections } from "./lib/connections";
-import { finishBeeRun, startBeeScheduler, stopBeeRun, useBeeRuns } from "./lib/bees";
+import { finishBeeRun, fireBeeEvent, happeningOf, startBeeScheduler, stopBeeRun, useBeeRuns } from "./lib/bees";
 import { callBeeTool, syncBeeCreators } from "./lib/beeCreator";
 import { BeeMain, LIVE_RECT, useWatchedBeeTab } from "./components/WorkerBee";
 import { PluginsMain } from "./components/PluginsScreen";
 import { CacheCard } from "./components/CacheCard";
-import { CACHE_CARD_HEIGHT, cacheCardOf, refreshCache, useCache } from "./lib/cache";
+import { SubagentView } from "./components/SubagentView";
+import { CACHE_CARD_HEIGHT, cacheCardOf, refreshCache, refreshCacheAfterTurn, useCache } from "./lib/cache";
 import { applyLook, shareLook } from "./lib/theme";
 import { defaultGroupId, duplicateSession, ensureUngrouped, onScreen, openSession, openSessionInGroup, useStore } from "./lib/store";
 import { tabPatchFor } from "./lib/hookState";
@@ -147,6 +148,10 @@ function useBackendBridge() {
       const tab = store().tabs.find((t) => t.id === e.tab_id);
       if (!tab) return;
       store().setSubagents(tab.id, nextSubagents(store().subagentsByTab[tab.id] ?? [], e));
+      // A bee's own run never starts event bees, or one could start itself over and over.
+      const runningBee = useBeeRuns.getState().runs.some((r) => r.tabId === tab.id && r.status === "running");
+      const happening = isBeeTab(tab) || runningBee ? null : happeningOf(e, tab.groupId);
+      if (happening) fireBeeEvent(happening);
       const patch = tabPatchFor(tab, e);
       if (!patch) return;
       store().patchTab(tab.id, patch);
@@ -171,7 +176,8 @@ function useBackendBridge() {
       const name = String(e.payload.hook_event_name ?? "");
       if (name === "SessionStart" || name === "Stop" || name === "UserPromptSubmit") {
         void syncTabTitle(tab.id);
-        void refreshCache(tab.id);
+        if (name === "Stop") refreshCacheAfterTurn(tab.id);
+        else void refreshCache(tab.id);
       }
     }).then((u) => unlisteners.push(u));
 
@@ -787,6 +793,9 @@ function App() {
   // Bands plugins attached to each terminal, in plugin order, split by side.
   const pluginBands = useStore((s) => s.pluginBands);
   const cacheByTab = useCache((s) => s.byTab);
+  // A subagent's conversation covers its tab's pane while that tab is on screen.
+  const subagentView = useStore((s) => s.subagentView);
+  const subagentSlot = subagentView ? paneOf(subagentView.tabId) : -1;
   const bandsOf = (tabId: string) => {
     const own = pluginBands[tabId] ?? {};
     const on = localPlugins.filter(
@@ -924,6 +933,9 @@ function App() {
                 </ul>
               );
             })}
+            {subagentSlot !== -1 && !detached.includes(subagentView!.tabId) && (
+              <SubagentView key={subagentView!.toolUseId} rect={paneRect(splitMode, subagentSlot)} />
+            )}
             <PaneOverlay />
             {beeMode && <BeeMain />}
             {pluginsMode && <PluginsMain />}

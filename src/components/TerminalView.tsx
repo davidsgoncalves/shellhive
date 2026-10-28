@@ -8,7 +8,7 @@ import { searches, serializers, terminals } from "../lib/terminals";
 import { terminalOptions, trackTerminal } from "../lib/theme";
 import { actionOf, isAppShortcut } from "../lib/shortcuts";
 import { reportError } from "../lib/errors";
-import { sessionFromDrag, type SessionRef } from "../lib/store";
+import { sessionFromDrag, useStore, type SessionRef } from "../lib/store";
 import { attachLinks, carriesFiles, carriesSession, carriesTab, fixEmojiWidth, fixLinuxInput, pasteDroppedFiles } from "../lib/termExtras";
 import { takePendingFork, takePendingPrompt, takePendingResume } from "../lib/restored";
 import type { Tab } from "../lib/types";
@@ -93,7 +93,19 @@ export function TerminalView({
     const fork = takePendingFork(tab.id);
     const resume = fork ?? (tab.claudeSessionId && takePendingResume(tab.id) ? tab.claudeSessionId : null);
     const prompt = resume ? null : takePendingPrompt(tab.id);
-    invoke("pty_spawn", { id: tab.id, cols: term.cols, rows: term.rows, cwd: tab.cwd, resume, fork: !!fork, prompt })
+    // The group's model and permission mode apply to every `claude` started in the tab.
+    const launch = useStore.getState().groups.find((g) => g.id === tab.groupId)?.launch;
+    invoke("pty_spawn", {
+      id: tab.id,
+      cols: term.cols,
+      rows: term.rows,
+      cwd: tab.cwd,
+      resume,
+      fork: !!fork,
+      prompt,
+      model: launch?.model ?? null,
+      permissionMode: launch?.permissionMode ?? null,
+    })
       .catch((e) => {
         term.writeln(`\x1b[31mpty_spawn failed: ${e}\x1b[0m`);
         reportError("pty", `pty_spawn failed: ${e}`);

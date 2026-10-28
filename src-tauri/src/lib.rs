@@ -15,6 +15,7 @@ mod plugins;
 mod process;
 mod pty;
 mod sessions;
+mod tabprocs;
 
 use tauri::{Emitter, Manager};
 
@@ -78,6 +79,9 @@ pub fn run() {
             mcp::bee_creator_tabs,
             sessions::session_last_reply,
             sessions::session_cache,
+            sessions::subagent_transcript,
+            tabprocs::tab_processes,
+            tabprocs::process_kill,
             connections::mcp_status,
             errors::error_reports_get,
             errors::error_reports_set,
