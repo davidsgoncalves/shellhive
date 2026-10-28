@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ISearchOptions } from "@xterm/addon-search";
 import { searches, terminals } from "../lib/terminals";
 import { IS_MAC } from "../lib/shortcuts";
+import { useStore } from "../lib/store";
 
 const OPTIONS: ISearchOptions = {
   decorations: {
@@ -20,7 +21,8 @@ interface Props {
 
 /** Cmd+F bar over a pane, searching that terminal's scrollback. */
 export function TerminalSearch({ tabId, rect, onClose }: Props) {
-  const [query, setQuery] = useState("");
+  // A search across tabs opens the bar already on its text.
+  const [query, setQuery] = useState(() => useStore.getState().searchSeed);
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [count, setCount] = useState<{ index: number; total: number } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);

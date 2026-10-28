@@ -17,9 +17,9 @@ Um plugin acrescenta ferramentas que o agente pode chamar e pedaços de interfac
 1. Crie `plugins/<id>/`. O `id` usa só letras minúsculas, números e hífen, e não pode começar com `_`.
 2. Escreva `plugins/<id>/plugin.json` e os programas das ferramentas.
 3. O Shellhive encontra a pasta em poucos segundos e mostra ao usuário um cartão de aprovação com as ferramentas, os programas e as permissões. Nada roda antes da aprovação.
-4. Depois de aprovado, o usuário liga o plugin em Configurações > Plugins. As ferramentas aparecem nas sessões abertas depois disso.
+4. Depois de aprovado, o usuário liga o plugin na tela Plugins, pelo ícone na barra lateral. As ferramentas aparecem nas sessões abertas depois disso.
 
-Qualquer alteração em um arquivo da pasta pede aprovação de novo. Se o plugin tiver erro, ele aparece em Configurações > Plugins com a mensagem do problema.
+Qualquer alteração em um arquivo da pasta pede aprovação de novo. Se o plugin tiver erro, ele aparece na tela Plugins, pelo ícone na barra lateral, com a mensagem do problema.
 
 ## plugin.json
 
@@ -158,5 +158,5 @@ Para saber em quais repositórios e worktrees o agente está mexendo, junte os `
 ## Testar
 
 - Rode o programa direto no terminal: `echo '{"app":"api"}' | node status.js`.
-- Confira em Configurações > Plugins se o plugin aparece sem erro.
+- Confira na tela Plugins, pelo ícone na barra lateral, se o plugin aparece sem erro.
 - Peça ao usuário para aprovar e ligar, e abra uma sessão nova para usar as ferramentas.

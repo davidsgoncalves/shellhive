@@ -1,0 +1,52 @@
+import { create } from "zustand";
+import { invoke } from "@tauri-apps/api/core";
+import { useStore } from "./store";
+import { isBeeTab, type Tab } from "./types";
+
+/** Context below this size costs little either way, so its tab shows no card. */
+export const CACHE_CARD_MIN_TOKENS = 50_000;
+/** Height of the card over a terminal, in pixels. */
+export const CACHE_CARD_HEIGHT = 50;
+
+/** The prompt cache left by a session's last request. */
+export interface CacheInfo {
+  /** When the cache was last written or read, in ms. */
+  at: number;
+  /** How long it lives after that, in ms. */
+  ttl: number;
+  tokens: number;
+}
+
+interface CacheStore {
+  byTab: Record<string, CacheInfo>;
+  put: (tabId: string, info: CacheInfo | null) => void;
+}
+
+export const useCache = create<CacheStore>()((set) => ({
+  byTab: {},
+  put: (tabId, info) =>
+    set((s) => {
+      const byTab = { ...s.byTab };
+      if (info) byTab[tabId] = info;
+      else delete byTab[tabId];
+      return { byTab };
+    }),
+}));
+
+/** Reads the tab's transcript again; called when a turn starts or ends. */
+export async function refreshCache(tabId: string): Promise<void> {
+  const tab = useStore.getState().tabs.find((t) => t.id === tabId);
+  if (!tab?.transcriptPath) return;
+  const raw = await invoke<{ at: string; ttl: number; tokens: number } | null>("session_cache", {
+    path: tab.transcriptPath,
+  }).catch(() => null);
+  const at = raw ? Date.parse(raw.at) : NaN;
+  useCache.getState().put(tabId, raw && !Number.isNaN(at) ? { at, ttl: raw.ttl * 1000, tokens: raw.tokens } : null);
+}
+
+/** The cache a tab's card shows: a session waiting on the user, with context worth keeping. */
+export function cacheCardOf(tab: Tab, byTab: Record<string, CacheInfo>): CacheInfo | null {
+  const info = byTab[tab.id];
+  if (!info || tab.state !== "waiting" || isBeeTab(tab) || info.tokens < CACHE_CARD_MIN_TOKENS) return null;
+  return info;
+}
