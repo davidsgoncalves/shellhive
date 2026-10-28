@@ -31,6 +31,9 @@ import { checkConnections } from "./lib/connections";
 import { finishBeeRun, startBeeScheduler, stopBeeRun, useBeeRuns } from "./lib/bees";
 import { callBeeTool, syncBeeCreators } from "./lib/beeCreator";
 import { BeeMain, LIVE_RECT, useWatchedBeeTab } from "./components/WorkerBee";
+import { PluginsMain } from "./components/PluginsScreen";
+import { CacheCard } from "./components/CacheCard";
+import { CACHE_CARD_HEIGHT, cacheCardOf, refreshCache, useCache } from "./lib/cache";
 import { applyLook, shareLook } from "./lib/theme";
 import { defaultGroupId, duplicateSession, ensureUngrouped, onScreen, openSession, openSessionInGroup, useStore } from "./lib/store";
 import { tabPatchFor } from "./lib/hookState";
@@ -168,6 +171,7 @@ function useBackendBridge() {
       const name = String(e.payload.hook_event_name ?? "");
       if (name === "SessionStart" || name === "Stop" || name === "UserPromptSubmit") {
         void syncTabTitle(tab.id);
+        void refreshCache(tab.id);
       }
     }).then((u) => unlisteners.push(u));
 
@@ -241,6 +245,15 @@ function useTitlePoll() {
   }, []);
 }
 
+/** Sessions already open when the app loads have their cache read once. */
+function useCacheOnLoad() {
+  useEffect(() => {
+    for (const tab of useStore.getState().tabs) {
+      if (tab.state !== "dormant" && tab.transcriptPath) void refreshCache(tab.id);
+    }
+  }, []);
+}
+
 /** Flags a tab that has been waiting on the human for too long. */
 function useWatchdog() {
   useEffect(() => {
@@ -287,6 +300,8 @@ function useShortcuts() {
           return void (s.activeTabId && s.closeTab(s.activeTabId));
         case "switcher":
           return s.openModal(s.modal?.kind === "switcher" ? null : { kind: "switcher" });
+        case "searchAll":
+          return s.openModal(s.modal?.kind === "searchAll" ? null : { kind: "searchAll" });
         case "search": {
           const target = (isView(s.panes[s.focusedPane]) ? null : s.panes[s.focusedPane]) ?? s.activeTabId;
           return void (target && !s.detached.includes(target) && s.openSearch(target));
@@ -693,6 +708,7 @@ function App() {
   useSessionGroups();
   useQueuedCommands();
   useWatchdog();
+  useCacheOnLoad();
   useShortcuts();
   useDetachedWindows();
   useGitPoll();
@@ -740,11 +756,13 @@ function App() {
   const layout = useStore((s) => s.layout);
   // The Worker bee takes the center; a bee's run in progress shows live under its details.
   const beeMode = useStore((s) => s.panelOpen && s.panelTab === "bees");
+  // The plugins screen takes the center the same way.
+  const pluginsMode = useStore((s) => s.panelOpen && s.panelTab === "plugins");
   const watched = useWatchedBeeTab();
   const barPosition = useStore((s) => s.barPosition);
   const groups = useStore((s) => s.groups);
   const borderWidth = useStore((s) => s.terminalBorder);
-  const { splitMode, panes, focusedPane, focusPane, detached, searchTabId, openSearch, permissions, commands, questions, enabledPlugins } =
+  const { splitMode, panes, focusedPane, focusPane, detached, searchTabId, searchSeed, openSearch, permissions, commands, questions, enabledPlugins } =
     useStore();
   const localPlugins = useStore((s) => s.localPlugins);
   const slots = paneCount(splitMode);
@@ -768,6 +786,7 @@ function App() {
   };
   // Bands plugins attached to each terminal, in plugin order, split by side.
   const pluginBands = useStore((s) => s.pluginBands);
+  const cacheByTab = useCache((s) => s.byTab);
   const bandsOf = (tabId: string) => {
     const own = pluginBands[tabId] ?? {};
     const on = localPlugins.filter(
@@ -799,7 +818,10 @@ function App() {
               const slot = paneOf(t.id);
               const rect = paneRect(splitMode, slot === -1 ? 0 : slot);
               const bands = bandsOf(t.id);
-              const above = sum(bands.top);
+              // The cache card sits over the terminal, above any plugin band.
+              const cache = cacheCardOf(t, cacheByTab);
+              const card = cache ? CACHE_CARD_HEIGHT : 0;
+              const above = card + sum(bands.top);
               const below = sum(bands.bottom);
               const watching = t.id === watched;
               const visible = watching || (slot !== -1 && !detached.includes(t.id));
@@ -813,7 +835,7 @@ function App() {
                 });
               };
               const placed = [
-                ...stack(bands.top, rect.top),
+                ...stack(bands.top, `${rect.top} + ${card}px`),
                 ...stack(bands.bottom, `${rect.top} + ${rect.height} - ${below}px`),
               ];
               return (
@@ -822,7 +844,7 @@ function App() {
                   key={t.id}
                   tab={t}
                   visible={visible}
-                  focused={watching || (!beeMode && slot === focusedPane)}
+                  focused={watching || (!beeMode && !pluginsMode && slot === focusedPane)}
                   raised={watching}
                   rect={
                     watching
@@ -845,6 +867,13 @@ function App() {
                     useStore.getState().openTabMenu({ x: e.clientX, y: e.clientY, tabId: t.id });
                   }}
                 />
+                {cache && (
+                  <CacheCard
+                    tabId={t.id}
+                    info={cache}
+                    style={{ display: visible ? undefined : "none", left: rect.left, width: rect.width, top: rect.top, height: card }}
+                  />
+                )}
                 {placed.map((b) => (
                   <PluginBandFrame key={`band-${b.plugin.id}`} plugin={b.plugin} tabId={t.id} style={b.style} />
                 ))}
@@ -873,7 +902,7 @@ function App() {
             <LocalPluginPanel host={pluginHost} />
             {searchTabId && paneOf(searchTabId) !== -1 && (
               <TerminalSearch
-                key={searchTabId}
+                key={`${searchTabId}:${searchSeed}`}
                 tabId={searchTabId}
                 rect={paneRect(splitMode, paneOf(searchTabId))}
                 onClose={() => openSearch(null)}
@@ -897,6 +926,7 @@ function App() {
             })}
             <PaneOverlay />
             {beeMode && <BeeMain />}
+            {pluginsMode && <PluginsMain />}
           </div>
         </main>
       </div>

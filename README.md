@@ -23,8 +23,8 @@ shell, então `.zshrc`, aliases e tudo mais continuam valendo.
   Botão direito em qualquer terminal escolhe o painel pelo número.
 - **Histórico.** Lista com título, pasta e branch, busca no conteúdo
   completo das conversas e retomada com um clique. Fixe as que você usa sempre.
-- **Plugins oficiais.** Recursos extras que vêm com o app e se ligam em
-  Configurações > Plugins. Todos começam desligados. O primeiro é o **Editor em painel**: o Claude abre um
+- **Plugins oficiais.** Recursos extras que vêm com o app e se ligam na
+  tela Plugins, pelo ícone na barra lateral. Todos começam desligados. O primeiro é o **Editor em painel**: o Claude abre um
   editor embaixo do terminal para você preencher ou revisar algo, em texto,
   planilha, JSON ou XML, e recebe de volta o que você escreveu. O segundo é
   **Diagramas Mermaid**: fluxogramas, sequências e modelos de dados num painel
@@ -123,7 +123,7 @@ Peça ao Claude algo como "cria um plugin do Shellhive que mostra o status do
 deploy". Ele lê o guia que o app mantém em `plugins/GUIDE.md`, dentro da pasta
 de dados, e escreve a pasta do plugin ao lado. Em poucos segundos o plugin
 aparece na Fila para você aprovar, com os programas que vai rodar e as
-permissões do painel; depois de aprovado, ele liga em Configurações > Plugins.
+permissões do painel; depois de aprovado, ele liga na tela Plugins, pelo ícone na barra lateral.
 Qualquer mudança nos arquivos pede aprovação de novo.
 
 - As ferramentas são programas da pasta do plugin (`node`, `python3`, um
@@ -156,6 +156,7 @@ deve usá-lo no lugar de pedir um editor externo.
 | Aba anterior e próxima | `⌘⇧[` e `⌘⇧]` | `Ctrl+PgUp` e `Ctrl+PgDn` |
 | Buscar abas | `⌘P` | `Ctrl+Shift+P` |
 | Buscar no terminal | `⌘F` | `Ctrl+Shift+F` |
+| Buscar em todas as abas abertas | `⌘⇧F` | `Ctrl+Shift+G` |
 | Abrir link ou arquivo | `⌘`-clique | `Ctrl`-clique |
 | Mostrar ou esconder a lista de sessões | `⌘B` | `Ctrl+Shift+B` |
 | Mostrar ou esconder o painel da direita | `⌘E` | `Ctrl+Shift+E` |

@@ -21,6 +21,8 @@ const STATUS_LABEL: Record<BeeRun["status"], string> = { running: "rodando", don
 const when = (at: number) =>
   new Date(at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 
+const clock = (at: number) => new Date(at).toLocaleString("pt-BR", { weekday: "short", hour: "2-digit", minute: "2-digit" });
+
 const duration = (from: number, to: number) => {
   const min = Math.max(0, Math.round((to - from) / 60_000));
   return min < 1 ? "menos de 1 min" : min < 60 ? `${min} min` : `${Math.floor(min / 60)}h${String(min % 60).padStart(2, "0")}`;
@@ -54,6 +56,7 @@ export function BeePanel() {
   const load = useBeeRuns((s) => s.load);
   const waiting = useBeeWaiting();
   const runs = useBeeRuns((s) => s.runs);
+  const held = useBeeRuns((s) => s.held);
   const shown = useShownBee();
   useEffect(() => void load(), [load]);
   // A hidden tab is shown through its run, which keeps it open once revealed.
@@ -98,7 +101,13 @@ export function BeePanel() {
                 />
                 <span className="bee-row-main">
                   <span className="bee-name">{b.name}</span>
-                  <span className="bee-meta">{running ? "rodando agora" : describeTrigger(b.trigger)}</span>
+                  <span className="bee-meta">
+                    {running
+                      ? "rodando agora"
+                      : held[b.id]
+                        ? `adiada por cota até ${clock(held[b.id])}`
+                        : describeTrigger(b.trigger)}
+                  </span>
                 </span>
                 {running && <span className="bee-run-dot live" />}
               </li>
@@ -106,7 +115,43 @@ export function BeePanel() {
           })}
         </ul>
       )}
+      <BeeQuotaSection />
     </div>
+  );
+}
+
+const CEILINGS = [50, 60, 70, 80, 90];
+
+/** Usage ceilings above which scheduled runs wait for the window to reset. */
+function BeeQuotaSection() {
+  const quota = useStore((s) => s.beeQuota);
+  const setQuota = useStore((s) => s.setBeeQuota);
+  const field = (key: keyof typeof quota, label: string) => (
+    <label className="bee-quota-row">
+      <span>{label}</span>
+      <select
+        className="bee-select"
+        value={quota[key] ?? ""}
+        onChange={(e) => setQuota({ [key]: e.target.value ? Number(e.target.value) : null })}
+      >
+        <option value="">Sem limite</option>
+        {CEILINGS.map((c) => (
+          <option key={c} value={c}>
+            Até {c}%
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+  return (
+    <section className="bee-quota">
+      <h4>Limite de uso</h4>
+      <p className="hint">
+        Acima do limite, uma execução agendada espera a janela renovar. Rodar à mão ignora o limite.
+      </p>
+      {field("session", "Sessão (5h)")}
+      {field("weekly", "Semanal (7d)")}
+    </section>
   );
 }
 

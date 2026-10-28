@@ -137,6 +137,86 @@ pub fn session_last_reply(path: String) -> Option<String> {
     text.lines().rev().find_map(last_reply_in)
 }
 
+/// Tail of a transcript read for the prompt cache; the last request sits at the end.
+const CACHE_TAIL_BYTES: u64 = 2 * 1024 * 1024;
+
+#[derive(serde::Serialize)]
+pub struct CacheInfo {
+    /// When the last request was answered, as the transcript records it.
+    pub at: String,
+    /// Seconds the cache lives after it: 300 or 3600.
+    pub ttl: u64,
+    /// Tokens of context the next message reads back.
+    pub tokens: u64,
+}
+
+/// The prompt cache left by the last request of a session, read from its transcript.
+#[tauri::command]
+pub fn session_cache(path: String) -> Option<CacheInfo> {
+    let mut file = File::open(&path).ok()?;
+    let len = file.metadata().ok()?.len();
+    let start = len.saturating_sub(CACHE_TAIL_BYTES);
+    file.seek(SeekFrom::Start(start)).ok()?;
+    let mut buf = Vec::new();
+    file.read_to_end(&mut buf).ok()?;
+    let text = String::from_utf8_lossy(&buf);
+    let mut last: Option<CacheInfo> = None;
+    let mut last_id = String::new();
+    // A request that only read the cache keeps the lifetime set when it was written.
+    let mut ttl = 300;
+    for line in text.lines() {
+        let Ok(v) = serde_json::from_str::<serde_json::Value>(line) else {
+            continue;
+        };
+        if v.get("type").and_then(|t| t.as_str()) != Some("assistant")
+            || v.get("isSidechain").and_then(|s| s.as_bool()) == Some(true)
+        {
+            continue;
+        }
+        let Some(msg) = v.get("message") else {
+            continue;
+        };
+        let Some(usage) = msg.get("usage") else {
+            continue;
+        };
+        let n = |k: &str| usage.get(k).and_then(|x| x.as_u64()).unwrap_or(0);
+        let created = usage.get("cache_creation");
+        let made = |k: &str| {
+            created
+                .and_then(|c| c.get(k))
+                .and_then(|x| x.as_u64())
+                .unwrap_or(0)
+        };
+        if made("ephemeral_1h_input_tokens") > 0 {
+            ttl = 3600;
+        } else if made("ephemeral_5m_input_tokens") > 0 {
+            ttl = 300;
+        }
+        // One reply spans several lines; its first one is closest to when the request went out.
+        let id = msg
+            .get("id")
+            .and_then(|i| i.as_str())
+            .unwrap_or("")
+            .to_string();
+        let at = match (&last, id == last_id && !id.is_empty()) {
+            (Some(prev), true) => prev.at.clone(),
+            _ => match v.get("timestamp").and_then(|t| t.as_str()) {
+                Some(t) => t.to_string(),
+                None => continue,
+            },
+        };
+        last_id = id;
+        last = Some(CacheInfo {
+            at,
+            ttl,
+            tokens: n("input_tokens")
+                + n("cache_read_input_tokens")
+                + n("cache_creation_input_tokens"),
+        });
+    }
+    last
+}
+
 fn last_reply_in(line: &str) -> Option<String> {
     let v: serde_json::Value = serde_json::from_str(line).ok()?;
     if v.get("type")?.as_str()? != "assistant" {
@@ -368,4 +448,36 @@ pub fn sessions_search(
         .map_err(|e| e.to_string())?;
     rows.collect::<rusqlite::Result<Vec<_>>>()
         .map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::session_cache;
+
+    fn reply(id: &str, at: &str, side: bool, creation: &str, read: u64) -> String {
+        format!(
+            r#"{{"type":"assistant","isSidechain":{side},"timestamp":"{at}","message":{{"id":"{id}","usage":{{"input_tokens":4,"cache_read_input_tokens":{read},"cache_creation_input_tokens":10,"cache_creation":{creation}}}}}}}"#
+        )
+    }
+
+    #[test]
+    fn reads_the_last_request() {
+        let one_hour = r#"{"ephemeral_1h_input_tokens":10,"ephemeral_5m_input_tokens":0}"#;
+        let none = r#"{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":0}"#;
+        let lines = [
+            reply("a", "2026-10-28T10:00:00Z", false, one_hour, 1000),
+            // The same reply's later line keeps the time of its first one.
+            reply("b", "2026-10-28T10:05:00Z", false, none, 2000),
+            reply("b", "2026-10-28T10:06:00Z", false, none, 2000),
+            // A subagent's request is not the session's cache.
+            reply("c", "2026-10-28T10:07:00Z", true, none, 9),
+        ];
+        let path = std::env::temp_dir().join("shellhive-cache-test.jsonl");
+        std::fs::write(&path, lines.join("\n")).unwrap();
+        let info = session_cache(path.to_string_lossy().to_string()).unwrap();
+        std::fs::remove_file(&path).ok();
+        assert_eq!(info.at, "2026-10-28T10:05:00Z");
+        assert_eq!(info.ttl, 3600);
+        assert_eq!(info.tokens, 2014);
+    }
 }

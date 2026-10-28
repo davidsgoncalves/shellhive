@@ -15,6 +15,7 @@ export type Action =
   | "settings"
   | "switcher"
   | "search"
+  | "searchAll"
   | "clear"
   | "nextTab"
   | "prevTab"
@@ -40,6 +41,7 @@ const MAC: Record<Action, Combo> = {
   settings: cmd("Comma"),
   switcher: cmd("KeyP"),
   search: cmd("KeyF"),
+  searchAll: cmd("KeyF", true),
   clear: cmd("KeyK"),
   nextTab: cmd("BracketRight", true),
   prevTab: cmd("BracketLeft", true),
@@ -55,6 +57,7 @@ const LINUX: Record<Action, Combo> = {
   settings: ctrlShift("Comma"),
   switcher: ctrlShift("KeyP"),
   search: ctrlShift("KeyF"),
+  searchAll: ctrlShift("KeyG"),
   clear: ctrlShift("KeyK"),
   nextTab: { code: "PageDown", ctrl: true },
   prevTab: { code: "PageUp", ctrl: true },

@@ -88,14 +88,22 @@ function rememberClosed(list: ClosedTab[], tabs: Tab[]): ClosedTab[] {
   return [...list, ...added].slice(-CLOSED_TABS_MAX);
 }
 
-export type SettingsTab = "aparencia" | "pastas" | "conexoes" | "plugins" | "sobre";
+export type SettingsTab = "aparencia" | "pastas" | "conexoes" | "sobre";
 
 export type Modal =
   | null
   | { kind: "settings"; tab?: SettingsTab }
   | { kind: "newGroup" }
   | { kind: "switcher" }
+  | { kind: "searchAll" }
   | { kind: "pickFolder"; groupId: string };
+
+export interface BeeQuota {
+  /** The 5-hour window. */
+  session: number | null;
+  /** The 7-day window. */
+  weekly: number | null;
+}
 
 /** What the Worker bee shows in place of the terminals: a bee, its editor, or a new one. */
 export type BeeView = { mode: "detail" | "edit"; id: string } | { mode: "new" } | null;
@@ -141,6 +149,12 @@ interface Store {
   /** Null shows the first bee. */
   beeView: BeeView;
   setBeeView: (view: BeeView) => void;
+  /** Usage ceilings, in percent, above which a scheduled bee run waits; null is off. */
+  beeQuota: BeeQuota;
+  setBeeQuota: (patch: Partial<BeeQuota>) => void;
+  /** The plugin shown on the plugins screen; null shows the first. */
+  pluginView: string | null;
+  setPluginView: (id: string | null) => void;
   /** Which dialog is open, if any. */
   modal: Modal;
   /** Open group context menu, with the cursor position that opened it. */
@@ -219,6 +233,8 @@ interface Store {
   subagentsByTab: Record<string, Subagent[]>;
   /** Tab whose Cmd+F bar is open. */
   searchTabId: string | null;
+  /** Text the Cmd+F bar opens with, from a search across tabs. */
+  searchSeed: string;
   /** Last group each Claude session sat in, so reopening it lands there. */
   sessionGroups: Record<string, string>;
   /** Recently closed tabs, newest last, for Cmd+Shift+T. */
@@ -263,7 +279,7 @@ interface Store {
   restoreDetached: (ids: string[]) => void;
   setGitInfo: (id: string, info: GitInfo | null) => void;
   reopenClosedTab: () => void;
-  openSearch: (tabId: string | null) => void;
+  openSearch: (tabId: string | null, query?: string) => void;
   setSubagents: (tabId: string, list: Subagent[]) => void;
   rememberSessionGroups: () => void;
   patchTab: (id: string, patch: Partial<Tab>) => void;
@@ -355,6 +371,10 @@ export const useStore = create<Store>()(
       bees: [],
       beeView: null,
       setBeeView: (beeView) => set({ beeView, panelTab: "bees", panelOpen: true }),
+      beeQuota: { session: null, weekly: null },
+      setBeeQuota: (patch) => set((s) => ({ beeQuota: { ...s.beeQuota, ...patch } })),
+      pluginView: null,
+      setPluginView: (pluginView) => set({ pluginView, panelTab: "plugins", panelOpen: true }),
       defaultFolderId: null,
       modal: null,
       groupMenu: null,
@@ -397,6 +417,7 @@ export const useStore = create<Store>()(
       closedTabs: [],
       sessionGroups: {},
       searchTabId: null,
+      searchSeed: "",
       subagentsByTab: {},
 
       addGroup: (name, folderId = null) => {
@@ -631,7 +652,7 @@ export const useStore = create<Store>()(
         }
         set({ sessionGroups: next });
       },
-      openSearch: (searchTabId) => set({ searchTabId }),
+      openSearch: (searchTabId, query = "") => set({ searchTabId, searchSeed: query }),
       setSubagents: (tabId, list) =>
         set((s) => {
           const prev = s.subagentsByTab[tabId] ?? [];
@@ -947,6 +968,7 @@ export const useStore = create<Store>()(
         pinned: s.pinned,
         folders: s.folders,
         bees: s.bees,
+        beeQuota: s.beeQuota,
         defaultFolderId: s.defaultFolderId,
         layout: s.layout,
         barPosition: s.barPosition,

@@ -364,6 +364,9 @@ button.ghost.auto { width: auto; }
 .bee-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .bee-name { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bee-meta { font-size: 11px; color: var(--muted); }
+.bee-quota { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
+.bee-quota .hint { margin: 0 0 2px; }
+.bee-quota-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; }
 .bee-run-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--c-waiting); flex-shrink: 0; }
 .bee-run-dot.live, .bee-run-row.running .bee-run-dot { background: var(--c-working); animation: pulse 1.4s ease-in-out infinite; }
 .bee-run-row.error .bee-run-dot { background: var(--danger); }
@@ -1361,3 +1364,21 @@ button.ghost.danger { border-color: var(--danger); color: var(--danger); }
 .tour-balloon h3 { margin: 0; font-size: 14px; font-weight: 600; }
 .tour-balloon p { margin: 0; font-size: 12px; line-height: 1.5; color: var(--muted); }
 .tour-count { font-size: 11px; color: var(--muted); }
+
+.search-all-line { font-family: var(--font-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.search-all-line mark { background: #5b4a2a; color: inherit; border-radius: 2px; }
+
+/* ---------- prompt cache card ---------- */
+.cache-card {
+  position: absolute; z-index: 5; box-sizing: border-box; padding: 5px 10px 4px; display: flex; flex-direction: column; gap: 2px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 6px; overflow: hidden;
+}
+[data-layers] .cache-card { border-radius: 10px; border-color: transparent; background: var(--overlay, var(--panel)); }
+.cache-card-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.cache-card-state { font-size: 12px; font-weight: 600; white-space: nowrap; }
+.cache-card.warm .cache-card-state { color: var(--success); }
+.cache-card.cold .cache-card-state { color: var(--muted); }
+.cache-card-bar { flex: 1; height: 3px; border-radius: 2px; background: var(--border); overflow: hidden; }
+.cache-card-bar > span { display: block; height: 100%; background: var(--success); transition: width 1s linear; }
+.cache-card-head button { margin-left: auto; padding: 2px 8px; font-size: 11px; }
+.cache-card-text { margin: 0; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

@@ -4,7 +4,7 @@ import { openSession, useStore } from "./store";
 import { markPendingPrompt } from "./restored";
 import { notify } from "./notify";
 import type { Check } from "./connections";
-import { BEE_GROUP_ID, type Bee, type BeeRun, type BeeTrigger } from "./types";
+import { BEE_GROUP_ID, type Bee, type BeeRun, type BeeTrigger, type RateWindow } from "./types";
 import { PLACEHOLDER } from "./beeTemplates";
 
 /** Runs kept per bee, newest first. */
@@ -23,6 +23,9 @@ interface RunStore {
   load: () => Promise<void>;
   /** Adds a run or replaces the one with its id. */
   put: (run: BeeRun) => void;
+  /** Bees due but held back by the usage ceilings, with when the window resets. */
+  held: Record<string, number>;
+  setHeld: (held: Record<string, number>) => void;
 }
 
 const saveRuns = (runs: BeeRun[]) =>
@@ -52,6 +55,8 @@ export const useBeeRuns = create<RunStore>()((set, get) => ({
     set({ runs });
     void saveRuns(runs);
   },
+  held: {},
+  setHeld: (held) => set({ held }),
 }));
 
 export const runningRun = (beeId: string) =>
@@ -88,6 +93,20 @@ function dueAt(bee: Bee, now: number): number | null {
     return slot !== null && slot > last ? slot : null;
   }
   return null;
+}
+
+/**
+ * When the usage window over its ceiling resets, or null when no ceiling holds
+ * scheduled runs back. Usage last reported for a window already reset counts as reset.
+ */
+function quotaResetAt(now: number): number | null {
+  const { beeQuota, rateLimits } = useStore.getState();
+  const over = (win: RateWindow | undefined, ceiling: number | null) =>
+    ceiling !== null && win && win.resets_at * 1000 > now && win.used_percentage >= ceiling ? win.resets_at * 1000 : null;
+  const resets = [over(rateLimits?.five_hour, beeQuota.session), over(rateLimits?.seven_day, beeQuota.weekly)].filter(
+    (t): t is number => t !== null,
+  );
+  return resets.length ? Math.max(...resets) : null;
 }
 
 /** Records a run that could not start, unless the last one failed the same way. */
@@ -188,7 +207,11 @@ export function openBeeRun(run: BeeRun): void {
   openSession({ id: run.sessionId, cwd: run.cwd ?? null, title: bee?.name ?? "Worker bee" }, { groupId });
 }
 
-/** Runs the enabled bees when due; one missed while the app was closed follows the bee's setting. */
+/**
+ * Runs the enabled bees when due; one missed while the app was closed follows
+ * the bee's setting. Scheduled runs wait while usage is over a ceiling; a run
+ * started by hand does not.
+ */
 export function startBeeScheduler(): () => void {
   const launchedAt = Date.now();
   const tick = async () => {
@@ -206,13 +229,18 @@ export function startBeeScheduler(): () => void {
         stopBeeRun(run, "O Claude não iniciou. Abra a sessão pelo histórico do terminal para ver o erro.");
       }
     }
+    // A due run over the ceiling stays due, so it starts once the window resets.
+    const heldUntil = quotaResetAt(now);
+    const held: Record<string, number> = {};
     for (const bee of useStore.getState().bees) {
       if (!bee.enabled) continue;
       const at = dueAt(bee, now);
       if (at === null) continue;
       if (at < launchedAt && bee.missed === "skip") useStore.getState().updateBee(bee.id, { lastRunAt: now });
+      else if (heldUntil !== null) held[bee.id] = heldUntil;
       else void runBee(bee);
     }
+    useBeeRuns.getState().setHeld(held);
   };
   void tick();
   const timer = setInterval(() => void tick(), TICK_MS);
