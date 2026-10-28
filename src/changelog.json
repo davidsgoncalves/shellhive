@@ -1,5 +1,15 @@
 [
   {
+    "version": "2.1.0-beta.1",
+    "date": "2026-10-28",
+    "items": [
+      "Card de cache em cima do terminal: numa sessão esperando você, com contexto grande, mostra quanto tempo falta para o cache do Claude expirar e quanto custa responder agora. Keep warm manda uma mensagem curta para renovar o cache, depois de mostrar quanto da cota vai gastar.",
+      "Plugins ganharam uma tela própria, pelo ícone na barra lateral, e saíram das Configurações.",
+      "Cmd+Shift+F (Ctrl+Shift+G no Linux) busca um texto em todas as abas abertas. Clicar num resultado abre a aba com a busca já no trecho.",
+      "Worker bee: limite de uso da sessão (5h) e semanal (7d). Acima dele, uma execução agendada espera a janela renovar. Rodar à mão ignora o limite."
+    ]
+  },
+  {
     "version": "2.0.0",
     "date": "2026-10-28",
     "items": [
