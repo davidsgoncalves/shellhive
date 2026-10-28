@@ -13,7 +13,9 @@ fn runs_path() -> Option<PathBuf> {
 /// asks for each of them.
 #[tauri::command]
 pub fn bee_workdir() -> Result<String, String> {
-    let dir = crate::paths::data_dir().ok_or("no data dir")?.join("worker-bee");
+    let dir = crate::paths::data_dir()
+        .ok_or("no data dir")?
+        .join("worker-bee");
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     Ok(dir.to_string_lossy().into_owned())
 }
