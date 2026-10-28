@@ -1,5 +1,17 @@
 [
   {
+    "version": "2.1.0-beta.2",
+    "date": "2026-10-28",
+    "items": [
+      "Arquivar grupo: no menu do grupo, fecha as abas e guarda as sessões. Em Histórico › Grupos arquivados, Restaurar reabre o grupo com todas as sessões.",
+      "Abas novas do grupo: no menu do grupo, escolha modelo, modo de permissão e um prompt inicial para o claude das abas abertas dali em diante.",
+      "Clique num subagente embaixo da aba para ver a conversa dele no lugar do terminal, só para leitura.",
+      "Novo botão no cabeçalho com os processos de cada aba e as portas em uso, com opção de encerrar.",
+      "Worker bee por evento: roda quando uma sessão termina de responder, é encerrada ou espera você, depois de uma ferramenta (com filtro de texto, como git push), quando um subagente ou outra worker bee termina, quando o uso passa de um limite ou quando o app abre. Dá para limitar a um grupo e definir um intervalo mínimo entre execuções.",
+      "Card de cache: o contador volta ao início depois de cada resposta, inclusive a do Keep warm."
+    ]
+  },
+  {
     "version": "2.1.0-beta.1",
     "date": "2026-10-28",
     "items": [
