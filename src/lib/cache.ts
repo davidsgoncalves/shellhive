@@ -1,12 +1,12 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
-import { useStore } from "./store";
+import { useStore, type CacheStyle } from "./store";
 import { isBeeTab, type Tab } from "./types";
 
 /** Context below this size costs little either way, so its tab shows no card. */
 export const CACHE_CARD_MIN_TOKENS = 50_000;
-/** Height of the card over a terminal, in pixels. */
-export const CACHE_CARD_HEIGHT = 50;
+/** Height the cache takes over a terminal, in pixels, for each style. */
+export const CACHE_CARD_HEIGHT: Record<CacheStyle, number> = { expressive: 50, minimal: 3 };
 
 /** The prompt cache left by a session's last request. */
 export interface CacheInfo {

@@ -101,6 +101,8 @@ export type Modal =
   | { kind: "groupLaunch"; groupId: string }
   | { kind: "pickFolder"; groupId: string };
 
+export type CacheStyle = "expressive" | "minimal";
+
 export interface BeeQuota {
   /** The 5-hour window. */
   session: number | null;
@@ -152,6 +154,9 @@ interface Store {
   /** Null shows the first bee. */
   beeView: BeeView;
   setBeeView: (view: BeeView) => void;
+  /** How the prompt cache shows over a waiting session: a card, or a line with a badge. */
+  cacheStyle: CacheStyle;
+  setCacheStyle: (style: CacheStyle) => void;
   /** Usage ceilings, in percent, above which a scheduled bee run waits; null is off. */
   beeQuota: BeeQuota;
   setBeeQuota: (patch: Partial<BeeQuota>) => void;
@@ -385,6 +390,8 @@ export const useStore = create<Store>()(
       bees: [],
       beeView: null,
       setBeeView: (beeView) => set({ beeView, panelTab: "bees", panelOpen: true }),
+      cacheStyle: "expressive",
+      setCacheStyle: (cacheStyle) => set({ cacheStyle }),
       beeQuota: { session: null, weekly: null },
       setBeeQuota: (patch) => set((s) => ({ beeQuota: { ...s.beeQuota, ...patch } })),
       pluginView: null,
@@ -1026,6 +1033,7 @@ export const useStore = create<Store>()(
         folders: s.folders,
         bees: s.bees,
         beeQuota: s.beeQuota,
+        cacheStyle: s.cacheStyle,
         archivedGroups: s.archivedGroups,
         defaultFolderId: s.defaultFolderId,
         layout: s.layout,

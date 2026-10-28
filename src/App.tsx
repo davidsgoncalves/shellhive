@@ -793,6 +793,7 @@ function App() {
   // Bands plugins attached to each terminal, in plugin order, split by side.
   const pluginBands = useStore((s) => s.pluginBands);
   const cacheByTab = useCache((s) => s.byTab);
+  const cacheStyle = useStore((s) => s.cacheStyle);
   // A subagent's conversation covers its tab's pane while that tab is on screen.
   const subagentView = useStore((s) => s.subagentView);
   const subagentSlot = subagentView ? paneOf(subagentView.tabId) : -1;
@@ -829,7 +830,7 @@ function App() {
               const bands = bandsOf(t.id);
               // The cache card sits over the terminal, above any plugin band.
               const cache = cacheCardOf(t, cacheByTab);
-              const card = cache ? CACHE_CARD_HEIGHT : 0;
+              const card = cache ? CACHE_CARD_HEIGHT[cacheStyle] : 0;
               const above = card + sum(bands.top);
               const below = sum(bands.bottom);
               const watching = t.id === watched;
