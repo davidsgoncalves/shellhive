@@ -1,5 +1,22 @@
 [
   {
+    "version": "2.0.0",
+    "date": "2026-10-28",
+    "items": [
+      "Swarm update: novo layout. Uma barra de ícones à esquerda troca um painel só (Sessões, Fila, Histórico, Worker bee e os plugins), e os terminais ganham o resto da tela. Arraste os ícones para mudar a ordem; Cmd+B mostra e esconde o painel e Cmd+E abre a Fila.",
+      "Worker bee: prompts prontos que o ShellHive roda sozinho, numa sessão escondida e numa pasta própria, manualmente, a cada intervalo ou em dias e horários marcados. Comece de um template (Review, Limpar worktrees, Resumo do dia), do zero, ou monte com o Claude. A execução em andamento aparece ao vivo, com botão para parar, e cada execução deixa no histórico da worker bee a resposta final do Claude.",
+      "Pedidos de permissão e perguntas aparecem em cima da aba que pediu quando ela está na tela. A Fila fica só com os pedidos das abas fora da tela.",
+      "As sessões fixadas agora ficam dentro do Histórico.",
+      "Diagramas abrem no lugar do terminal, e fecham ao escolher outra sessão.",
+      "Todo list: o Claude também lista e conclui itens. Todo list e Diagramas ganharam ícones na barra.",
+      "Configurações › Conexões confere se o claude, o gh e os servidores MCP estão prontos.",
+      "Uma aba interrompida com Esc deixa de ficar marcada como trabalhando: depois de alguns segundos sem atividade no terminal, ela volta para aguardando você.",
+      "Ao abrir, o app apaga os eventos com mais de 7 dias e compacta o banco, liberando espaço em disco.",
+      "No Mac, o app passa a ser assinado sempre com o mesmo certificado, para o macOS lembrar as permissões dadas depois de cada atualização. Nesta atualização, ele pede mais uma vez.",
+      "Um tour apresenta as novidades na primeira vez que a versão abre; ele pode ser revisto em Configurações › Sobre."
+    ]
+  },
+  {
     "version": "2.0.0-beta.3",
     "date": "2026-10-27",
     "items": [
