@@ -1,4 +1,4 @@
-import type { Tab } from "./types";
+import { isBeeTab, type Tab } from "./types";
 
 /**
  * Claude Code redraws its spinner several times a second for as long as a
@@ -19,9 +19,13 @@ export function forgetOutput(tabId: string): void {
   lastOutput.delete(tabId);
 }
 
-/** Tabs marked working that have printed nothing and sent no hook for QUIET_MS. */
+/**
+ * Tabs marked working that have printed nothing and sent no hook for QUIET_MS.
+ * Bee tabs are left out: a bee run finishes only on a Stop that finds its tab
+ * working, and the scheduler handles stuck runs on its own.
+ */
 export function quietWorkingTabs(tabs: Tab[], now = Date.now()): Tab[] {
   return tabs.filter(
-    (t) => t.state === "working" && now - Math.max(lastOutput.get(t.id) ?? 0, t.lastEventAt ?? 0) > QUIET_MS,
+    (t) => t.state === "working" && !isBeeTab(t) && now - Math.max(lastOutput.get(t.id) ?? 0, t.lastEventAt ?? 0) > QUIET_MS,
   );
 }
