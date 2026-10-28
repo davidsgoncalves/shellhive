@@ -1,5 +1,12 @@
 [
   {
+    "version": "2.1.0-beta.3",
+    "date": "2026-10-28",
+    "items": [
+      "Cache do Claude ganhou um formato minimalista: um fio no topo do terminal que esvazia com o tempo e um selo com o contador no canto. Passe o mouse no selo para ver o custo e o Keep warm. Escolha entre Expressivo e Minimalista em Configurações › Aparência."
+    ]
+  },
+  {
     "version": "2.1.0-beta.2",
     "date": "2026-10-28",
     "items": [
