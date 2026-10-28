@@ -1372,20 +1372,20 @@ button.ghost.danger { border-color: var(--danger); color: var(--danger); }
 .search-all-line { font-family: var(--font-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .search-all-line mark { background: #5b4a2a; color: inherit; border-radius: 2px; }
 
-/* ---------- prompt cache card ---------- */
-.cache-card {
-  position: absolute; z-index: 5; box-sizing: border-box; padding: 5px 10px 4px; display: flex; flex-direction: column; gap: 2px;
-  background: var(--panel); border: 1px solid var(--border); border-radius: 6px; overflow: hidden;
+/* ---------- prompt cache line ---------- */
+.cache-line { position: absolute; z-index: 5; overflow: visible; pointer-events: none; }
+.cache-line-fill { position: absolute; left: 0; top: 0; height: 2px; border-radius: 1px; background: var(--success); transition: width 1s linear; }
+.cache-badge {
+  position: absolute; right: 10px; top: 8px; display: flex; align-items: center; gap: 5px; pointer-events: auto;
+  padding: 2px 7px; border-radius: 10px; font-size: 11px; font-variant-numeric: tabular-nums;
+  background: var(--panel-2); border: 1px solid var(--border); color: var(--success); opacity: .85;
 }
-[data-layers] .cache-card { border-radius: 10px; border-color: transparent; background: var(--overlay, var(--panel)); }
-.cache-card-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.cache-card-state { font-size: 12px; font-weight: 600; white-space: nowrap; }
-.cache-card.warm .cache-card-state { color: var(--success); }
-.cache-card.cold .cache-card-state { color: var(--muted); }
-.cache-card-bar { flex: 1; height: 3px; border-radius: 2px; background: var(--border); overflow: hidden; }
-.cache-card-bar > span { display: block; height: 100%; background: var(--success); transition: width 1s linear; }
-.cache-card-head button { margin-left: auto; padding: 2px 8px; font-size: 11px; }
-.cache-card-text { margin: 0; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cache-line.cold .cache-badge { color: var(--muted); }
+.cache-badge:hover { opacity: 1; }
+.cache-badge-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.cache-badge-action { display: none; background: none; border: none; padding: 0 0 0 4px; font: inherit; color: var(--c-waiting); cursor: pointer; }
+.cache-badge-action.danger { color: var(--danger); }
+.cache-badge:hover .cache-badge-action, .cache-badge-action.danger { display: inline; }
 
 .archived-group { cursor: default; }
 .archived-group .row { align-items: center; gap: 6px; }
@@ -1427,3 +1427,19 @@ button.link.danger { color: var(--danger); }
 .bee-event { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
 .bee-event-row { display: flex; gap: 8px; }
 .bee-event-row input { flex: 1; min-width: 0; }
+
+/* ---------- prompt cache card ---------- */
+.cache-card {
+  position: absolute; z-index: 5; box-sizing: border-box; padding: 5px 10px 4px; display: flex; flex-direction: column; gap: 2px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 6px; overflow: hidden;
+}
+[data-layers] .cache-card { border-radius: 10px; border-color: transparent; background: var(--overlay, var(--panel)); }
+.cache-card-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.cache-card-state { font-size: 12px; font-weight: 600; white-space: nowrap; }
+.cache-card.warm .cache-card-state { color: var(--success); }
+.cache-card.cold .cache-card-state { color: var(--muted); }
+.cache-card-bar { flex: 1; height: 3px; border-radius: 2px; background: var(--border); overflow: hidden; }
+.cache-card-bar > span { display: block; height: 100%; background: var(--success); transition: width 1s linear; }
+.cache-card-head button { margin-left: auto; padding: 2px 8px; font-size: 11px; }
+.cache-card-text { margin: 0; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+

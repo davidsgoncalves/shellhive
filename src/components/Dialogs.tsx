@@ -485,6 +485,8 @@ function SettingsDialog({ initialTab, onClose }: { initialTab?: SettingsTab; onC
     setMiniPanel,
     theme,
     setTheme,
+    cacheStyle,
+    setCacheStyle,
   } = useStore();
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -535,6 +537,19 @@ function SettingsDialog({ initialTab, onClose }: { initialTab?: SettingsTab; onC
           </button>
           <button className={`chip ${layout === "topbar" ? "on" : ""}`} onClick={() => setLayout("topbar")}>
             Superior
+          </button>
+        </div>
+      </section>
+
+      <section className="settings-section">
+        <h3>Cache do Claude</h3>
+        <p className="hint">Aparece em cima de uma sessão esperando você, com contexto grande.</p>
+        <div className="chip-row">
+          <button className={`chip ${cacheStyle === "expressive" ? "on" : ""}`} onClick={() => setCacheStyle("expressive")}>
+            Expressivo
+          </button>
+          <button className={`chip ${cacheStyle === "minimal" ? "on" : ""}`} onClick={() => setCacheStyle("minimal")}>
+            Minimalista
           </button>
         </div>
       </section>
