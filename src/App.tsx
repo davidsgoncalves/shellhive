@@ -46,6 +46,7 @@ import {
   type DetachSnapshot,
 } from "./lib/detach";
 import { notify } from "./lib/notify";
+import { forgetOutput, noteOutput, quietWorkingTabs } from "./lib/activity";
 import { confirmQuit } from "./lib/quit";
 import { describeTool } from "./lib/describe";
 import { ruleAllows } from "./lib/permRules";
@@ -121,10 +122,12 @@ function useBackendBridge() {
     invoke<HookSetup>("hooks_setup").then(store().setSetup).catch(console.error);
 
     listen<PtyData>("pty-data", (ev) => {
+      noteOutput(ev.payload.id);
       terminals.get(ev.payload.id)?.write(decodeBase64(ev.payload.data));
     }).then((u) => unlisteners.push(u));
 
     listen<{ id: string }>("pty-exit", (ev) => {
+      forgetOutput(ev.payload.id);
       const tab = store().tabs.find((t) => t.id === ev.payload.id);
       if (tab) store().patchTab(tab.id, { state: "dormant", pendingMessage: null });
       if (tab) store().setSubagents(tab.id, []);
@@ -210,7 +213,16 @@ function useBackendBridge() {
       store().dropPermission(ev.payload.id);
     }).then((u) => unlisteners.push(u));
 
-    return () => unlisteners.forEach((u) => u());
+    // A turn cut short with Esc sends no hook, so a working tab whose
+    // terminal went quiet goes back to waiting; see activity.ts.
+    const quiet = setInterval(() => {
+      for (const tab of quietWorkingTabs(store().tabs)) store().patchTab(tab.id, { state: "waiting" });
+    }, 3000);
+
+    return () => {
+      clearInterval(quiet);
+      unlisteners.forEach((u) => u());
+    };
   }, []);
 }
 
