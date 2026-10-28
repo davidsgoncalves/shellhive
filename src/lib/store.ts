@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { fileStorage } from "./persist";
-import { markPendingFork, markPendingResume } from "./restored";
+import { markPendingFork, markPendingPrompt, markPendingResume } from "./restored";
 import { sameRule } from "./permRules";
 import type { MiniBounds } from "./mini";
 import { THEME_FONT, THEMES, type TerminalFont, type ThemeId } from "./theme";
@@ -20,6 +20,8 @@ import {
   type Subagent,
   type CommandSuggestion,
   type Group,
+  type GroupLaunch,
+  type ArchivedGroup,
   type HookEvent,
   type HookSetup,
   type PermissionRequest,
@@ -96,6 +98,7 @@ export type Modal =
   | { kind: "newGroup" }
   | { kind: "switcher" }
   | { kind: "searchAll" }
+  | { kind: "groupLaunch"; groupId: string }
   | { kind: "pickFolder"; groupId: string };
 
 export interface BeeQuota {
@@ -244,6 +247,17 @@ interface Store {
 
   addGroup: (name?: string, folderId?: string | null) => string;
   setGroupFolder: (id: string, folderId: string | null) => void;
+  setGroupLaunch: (id: string, patch: Partial<GroupLaunch>) => void;
+  /** Groups closed with their sessions kept, newest first. */
+  archivedGroups: ArchivedGroup[];
+  /** Closes a group's tabs and keeps its sessions to reopen together. */
+  archiveGroup: (id: string) => void;
+  /** Brings an archived group back with its sessions resumed. */
+  restoreGroup: (id: string) => void;
+  dropArchivedGroup: (id: string) => void;
+  /** The subagent whose conversation is shown in place of its tab's terminal. */
+  subagentView: { tabId: string; toolUseId: string; description: string; type: string | null } | null;
+  setSubagentView: (view: Store["subagentView"]) => void;
   renameGroup: (id: string, name: string) => void;
   cycleGroupColor: (id: string) => void;
   toggleGroupCollapsed: (id: string) => void;
@@ -439,6 +453,49 @@ export const useStore = create<Store>()(
         });
         return id;
       },
+      setGroupLaunch: (id, patch) =>
+        set((s) => ({ groups: s.groups.map((g) => (g.id === id ? { ...g, launch: { ...g.launch, ...patch } } : g)) })),
+      archivedGroups: [],
+      archiveGroup: (id) => {
+        const s = get();
+        const group = s.groups.find((g) => g.id === id);
+        if (!group || group.fixed) return;
+        const tabs = s.tabs.filter((t) => t.groupId === id);
+        const sessions = tabs
+          .filter((t) => t.claudeSessionId)
+          .map((t) => ({ id: t.claudeSessionId!, cwd: t.cwd, title: t.title }));
+        for (const t of tabs) void invoke("pty_kill", { id: t.id }).catch(() => {});
+        const archived: ArchivedGroup = {
+          id: group.id,
+          name: group.name,
+          color: group.color,
+          emoji: group.emoji,
+          folderId: group.folderId,
+          launch: group.launch,
+          allowRules: group.allowRules,
+          archivedAt: Date.now(),
+          sessions,
+        };
+        get().closeGroup(id);
+        set((st) => ({ archivedGroups: [archived, ...st.archivedGroups.filter((a) => a.id !== id)] }));
+      },
+      restoreGroup: (id) => {
+        const archived = get().archivedGroups.find((a) => a.id === id);
+        if (!archived) return;
+        const groupId = get().addGroup(archived.name, archived.folderId);
+        set((st) => ({
+          groups: st.groups.map((g) =>
+            g.id === groupId
+              ? { ...g, color: archived.color, emoji: archived.emoji, launch: archived.launch, allowRules: archived.allowRules }
+              : g,
+          ),
+          archivedGroups: st.archivedGroups.filter((a) => a.id !== id),
+        }));
+        for (const session of archived.sessions) openSession(session, { groupId });
+      },
+      dropArchivedGroup: (id) => set((st) => ({ archivedGroups: st.archivedGroups.filter((a) => a.id !== id) })),
+      subagentView: null,
+      setSubagentView: (subagentView) => set({ subagentView }),
       setGroupFolder: (id, folderId) =>
         set((s) => ({ groups: s.groups.map((g) => (g.id === id ? { ...g, folderId } : g)) })),
       renameGroup: (id, name) =>
@@ -969,6 +1026,7 @@ export const useStore = create<Store>()(
         folders: s.folders,
         bees: s.bees,
         beeQuota: s.beeQuota,
+        archivedGroups: s.archivedGroups,
         defaultFolderId: s.defaultFolderId,
         layout: s.layout,
         barPosition: s.barPosition,
@@ -1052,10 +1110,19 @@ export function openSessionInGroup(groupId: string): void {
   const wanted = group?.fixed ? s.defaultFolderId : group?.folderId;
   const folder = wanted ? s.folders.find((f) => f.id === wanted) : undefined;
   if (folder) {
-    s.addTab(groupId, { cwd: folder.path, title: folder.name });
+    newTabInGroup(groupId, folder.path, folder.name);
     return;
   }
   s.openModal({ kind: "pickFolder", groupId });
+}
+
+/** A new tab in a group, started with the group's first prompt when it has one. */
+export function newTabInGroup(groupId: string, cwd: string, title: string): string {
+  const s = useStore.getState();
+  const id = s.addTab(groupId, { cwd, title });
+  const prompt = s.groups.find((g) => g.id === groupId)?.launch?.prompt?.trim();
+  if (prompt) markPendingPrompt(id, prompt);
+  return id;
 }
 
 /**

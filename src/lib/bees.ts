@@ -4,7 +4,7 @@ import { openSession, useStore } from "./store";
 import { markPendingPrompt } from "./restored";
 import { notify } from "./notify";
 import type { Check } from "./connections";
-import { BEE_GROUP_ID, type Bee, type BeeRun, type BeeTrigger, type RateWindow } from "./types";
+import { BEE_GROUP_ID, type Bee, type BeeEvent, type BeeRun, type BeeTrigger, type HookEvent, type RateWindow } from "./types";
 import { PLACEHOLDER } from "./beeTemplates";
 
 /** Runs kept per bee, newest first. */
@@ -65,9 +65,87 @@ export const runningRun = (beeId: string) =>
 /** How a trigger reads in the list. */
 export function describeTrigger(t: BeeTrigger): string {
   if (t.kind === "manual") return "Só manual";
+  if (t.kind === "event") return describeEvent(t.event);
   if (t.kind === "interval") return t.minutes % 60 === 0 ? `A cada ${t.minutes / 60}h` : `A cada ${t.minutes} min`;
   const days = t.days.length === 7 ? "Todo dia" : [...t.days].sort().map((d) => DAY_NAMES[d]).join(", ");
   return `${days} às ${t.time}`;
+}
+
+/** How an event trigger reads in the list. */
+export function describeEvent(e: BeeEvent): string {
+  switch (e.on) {
+    case "stop":
+      return "Quando uma sessão termina de responder";
+    case "sessionEnd":
+      return "Quando uma sessão é encerrada";
+    case "tool":
+      return `Depois de ${e.tool || "uma ferramenta"}${e.match ? ` com "${e.match}"` : ""}`;
+    case "notification":
+      return "Quando uma sessão espera você";
+    case "subagentStop":
+      return "Quando um subagente termina";
+    case "beeDone": {
+      const other = useStore.getState().bees.find((b) => b.id === e.beeId);
+      return `Depois da worker bee ${other?.name ?? "removida"}`;
+    }
+    case "usage":
+      return `Quando o uso ${e.window === "session" ? "da sessão (5h)" : "semanal (7d)"} passa de ${e.percent}%`;
+    case "appOpen":
+      return "Quando o app abre";
+  }
+}
+
+/** What happened, as the hooks and the app report it, for event bees to match. */
+export type BeeHappening =
+  | { on: "stop" | "sessionEnd" | "notification" | "subagentStop"; groupId: string }
+  | { on: "tool"; groupId: string; tool: string; input: string }
+  | { on: "beeDone"; beeId: string }
+  | { on: "usage"; window: "session" | "weekly"; from: number; to: number }
+  | { on: "appOpen" };
+
+const HOOKS: Record<string, "stop" | "sessionEnd" | "notification" | "subagentStop"> = {
+  Stop: "stop",
+  SessionEnd: "sessionEnd",
+  Notification: "notification",
+  SubagentStop: "subagentStop",
+};
+
+/** The happening a hook event from a tab stands for, if any bee can start on it. */
+export function happeningOf(e: HookEvent, groupId: string): BeeHappening | null {
+  const name = String(e.payload.hook_event_name ?? "");
+  if (HOOKS[name]) return { on: HOOKS[name], groupId };
+  if (name === "PostToolUse" && typeof e.payload.tool_name === "string") {
+    return { on: "tool", groupId, tool: e.payload.tool_name, input: JSON.stringify(e.payload.tool_input ?? {}) };
+  }
+  return null;
+}
+
+function matches(e: BeeEvent, h: BeeHappening): boolean {
+  if (e.on !== h.on) return false;
+  if (e.on === "tool" && h.on === "tool") {
+    return (!e.tool || e.tool === h.tool) && (!e.match || h.input.toLowerCase().includes(e.match.toLowerCase()));
+  }
+  if (e.on === "beeDone" && h.on === "beeDone") return e.beeId === h.beeId;
+  // Fires once, when usage crosses the line, not on every report above it.
+  if (e.on === "usage" && h.on === "usage") return e.window === h.window && h.from < e.percent && h.to >= e.percent;
+  return true;
+}
+
+/**
+ * Starts the enabled event bees that `h` matches. Like scheduled runs, they
+ * wait out the cooldown and the usage ceilings; a run that cannot start now
+ * is dropped, not queued.
+ */
+export function fireBeeEvent(h: BeeHappening): void {
+  const now = Date.now();
+  if (quotaResetAt(now) !== null) return;
+  for (const bee of useStore.getState().bees) {
+    const t = bee.trigger;
+    if (!bee.enabled || t.kind !== "event" || !matches(t.event, h)) continue;
+    if ("groupId" in h && t.groupId && t.groupId !== h.groupId) continue;
+    if (bee.lastRunAt && now - bee.lastRunAt < t.cooldown * 60_000) continue;
+    void runBee(bee);
+  }
 }
 
 /** The latest moment at or before `now` the schedule asks for a run. */
@@ -170,6 +248,7 @@ export async function finishBeeRun(tabId: string, reply?: string): Promise<void>
   });
   if (!run.revealed) s.closeTab(tabId);
   void notify(`Worker bee ${bee?.name ?? ""} terminou`, summary?.slice(0, 160) ?? "Sem resumo.", true);
+  fireBeeEvent({ on: "beeDone", beeId: run.beeId });
 }
 
 /** Ends a run by hand, or when its Claude is gone: the tab closes and the run is marked failed. */
@@ -214,6 +293,23 @@ export function openBeeRun(run: BeeRun): void {
  */
 export function startBeeScheduler(): () => void {
   const launchedAt = Date.now();
+  // Usage crossing a line, as each status report updates it.
+  const unsubscribe = useStore.subscribe((s, prev) => {
+    const at = s.rateLimits;
+    const was = prev.rateLimits;
+    if (!at || at === was) return;
+    const windows = [
+      ["session", at.five_hour, was?.five_hour],
+      ["weekly", at.seven_day, was?.seven_day],
+    ] as const;
+    for (const [window, now, before] of windows) {
+      // The first report after launch is a starting point, not a crossing.
+      if (!now || !before) continue;
+      // A new window starts from zero, whatever the last one reached.
+      const from = before.resets_at === now.resets_at ? before.used_percentage : 0;
+      if (now.used_percentage > from) fireBeeEvent({ on: "usage", window, from, to: now.used_percentage });
+    }
+  });
   const tick = async () => {
     await useBeeRuns.getState().load();
     const now = Date.now();
@@ -242,7 +338,11 @@ export function startBeeScheduler(): () => void {
     }
     useBeeRuns.getState().setHeld(held);
   };
-  void tick();
+  // Runs are loaded first, so a bee still marked running is not started twice.
+  void tick().then(() => fireBeeEvent({ on: "appOpen" }));
   const timer = setInterval(() => void tick(), TICK_MS);
-  return () => clearInterval(timer);
+  return () => {
+    clearInterval(timer);
+    unsubscribe();
+  };
 }

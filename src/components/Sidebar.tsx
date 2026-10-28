@@ -82,12 +82,22 @@ function InlineName({ value, onCommit, className }: { value: string; onCommit: (
 const SUBAGENT_LINES = 3;
 
 /** Subagents the session is running, under the tab's name. */
-function SubagentLines({ agents }: { agents: Subagent[] }) {
+function SubagentLines({ agents, tabId }: { agents: Subagent[]; tabId: string }) {
+  const { activateTab, setSubagentView } = useStore();
   const extra = agents.length - SUBAGENT_LINES;
   return (
     <span className="tab-agents">
       {agents.slice(0, SUBAGENT_LINES).map((a) => (
-        <span key={a.id} className="tab-agent" title={a.type ? `${a.type}: ${a.description}` : a.description}>
+        <span
+          key={a.id}
+          className="tab-agent"
+          title={`${a.type ? `${a.type}: ` : ""}${a.description} · clique para ver a conversa`}
+          onClick={(e) => {
+            e.stopPropagation();
+            activateTab(tabId);
+            setSubagentView({ tabId, toolUseId: a.id, description: a.description, type: a.type });
+          }}
+        >
           <span className="agent-mark">⑂</span>
           {a.type && <span className="agent-type">{a.type}</span>}
           <span className="agent-desc">{a.description}</span>
@@ -163,7 +173,7 @@ function TabRow({ tab, active }: { tab: Tab; active: boolean }) {
             ))}
           </span>
         )}
-        {agents && agents.length > 0 && <SubagentLines agents={agents} />}
+        {agents && agents.length > 0 && <SubagentLines agents={agents} tabId={tab.id} />}
       </span>
       {/* Outside the trailing slot, which stacks its two items in one place. */}
       {isDetached && (

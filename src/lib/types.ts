@@ -34,6 +34,28 @@ export interface Group {
   hidden?: boolean;
   /** Requests approved without asking for tabs in this group. */
   allowRules?: PermissionRule[];
+  /** How `claude` starts in the group's tabs; unset fields leave Claude's own defaults. */
+  launch?: GroupLaunch;
+}
+
+export interface GroupLaunch {
+  model?: string | null;
+  permissionMode?: string | null;
+  /** Sent as the first prompt when a new tab opens in the group. */
+  prompt?: string | null;
+}
+
+/** A group closed with its sessions kept, to reopen them all later. */
+export interface ArchivedGroup {
+  id: string;
+  name: string;
+  color: string;
+  emoji?: string | null;
+  folderId: string | null;
+  launch?: GroupLaunch;
+  allowRules?: PermissionRule[];
+  archivedAt: number;
+  sessions: Array<{ id: string; cwd: string | null; title: string }>;
 }
 
 /** A tool approved for a whole group; a shell command matches only exactly. */
@@ -57,7 +79,32 @@ export type BeeTrigger =
   | { kind: "manual" }
   | { kind: "interval"; minutes: number }
   /** Days are 0 (Sunday) to 6; time is "HH:MM". */
-  | { kind: "schedule"; days: number[]; time: string };
+  | { kind: "schedule"; days: number[]; time: string }
+  /**
+   * Something that happened in a tab or in the app. Session events can be
+   * limited to one group; `cooldown` is the least time, in minutes, between
+   * two runs it starts.
+   */
+  | { kind: "event"; event: BeeEvent; groupId: string | null; cooldown: number };
+
+/** What starts an event bee: Claude Code hooks from the tabs, or the app itself. */
+export type BeeEvent =
+  /** A session finished answering (Stop). */
+  | { on: "stop" }
+  /** A session ended (SessionEnd). */
+  | { on: "sessionEnd" }
+  /** A tool was used (PostToolUse); `match` is text its input must contain. */
+  | { on: "tool"; tool: string; match: string | null }
+  /** Claude stopped to wait for the user (Notification). */
+  | { on: "notification" }
+  /** A subagent finished (SubagentStop). */
+  | { on: "subagentStop" }
+  /** Another bee finished a run. */
+  | { on: "beeDone"; beeId: string }
+  /** Usage of a window went past a percentage. */
+  | { on: "usage"; window: "session" | "weekly"; percent: number }
+  /** The app was opened. */
+  | { on: "appOpen" };
 
 /** A routine Claude runs in the background, in a hidden tab. */
 export interface Bee {

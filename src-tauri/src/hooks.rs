@@ -369,7 +369,6 @@ fn hook_command(kind: &str, script: &std::path::Path) -> String {
 }
 
 /// The settings file every `claude` in a tab is launched with.
-#[cfg(windows)]
 pub fn settings_path() -> Option<PathBuf> {
     Some(crate::paths::data_dir()?.join("hooks.json"))
 }
@@ -581,9 +580,12 @@ pub fn write_scripts() -> Result<HookSetup, String> {
              \x20 TAB_MCP=\"${{TMPDIR:-/tmp}}/shellhive-mcp-$SHELLHIVE_TAB_ID.json\"\n\
              \x20 printf '{{\"mcpServers\":{{\"shellhive\":{{\"type\":\"http\",\"url\":\"http://127.0.0.1:{PORT}/mcp\",\"headers\":{{\"X-Tab-Id\":\"%s\"}}}}}}}}' \"$SHELLHIVE_TAB_ID\" > \"$TAB_MCP\" && MCP=\"$TAB_MCP\"\n\
              fi\n\
+             # A tab whose group sets a model or permission mode has its own\n\
+             # copy of the settings, written by the app when the tab opened.\n\
+             SETTINGS=${{SHELLHIVE_SETTINGS:-{settings}}}\n\
              # The app's options go last: --mcp-config takes every word after it\n\
              # as another file, so a prompt placed after it would be read as one.\n\
-             exec \"$REAL\" \"$@\" --settings {settings} --mcp-config \"$MCP\"\n",
+             exec \"$REAL\" \"$@\" --settings \"$SETTINGS\" --mcp-config \"$MCP\"\n",
             shim_dir = shell_single_quote(&bin_dir.to_string_lossy()),
             settings = shell_single_quote(&hooks_json.to_string_lossy()),
             mcp = shell_single_quote(&mcp_json.to_string_lossy()),

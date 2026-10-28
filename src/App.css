@@ -325,7 +325,11 @@ button.link { background: none; border: none; color: var(--c-waiting); cursor: p
   background: var(--bg); border: 1px solid var(--border); border-radius: 5px; color: var(--fg);
   font: inherit; font-size: 12px; padding: 7px 8px; outline: none; width: 100%;
 }
-.modal input:focus { border-color: var(--accent); }
+.modal textarea {
+  background: var(--bg); border: 1px solid var(--border); border-radius: 5px; color: var(--fg);
+  font: inherit; font-size: 12px; padding: 7px 8px; outline: none; width: 100%; resize: vertical; box-sizing: border-box;
+}
+.modal input:focus, .modal textarea:focus { border-color: var(--accent); }
 button.primary { background: var(--accent); color: var(--on-accent); border: none; border-radius: 6px; padding: 7px 14px; font-size: 12px; cursor: pointer; }
 button.ghost.auto { width: auto; }
 .error { color: var(--danger); font-size: 11px; margin: 0; }
@@ -1382,3 +1386,44 @@ button.ghost.danger { border-color: var(--danger); color: var(--danger); }
 .cache-card-bar > span { display: block; height: 100%; background: var(--success); transition: width 1s linear; }
 .cache-card-head button { margin-left: auto; padding: 2px 8px; font-size: 11px; }
 .cache-card-text { margin: 0; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.archived-group { cursor: default; }
+.archived-group .row { align-items: center; gap: 6px; }
+.archived-group .meta { gap: 10px; }
+button.link.danger { color: var(--danger); }
+
+/* ---------- subagent conversation ---------- */
+.subagent-view {
+  position: absolute; z-index: 60; display: flex; flex-direction: column; overflow: hidden; box-sizing: border-box;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+}
+.subagent-view h2 { font-size: 14px; }
+.subagent-entries { list-style: none; margin: 0; padding: 12px 18px; overflow-y: auto; flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+.subagent-entry { display: flex; flex-direction: column; gap: 3px; }
+.subagent-kind { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.subagent-entry pre { margin: 0; font-family: var(--font-mono); font-size: 12px; white-space: pre-wrap; word-break: break-word; user-select: text; }
+.subagent-entry.tool pre, .subagent-entry.result pre { color: var(--muted); font-size: 11px; }
+.subagent-entry.prompt pre { color: var(--c-waiting); }
+.tab-agent { cursor: pointer; }
+.tab-agent:hover .agent-desc { text-decoration: underline; }
+
+/* ---------- processes popup ---------- */
+.processes { position: relative; }
+.processes-popup {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 90; width: 420px; max-height: 60vh; overflow-y: auto;
+  padding: 10px 12px; display: flex; flex-direction: column; gap: 10px;
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.45);
+}
+.topbar.at-bottom .processes-popup { top: auto; bottom: calc(100% + 6px); }
+.processes-popup h4 { margin: 0; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.processes-popup .hint { margin: 0; }
+.processes-popup ul { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.processes-popup li { display: flex; align-items: center; gap: 6px; font-size: 12px; min-width: 0; }
+.processes-tab { font-size: 12px; font-weight: 600; color: var(--fg); }
+.processes-name { font-weight: 600; flex-shrink: 0; }
+.processes-port { font-family: var(--font-mono); font-size: 11px; color: var(--success); flex-shrink: 0; }
+.processes-cmd { flex: 1; min-width: 0; color: var(--muted); font-family: var(--font-mono); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.processes-popup li button.link { flex-shrink: 0; }
+.bee-event { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.bee-event-row { display: flex; gap: 8px; }
+.bee-event-row input { flex: 1; min-width: 0; }
