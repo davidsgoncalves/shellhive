@@ -1,5 +1,14 @@
 [
   {
+    "version": "2.1.0-beta.5",
+    "date": "2026-10-29",
+    "items": [
+      "Selects das worker bees e dos grupos legíveis no Linux: seguem as cores do tema em vez do tema do sistema.",
+      "Comando sugerido por uma worker bee fica na Fila depois que ela termina. Executar roda direto no shell e mostra o resultado no card.",
+      "Template de review: PR sem bloqueante e sem dúvida deixa o approve na Fila para você aprovar com um clique."
+    ]
+  },
+  {
     "version": "2.1.0-beta.4",
     "date": "2026-10-29",
     "items": [

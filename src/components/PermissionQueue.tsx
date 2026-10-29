@@ -146,7 +146,8 @@ export function useQueued() {
   return {
     permissions: s.permissions.filter((p) => away(p.tab_id)),
     questions: s.questions.filter((q) => away(q.tab_id)),
-    commands: s.commands.filter((c) => away(c.tab_id)),
+    // A bee's command waits here: its tab closes when the run ends.
+    commands: s.commands.filter((c) => (c.bee ? !onScreen(s, c.tab_id) : away(c.tab_id))),
     approvals: pendingApprovals(s.localPlugins, s.deferredApprovals).length,
   };
 }

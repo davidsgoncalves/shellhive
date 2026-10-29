@@ -210,8 +210,9 @@ function useBackendBridge() {
     }).then((u) => unlisteners.push(u));
 
     listen<CommandSuggestion>("command-suggestion", (ev) => {
-      store().addCommand(ev.payload);
       const tab = store().tabs.find((t) => t.id === ev.payload.tab_id);
+      const bee = tab && isBeeTab(tab) ? { name: tab.title, cwd: tab.cwd } : undefined;
+      store().addCommand({ ...ev.payload, bee });
       void notify(
         "Comando para você rodar",
         `${tab?.title ?? "sessão"} · ${ev.payload.command}`,

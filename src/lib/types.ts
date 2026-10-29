@@ -157,6 +157,11 @@ export interface CommandSuggestion {
   reason: string | null;
   /** Clicked while Claude was busy: runs as soon as the session waits. */
   queued?: boolean;
+  /**
+   * Asked by a worker bee, whose tab closes when the run ends: the command
+   * outlives the tab and runs straight in a shell, in this folder.
+   */
+  bee?: { name: string; cwd: string | null };
 }
 
 /** A subagent a tab's Claude session started and has not finished. */

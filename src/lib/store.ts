@@ -588,7 +588,7 @@ export const useStore = create<Store>()(
           const { [id]: _dropped, ...statusByTab } = s.statusByTab;
           const permissions = s.permissions.filter((p) => p.tab_id !== id);
           const questions = s.questions.filter((q) => q.tab_id !== id);
-          const commands = s.commands.filter((c) => c.tab_id !== id);
+          const commands = s.commands.filter((c) => c.bee || c.tab_id !== id);
           const alerted = s.alerted.filter((a) => a !== id);
           const { [id]: _agents, ...subagentsByTab } = s.subagentsByTab;
           if (s.detached.includes(id)) closeDetachedWindow(id);
@@ -636,7 +636,7 @@ export const useStore = create<Store>()(
             detached: s.detached.filter((d) => d !== id),
             permissions: s.permissions.filter((p) => p.tab_id !== id),
             questions: s.questions.filter((q) => q.tab_id !== id),
-            commands: s.commands.filter((c) => c.tab_id !== id),
+            commands: s.commands.filter((c) => c.bee || c.tab_id !== id),
             alerted: s.alerted.filter((a) => a !== id),
             subagentsByTab,
           };
@@ -833,7 +833,7 @@ export const useStore = create<Store>()(
             statusByTab,
             permissions: s.permissions.filter((p) => !p.tab_id || !doomed.has(p.tab_id)),
             questions: s.questions.filter((q) => !q.tab_id || !doomed.has(q.tab_id)),
-            commands: s.commands.filter((c) => !c.tab_id || !doomed.has(c.tab_id)),
+            commands: s.commands.filter((c) => c.bee || !c.tab_id || !doomed.has(c.tab_id)),
             alerted: s.alerted.filter((a) => !doomed.has(a)),
             detached: s.detached.filter((d) => !doomed.has(d)),
             closedTabs: rememberClosed(s.closedTabs, s.tabs.filter((t) => doomed.has(t.id))),
