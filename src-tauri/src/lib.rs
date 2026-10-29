@@ -76,6 +76,7 @@ pub fn run() {
             bees::bee_runs_get,
             bees::bee_runs_set,
             bees::bee_workdir,
+            bees::bee_command_run,
             mcp::bee_creator_tabs,
             sessions::session_last_reply,
             sessions::session_cache,

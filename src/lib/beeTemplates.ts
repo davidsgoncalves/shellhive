@@ -75,9 +75,10 @@ Como publicar:
 - O comentário começa com bloqueante:, dúvida: ou sugestão:, trata de um problema só, tem até uns 400 caracteres, traz um exemplo concreto e termina com uma linha "Pedido:" dizendo o que o autor deve fazer.
 - Depois dos comentários, envie a revisão: \`gh api repos/<repo>/pulls/<n>/reviews -f event=REQUEST_CHANGES -f commit_id=<commit atual> -f body=...\` quando houver algum bloqueante, ou \`event=COMMENT\` quando só houver dúvidas e sugestões.
 - Sem nenhum achado, não publique nada no PR.
-- Nunca aprove um PR (nunca use event=APPROVE).
+- Nunca aprove um PR (nunca use event=APPROVE nem gh pr review --approve).
+- PR sem bloqueante e sem dúvida: deixe a aprovação para mim chamando a ferramenta suggest_command do Shellhive com \`gh pr review <n> --repo <repo> --approve\` e, em reason, o repositório, o número e o título do PR. O comando vira um botão na Fila; a aprovação é minha.
 
-No fim, responda com um resumo: para cada PR, quantos achados e cada bloqueante em uma linha; e a lista dos PRs sem achados, com o link, dizendo que falta eu aprovar.`;
+No fim, responda com um resumo: para cada PR, quantos achados e cada bloqueante em uma linha; e a lista dos PRs com aprovação sugerida na Fila, com o link.`;
 
 const DAILY_PROMPT = `Você está rodando como uma worker bee do Shellhive, sem ninguém acompanhando o terminal. Não faça perguntas.
 

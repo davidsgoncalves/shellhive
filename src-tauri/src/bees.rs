@@ -24,6 +24,52 @@ pub fn bee_workdir() -> Result<String, String> {
     Ok(dir)
 }
 
+/// Longest output a bee command shows in its card.
+const COMMAND_OUTPUT_MAX: usize = 2000;
+
+/// Runs a command a bee suggested, after its tab closed: in the user's login
+/// shell, so tools like `gh` are on the PATH. Returns the output; an exit
+/// other than zero comes back as the error.
+#[tauri::command]
+pub async fn bee_command_run(command: String, cwd: Option<String>) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut cmd = if cfg!(windows) {
+            let mut c = crate::process::background("powershell.exe");
+            c.args(["-NoLogo", "-NoProfile", "-Command", &command]);
+            c
+        } else {
+            let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".into());
+            let mut c = crate::process::background(shell);
+            c.args(["-l", "-c", &command]);
+            c
+        };
+        if let Some(dir) = cwd.filter(|d| std::path::Path::new(d).is_dir()) {
+            cmd.current_dir(dir);
+        }
+        let out = cmd.output().map_err(|e| e.to_string())?;
+        let mut text = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        let err = String::from_utf8_lossy(&out.stderr).trim().to_string();
+        if !err.is_empty() {
+            if !text.is_empty() {
+                text.push('\n');
+            }
+            text.push_str(&err);
+        }
+        if text.len() > COMMAND_OUTPUT_MAX {
+            let cut = (0..=COMMAND_OUTPUT_MAX).rev().find(|&i| text.is_char_boundary(i)).unwrap_or(0);
+            text.truncate(cut);
+            text.push('…');
+        }
+        if out.status.success() {
+            Ok(text)
+        } else {
+            Err(if text.is_empty() { format!("saiu com {}", out.status) } else { text })
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// Claude's global config, where it keeps the folders it trusts.
 fn claude_config_path() -> Option<PathBuf> {
     match std::env::var_os("CLAUDE_CONFIG_DIR") {
