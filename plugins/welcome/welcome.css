@@ -1,0 +1,69 @@
+/* The page in place of a tab's terminal. */
+.welcome-view { position: absolute; z-index: 40; overflow-y: auto; outline: none; background: var(--bg); color: var(--fg); }
+
+.welcome-page { max-width: 1100px; margin: 0 auto; padding: 20px 24px 32px; font-size: 13px; line-height: 1.45; user-select: text; }
+.welcome-page > header { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.welcome-page h1 { font-size: 24px; font-weight: 600; margin: 0; }
+.welcome-page h1 + p { margin: 2px 0 0; }
+.welcome-actions { display: flex; align-items: center; gap: 8px; }
+.welcome-actions .ghost { padding: 4px 10px; font-size: 12px; }
+
+.welcome-card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; min-width: 0; }
+.welcome-card h2 {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 10px;
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
+}
+.welcome-card h2 .ghost { text-transform: none; letter-spacing: 0; padding: 2px 8px; font-size: 11px; }
+.welcome-card h3 { display: flex; align-items: center; gap: 8px; margin: 14px 0 4px; font-size: 13px; font-weight: 600; }
+.welcome-card h2 + h3 { margin-top: 0; }
+.welcome-card ul { list-style: none; margin: 0; padding: 0; }
+.welcome-card li { display: flex; align-items: baseline; gap: 8px; padding: 4px 0; border-top: 1px solid var(--border); }
+.welcome-card li:first-child { border-top: 0; }
+.welcome-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
+
+.welcome-muted { color: var(--muted); }
+.welcome-empty { color: var(--muted); font-style: italic; margin: 2px 0; }
+.welcome-count { font-size: 11px; font-weight: 500; color: var(--muted); background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 0 7px; }
+.welcome-ref { font-family: var(--font-mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
+.welcome-path { font-family: var(--font-mono); font-size: 11px; }
+.welcome-grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.welcome-repo { font-size: 12px; font-weight: 600; margin: 8px 0 0; }
+.welcome-link {
+  flex: 1; min-width: 0; padding: 0; border: 0; background: none; color: var(--fg); font: inherit;
+  text-align: left; cursor: pointer; overflow-wrap: anywhere;
+}
+.welcome-link:hover { color: var(--accent); text-decoration: underline; }
+.welcome-tag { font-size: 11px; white-space: nowrap; border: 1px solid var(--border); border-radius: 4px; padding: 0 6px; color: var(--muted); }
+.welcome-tag.ok { color: var(--success, #4ec98a); border-color: color-mix(in srgb, var(--success, #4ec98a) 40%, transparent); }
+.welcome-tag.bad { color: var(--danger, #f0707a); border-color: color-mix(in srgb, var(--danger, #f0707a) 40%, transparent); }
+.welcome-tag.warn { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+
+.welcome-weather { display: grid; grid-template-columns: auto 1fr auto; gap: 20px; align-items: center; }
+.welcome-now { display: flex; align-items: center; gap: 14px; }
+.welcome-now-icon { font-size: 42px; line-height: 1; }
+.welcome-now-temp { font-size: 36px; font-weight: 300; line-height: 1; }
+.welcome-now-detail { font-size: 12px; }
+.welcome-hours { display: flex; gap: 2px; overflow-x: auto; }
+.welcome-hour, .welcome-day { text-align: center; min-width: 44px; font-size: 12px; }
+.welcome-icon { font-size: 18px; }
+.welcome-rain { font-size: 11px; color: var(--accent); min-height: 15px; }
+.welcome-days { display: flex; gap: 12px; }
+.welcome-day > div:first-child { text-transform: capitalize; }
+
+.welcome-picker { display: flex; flex-direction: column; gap: 6px; max-width: 360px; }
+.welcome-picker input {
+  padding: 6px 8px; outline: none; font: inherit; font-size: 12px;
+  background: var(--panel-2); color: var(--fg); border: 1px solid var(--border); border-radius: 6px;
+}
+.welcome-picker input:focus { border-color: var(--accent); }
+
+/* One column, in the side panel or a narrow pane. */
+.welcome-side { display: flex; flex-direction: column; gap: 6px; padding: 6px; }
+.welcome-page.compact { padding: 0; }
+.welcome-page.compact > header { flex-direction: column; align-items: stretch; }
+.welcome-page.compact h1 { font-size: 18px; }
+.welcome-page.compact .welcome-grid, .welcome-page.compact .welcome-weather { grid-template-columns: 1fr; }
+@container (max-width: 760px) {
+  .welcome-grid, .welcome-weather { grid-template-columns: 1fr; }
+}
+.welcome-view { container-type: inline-size; }
