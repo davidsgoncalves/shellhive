@@ -99,6 +99,7 @@ export type Modal =
   | { kind: "switcher" }
   | { kind: "searchAll" }
   | { kind: "groupLaunch"; groupId: string }
+  | { kind: "pluginCreator" }
   | { kind: "pickFolder"; groupId: string };
 
 export type CacheStyle = "expressive" | "minimal";

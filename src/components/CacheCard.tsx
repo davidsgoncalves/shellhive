@@ -24,8 +24,8 @@ interface Props {
 /**
  * Over a waiting session: how long its prompt cache lasts and what the next
  * message costs. Expressive is a card with the explanation in view; minimal
- * is a thin line along the top of the terminal that empties as the cache runs
- * out, with a badge whose hover explains the cost and offers Keep warm.
+ * is only a countdown badge over the terminal, whose hover explains the cost
+ * and offers Keep warm.
  */
 export function CacheCard({ tabId, info, style }: Props) {
   const look = useStore((s) => s.cacheStyle);
@@ -90,7 +90,6 @@ export function CacheCard({ tabId, info, style }: Props) {
 
   return (
     <div className={`cache-line ${warm ? "warm" : "cold"}`} style={style}>
-      {warm && <span className="cache-line-fill" style={{ width: fill }} />}
       <div className="cache-badge" title={explain}>
         <span className="cache-badge-dot" />
         {warm ? countdown(left) : "cold"}

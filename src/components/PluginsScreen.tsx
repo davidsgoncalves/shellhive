@@ -39,6 +39,7 @@ export function PluginsPanel() {
   const { official, own } = useEntries();
   const enabled = useStore((s) => s.enabledPlugins);
   const setPluginView = useStore((s) => s.setPluginView);
+  const openModal = useStore((s) => s.openModal);
   const shown = useShownPlugin();
   const [folder, setFolder] = useState<string | null>(null);
   useEffect(() => {
@@ -77,6 +78,9 @@ export function PluginsPanel() {
           <ul className="bee-list">{own.map(row)}</ul>
         )}
       </section>
+      <button className="ghost auto" onClick={() => openModal({ kind: "pluginCreator" })}>
+        Criar plugin com o Claude
+      </button>
       {folder && (
         <button className="ghost auto" onClick={() => void invoke("link_open", { target: folder, cwd: null })}>
           Abrir pasta de plugins
