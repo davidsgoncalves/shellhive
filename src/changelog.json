@@ -1,5 +1,14 @@
 [
   {
+    "version": "2.1.0-beta.4",
+    "date": "2026-10-29",
+    "items": [
+      "No formato minimalista do Cache do Claude ficou só o selo com o contador, sem o fio no topo do terminal.",
+      "Worker bees não travam mais no aviso de confiar na pasta: o Shellhive já marca a pasta delas como confiável para o Claude.",
+      "Botão Criar plugin com o Claude na tela de Plugins: abre uma aba no grupo Plugins com o Claude pronto para montar o plugin."
+    ]
+  },
+  {
     "version": "2.1.0-beta.3",
     "date": "2026-10-28",
     "items": [
