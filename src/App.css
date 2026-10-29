@@ -1374,7 +1374,6 @@ button.ghost.danger { border-color: var(--danger); color: var(--danger); }
 
 /* ---------- prompt cache line ---------- */
 .cache-line { position: absolute; z-index: 5; overflow: visible; pointer-events: none; }
-.cache-line-fill { position: absolute; left: 0; top: 0; height: 2px; border-radius: 1px; background: var(--success); transition: width 1s linear; }
 .cache-badge {
   position: absolute; right: 10px; top: 8px; display: flex; align-items: center; gap: 5px; pointer-events: auto;
   padding: 2px 7px; border-radius: 10px; font-size: 11px; font-variant-numeric: tabular-nums;

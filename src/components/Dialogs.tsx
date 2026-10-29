@@ -10,6 +10,7 @@ import type { ReportsState } from "../lib/errors";
 import { shortcutLabel, withShortcuts } from "../lib/shortcuts";
 import { open } from "@tauri-apps/plugin-dialog";
 import { newTabInGroup, useStore, type SettingsTab } from "../lib/store";
+import { openPluginCreator } from "../lib/pluginCreator";
 import { ConnectionsTab } from "./WorkSettings";
 import { DEFAULT_FONT_SIZE, THEMES, type ThemeId } from "../lib/theme";
 import { Modal } from "./Modal";
@@ -911,6 +912,43 @@ function PickFolderDialog({ groupId, onClose }: { groupId: string; onClose: () =
   );
 }
 
+function PluginCreatorDialog({ onClose }: { onClose: () => void }) {
+  const [idea, setIdea] = useState("");
+  const start = () => {
+    onClose();
+    void openPluginCreator(idea);
+  };
+
+  return (
+    <Modal
+      title="Criar plugin com o Claude"
+      onClose={onClose}
+      footer={
+        <>
+          <button className="ghost auto" onClick={onClose}>
+            Cancelar
+          </button>
+          <button className="primary" onClick={start}>
+            Abrir sessão
+          </button>
+        </>
+      }
+    >
+      <p className="hint">Abre uma aba no grupo Plugins, na pasta de plugins, com o Claude pronto para montar o plugin.</p>
+      <label className="field">
+        <span>O que o plugin deve fazer</span>
+        <textarea
+          rows={4}
+          autoFocus
+          placeholder="Vazio, o Claude pergunta na sessão"
+          value={idea}
+          onChange={(e) => setIdea(e.target.value)}
+        />
+      </label>
+    </Modal>
+  );
+}
+
 export function Dialogs() {
   const { modal, openModal } = useStore();
   const close = () => openModal(null);
@@ -920,5 +958,6 @@ export function Dialogs() {
   if (modal.kind === "switcher") return <QuickSwitcher onClose={close} />;
   if (modal.kind === "searchAll") return <SearchAll onClose={close} />;
   if (modal.kind === "groupLaunch") return <GroupLaunchDialog groupId={modal.groupId} onClose={close} />;
+  if (modal.kind === "pluginCreator") return <PluginCreatorDialog onClose={close} />;
   return <PickFolderDialog groupId={modal.groupId} onClose={close} />;
 }
