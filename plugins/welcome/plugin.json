@@ -1,0 +1,17 @@
+{
+  "id": "welcome",
+  "name": "Bom dia",
+  "description": "Uma página de boas-vindas que abre no lugar do terminal na primeira vez do dia: o que você fez no último dia útil (commits, PRs, reviews e sessões do Claude), o que está pendente hoje (seus PRs abertos, reviews pedidos a você e a Todo list) e a previsão do tempo da sua cidade.",
+  "agentContext": "Quando o usuario perguntar o que fez ontem, no ultimo dia util, ou o que tem pendente para hoje, chame daily_summary: ela junta commits, PRs, reviews, sessoes do Claude, a Todo list e a previsao do tempo.",
+  "tools": [
+    {
+      "name": "daily_summary",
+      "description": "Resume o que o usuário fez no último dia útil (commits nos repositórios em que trabalha, PRs abertos, mergeados e revisados, sessões do Claude) e o que está pendente hoje (PRs abertos dele, reviews pedidos a ele, Todo list), com a previsão do tempo. Também abre a página Bom dia no lugar do terminal da sessão.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    }
+  ]
+}
