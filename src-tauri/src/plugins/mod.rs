@@ -7,6 +7,7 @@
 pub mod editor;
 pub mod events;
 pub mod local;
+pub mod welcome;
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Condvar, Mutex, OnceLock};
@@ -18,6 +19,7 @@ const MANIFESTS: &[&str] = &[
     include_str!("../../../plugins/editor/plugin.json"),
     include_str!("../../../plugins/mermaid/plugin.json"),
     include_str!("../../../plugins/todo/plugin.json"),
+    include_str!("../../../plugins/welcome/plugin.json"),
 ];
 
 /// How long a tool answered by a plugin's interface may take.

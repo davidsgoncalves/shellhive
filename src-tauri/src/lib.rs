@@ -104,6 +104,8 @@ pub fn run() {
             plugins::editor::editor_cancel,
             plugins::plugins_set_enabled,
             plugins::plugin_tool_result,
+            plugins::welcome::welcome_day,
+            plugins::welcome::welcome_github,
             plugins::local::local_plugins,
             plugins::local::local_plugins_folder,
             plugins::local::local_plugin_approve,
