@@ -34,18 +34,27 @@ export function summary(data: Welcome, place: Place | null): string {
   } else {
     lines.push(`- GitHub indisponível: ${data.github.error}`);
   }
+  if (data.jira && "value" in data.jira) {
+    for (const i of data.jira.value.moved) lines.push(`- Tarefa movida no Jira: ${i.key} ${i.summary} → ${i.status} (${i.url})`);
+  }
 
   lines.push("", "## Pendências de hoje");
+  if (data.todos?.length) {
+    lines.push("Todo list:");
+    for (const t of data.todos) lines.push(`- ${t}`);
+  }
+  if (data.jira && "value" in data.jira) {
+    lines.push(`Tarefas dele no Jira (${data.jira.value.open.length}):`);
+    for (const i of data.jira.value.open) lines.push(`- ${i.key} ${i.summary} [${i.status}] (${i.url})`);
+  } else if (data.jira) {
+    lines.push(`Jira indisponível: ${data.jira.error}`);
+  }
   if ("value" in data.github) {
     const gh = data.github.value;
     lines.push(`Seus PRs abertos (${gh.mine.length}):`);
     for (const p of gh.mine) lines.push(`- ${pr(p)}; review: ${p.review ?? "—"}; CI: ${p.ci ?? "—"}${p.draft ? "; rascunho" : ""}`);
     lines.push(`Reviews pedidos a ele (${gh.asked.length}):`);
     for (const p of gh.asked) lines.push(`- ${pr(p)}, de ${p.author}`);
-  }
-  if (data.todos?.length) {
-    lines.push("Todo list:");
-    for (const t of data.todos) lines.push(`- ${t}`);
   }
   return lines.join("\n");
 }

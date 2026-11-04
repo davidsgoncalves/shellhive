@@ -8,6 +8,7 @@ pub mod editor;
 pub mod events;
 pub mod local;
 pub mod welcome;
+pub mod welcome_jira;
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Condvar, Mutex, OnceLock};

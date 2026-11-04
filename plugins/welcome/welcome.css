@@ -33,6 +33,8 @@
   text-align: left; cursor: pointer; overflow-wrap: anywhere;
 }
 .welcome-link:hover { color: var(--accent); text-decoration: underline; }
+.welcome-link.inline { flex: none; display: inline; color: var(--accent); font-style: normal; }
+.welcome-card h3 .welcome-h3-action { margin-left: auto; padding: 1px 8px; font-size: 11px; font-weight: 400; }
 .welcome-tag { font-size: 11px; white-space: nowrap; border: 1px solid var(--border); border-radius: 4px; padding: 0 6px; color: var(--muted); }
 .welcome-tag.ok { color: var(--success, #4ec98a); border-color: color-mix(in srgb, var(--success, #4ec98a) 40%, transparent); }
 .welcome-tag.bad { color: var(--danger, #f0707a); border-color: color-mix(in srgb, var(--danger, #f0707a) 40%, transparent); }

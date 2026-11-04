@@ -8,7 +8,7 @@ export type Outcome<T> = { value: T } | { error: string };
 export interface Weather {
   now: { temp: number; feels: number; humidity: number; wind: number; code: number; isDay: boolean };
   /** The next twelve hours. */
-  hours: { time: string; temp: number; rain: number; code: number }[];
+  hours: { time: string; temp: number; rain: number; code: number; isDay: boolean }[];
   /** Today first, then the next three days. */
   days: { date: string; code: number; max: number; min: number; rain: number; rainMm: number }[];
 }
@@ -49,12 +49,29 @@ export interface Github {
   asked: PullRequest[];
 }
 
+export interface JiraIssue {
+  key: string;
+  summary: string;
+  status: string;
+  /** Jira's status category: `new`, `indeterminate` or `done`. */
+  category: string | null;
+  url: string;
+}
+
+export interface Jira {
+  account: { site: string; email: string };
+  open: JiraIssue[];
+  moved: JiraIssue[];
+}
+
 export interface Welcome {
   at: number;
   /** The last working day, YYYY-MM-DD. */
   day: string;
   work: Outcome<{ repos: RepoCommits[]; sessions: DaySession[] }>;
   github: Outcome<Github>;
+  /** Null while Jira is not connected. */
+  jira: Outcome<Jira> | null;
   /** Null while no city is chosen. */
   weather: Outcome<Weather> | null;
   /** Null while the Todo list plugin is off. */
@@ -85,7 +102,7 @@ async function weather(place: Place): Promise<Weather> {
     longitude: String(place.longitude),
     timezone: "auto",
     current: "temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,is_day",
-    hourly: "temperature_2m,precipitation_probability,weather_code",
+    hourly: "temperature_2m,precipitation_probability,weather_code,is_day",
     daily: "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum",
     forecast_days: "4",
   });
@@ -108,6 +125,7 @@ async function weather(place: Place): Promise<Weather> {
       temp: d.hourly.temperature_2m[start + i],
       rain: d.hourly.precipitation_probability[start + i],
       code: d.hourly.weather_code[start + i],
+      isDay: d.hourly.is_day[start + i] === 1,
     })),
     days: d.daily.time.map((date: string, i: number) => ({
       date,
@@ -190,11 +208,15 @@ export async function collect(place: Place | null): Promise<Welcome> {
   const day = lastWorkday();
   const start = day.getTime();
   const end = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1).getTime();
-  const [work, gh, w, t] = await Promise.all([
+  const [work, gh, jira, w, t] = await Promise.all([
     settle(invoke<{ repos: RepoCommits[]; sessions: DaySession[] }>("welcome_day", { startMs: start, endMs: end, folders: workFolders() })),
     settle(github(ymd(day))),
+    invoke<Jira | null>("welcome_jira", { day: ymd(day), next: ymd(new Date(end)) }).then(
+      (value) => (value ? { value } : null),
+      (err) => ({ error: errorText(err) }),
+    ),
     place ? settle(weather(place)) : Promise.resolve(null),
     todos().catch(() => null),
   ]);
-  return { at: Date.now(), day: ymd(day), work, github: gh, weather: w, todos: t };
+  return { at: Date.now(), day: ymd(day), work, github: gh, jira, weather: w, todos: t };
 }

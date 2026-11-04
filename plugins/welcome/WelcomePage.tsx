@@ -1,6 +1,6 @@
-import { useState, type ReactNode } from "react";
+import { useState, type ChangeEvent, type KeyboardEvent, type ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { searchPlaces, type Github, type Outcome, type PullRequest, type Weather, type Welcome } from "./collect";
+import { searchPlaces, type Github, type Jira, type JiraIssue, type Outcome, type PullRequest, type Weather, type Welcome } from "./collect";
 import { useWelcome, type Place } from "./state";
 
 const WEATHER: Record<number, [string, string]> = {
@@ -13,7 +13,10 @@ const WEATHER: Record<number, [string, string]> = {
   95: ["⛈️", "trovoadas"], 96: ["⛈️", "trovoadas com granizo"], 99: ["⛈️", "trovoadas com granizo"],
 };
 
-export const weatherIcon = (code: number, day = true) => (!day && code <= 1 ? "🌙" : WEATHER[code]?.[0] ?? "🌡️");
+/** At night, the codes whose icon has a sun in it. */
+const NIGHT: Record<number, string> = { 0: "🌙", 1: "🌙", 2: "☁️", 51: "🌧️", 53: "🌧️", 61: "🌧️", 80: "🌧️" };
+
+export const weatherIcon = (code: number, day = true) => (!day && NIGHT[code]) || WEATHER[code]?.[0] || "🌡️";
 export const weatherText = (code: number) => WEATHER[code]?.[1] ?? "";
 const deg = (n: number) => `${Math.round(n)}°`;
 const time = (ms: number) => new Date(ms).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
@@ -180,17 +183,14 @@ function WeatherCard({ weather, place }: { weather: Outcome<Weather> | null; pla
           </div>
         </div>
         <div className="welcome-hours">
-          {hours.map((h) => {
-            const hour = Number(h.time.slice(0, 2));
-            return (
-              <div key={h.time} className="welcome-hour">
-                <div className="welcome-muted">{h.time.slice(0, 2)}h</div>
-                <div className="welcome-icon">{weatherIcon(h.code, hour >= 6 && hour < 19)}</div>
-                <div>{deg(h.temp)}</div>
-                <div className="welcome-rain">{h.rain >= 20 ? `${h.rain}%` : ""}</div>
-              </div>
-            );
-          })}
+          {hours.map((h) => (
+            <div key={h.time} className="welcome-hour">
+              <div className="welcome-muted">{h.time.slice(0, 2)}h</div>
+              <div className="welcome-icon">{weatherIcon(h.code, h.isDay)}</div>
+              <div>{deg(h.temp)}</div>
+              <div className="welcome-rain">{h.rain >= 20 ? `${h.rain}%` : ""}</div>
+            </div>
+          ))}
         </div>
         <div className="welcome-days">
           {days.slice(1).map((d) => (
@@ -247,6 +247,11 @@ function DoneCard({ data }: { data: Welcome }) {
       ) : (
         <PullsDone gh={github.value} />
       )}
+      {data.jira && "value" in data.jira && (
+        <Section title="Tarefas movidas no Jira" count={data.jira.value.moved.length} empty="Nenhuma tarefa movida.">
+          <IssueList issues={data.jira.value.moved} />
+        </Section>
+      )}
       {"value" in work && (
         <Section title="Sessões do Claude" count={work.value.sessions.length} empty="Nenhuma sessão.">
           <ul>
@@ -302,6 +307,122 @@ function PullsDone({ gh }: { gh: Github }) {
   );
 }
 
+function IssueList({ issues }: { issues: JiraIssue[] }) {
+  return (
+    <ul>
+      {issues.map((i) => (
+        <li key={i.key}>
+          <span className="welcome-ref">{i.key}</span>
+          <button className="welcome-link" title={i.url} onClick={() => openLink(i.url)}>
+            {i.summary}
+          </button>
+          <span className={`welcome-tag ${i.category === "indeterminate" ? "warn" : ""}`}>{i.status}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+const TOKENS_URL = "https://id.atlassian.com/manage-profile/security/api-tokens";
+
+/** E-mail and API token, checked against the site before they are kept. */
+function JiraConnect({ onCancel }: { onCancel?: () => void }) {
+  const refresh = useWelcome((s) => s.refresh);
+  const [form, setForm] = useState({ site: "", email: "", token: "" });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const field = (key: keyof typeof form) => ({
+    value: form[key],
+    onChange: (e: ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [key]: e.target.value })),
+    onKeyDown: (e: KeyboardEvent) => e.key === "Enter" && void connect(),
+  });
+  const connect = async () => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await invoke("welcome_jira_connect", form);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="welcome-picker">
+      <p className="welcome-empty">
+        Conecte o Jira Cloud para ver suas tarefas. O token fica só nesta máquina; crie um em{" "}
+        <button className="welcome-link inline" onClick={() => openLink(TOKENS_URL)}>
+          id.atlassian.com
+        </button>
+        .
+      </p>
+      <input placeholder="Site (empresa.atlassian.net)" {...field("site")} />
+      <input placeholder="E-mail da conta Atlassian" type="email" {...field("email")} />
+      <input placeholder="Token de API" type="password" autoComplete="off" {...field("token")} />
+      {error && <p className="error">{error}</p>}
+      <div className="welcome-actions">
+        <button className="ghost auto" disabled={busy} onClick={() => void connect()}>
+          {busy ? "Conectando…" : "Conectar"}
+        </button>
+        {onCancel && (
+          <button className="ghost auto" onClick={onCancel}>
+            Cancelar
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function JiraSection({ jira }: { jira: Outcome<Jira> | null }) {
+  const refresh = useWelcome((s) => s.refresh);
+  const [editing, setEditing] = useState(false);
+  const disconnect = async () => {
+    await invoke("welcome_jira_disconnect").catch(() => {});
+    await refresh();
+  };
+  if (!jira)
+    return (
+      <>
+        <h3>Jira</h3>
+        <JiraConnect />
+      </>
+    );
+  if ("error" in jira)
+    return (
+      <>
+        <h3>Jira</h3>
+        <Failed outcome={jira} />
+        {editing ? (
+          <JiraConnect onCancel={() => setEditing(false)} />
+        ) : (
+          <div className="welcome-actions">
+            <button className="ghost auto" onClick={() => setEditing(true)}>
+              Conectar de novo
+            </button>
+            <button className="ghost auto" onClick={() => void disconnect()}>
+              Desconectar
+            </button>
+          </div>
+        )}
+      </>
+    );
+  const { account, open } = jira.value;
+  return (
+    <>
+      <h3>
+        Suas tarefas no Jira <span className="welcome-count">{open.length}</span>
+        <button className="ghost auto welcome-h3-action" title={`${account.email} em ${account.site}`} onClick={() => void disconnect()}>
+          Desconectar
+        </button>
+      </h3>
+      {open.length === 0 ? <p className="welcome-empty">Nenhuma tarefa aberta.</p> : <IssueList issues={open} />}
+    </>
+  );
+}
+
 function TodayCard({ data }: { data: Welcome }) {
   const { github, todos } = data;
   return (
@@ -309,6 +430,18 @@ function TodayCard({ data }: { data: Welcome }) {
       <h2>
         <span>Pendências de hoje</span>
       </h2>
+      {todos && (
+        <Section title="Todo list" count={todos.length} empty="Lista vazia.">
+          <ul>
+            {todos.map((t, i) => (
+              <li key={i}>
+                <span className="welcome-grow">{t}</span>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+      <JiraSection jira={data.jira} />
       {"error" in github ? (
         <>
           <h3>GitHub</h3>
@@ -341,17 +474,6 @@ function TodayCard({ data }: { data: Welcome }) {
             </ul>
           </Section>
         </>
-      )}
-      {todos && (
-        <Section title="Todo list" count={todos.length} empty="Lista vazia.">
-          <ul>
-            {todos.map((t, i) => (
-              <li key={i}>
-                <span className="welcome-grow">{t}</span>
-              </li>
-            ))}
-          </ul>
-        </Section>
       )}
     </section>
   );

@@ -30,8 +30,9 @@ shell, então `.zshrc`, aliases e tudo mais continuam valendo.
   **Diagramas Mermaid**: fluxogramas, sequências e modelos de dados num painel
   abaixo do terminal, que dá para copiar como imagem ou salvar em SVG. O
   **Bom dia** abre uma página no lugar do terminal na primeira vez do dia, com
-  o que você fez no último dia útil (commits, PRs, reviews e sessões), o que
-  está pendente hoje e a previsão do tempo da sua cidade.
+  o que você fez no último dia útil (commits, PRs, reviews, tarefas do Jira e
+  sessões), o que está pendente hoje (Todo list, Jira e PRs) e a previsão do
+  tempo da sua cidade.
 - **Limites de uso.** Consumo das janelas de 5 horas e 7 dias no topo, contexto
   e custo por aba.
 - **Avisos do sistema.** Notificação quando uma sessão termina ou pede
