@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent, type KeyboardEvent, type ReactNode } from "react";
+import { useCallback, useState, type ChangeEvent, type KeyboardEvent, type ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { searchPlaces, type Github, type Jira, type JiraIssue, type Outcome, type PullRequest, type Weather, type Welcome } from "./collect";
 import { useWelcome, type Place } from "./state";
@@ -40,12 +40,12 @@ function age(iso: string) {
 
 function Section({ title, count, empty, children }: { title: string; count?: number; empty?: string; children?: ReactNode }) {
   return (
-    <>
+    <div className="welcome-section">
       <h3>
         {title} {count !== undefined && <span className="welcome-count">{count}</span>}
       </h3>
       {count === 0 ? <p className="welcome-empty">{empty}</p> : children}
-    </>
+    </div>
   );
 }
 
@@ -132,8 +132,28 @@ function PlacePicker({ onDone }: { onDone?: () => void }) {
   );
 }
 
+/** The mouse wheel scrolls a strip sideways while it has room to move. */
+function useWheelSideways() {
+  return useCallback((el: HTMLDivElement | null) => {
+    if (!el) return;
+    el.addEventListener(
+      "wheel",
+      (e) => {
+        if (Math.abs(e.deltaX) > Math.abs(e.deltaY) || el.scrollWidth <= el.clientWidth) return;
+        const max = el.scrollWidth - el.clientWidth;
+        const next = Math.min(max, Math.max(0, el.scrollLeft + e.deltaY));
+        if (next === el.scrollLeft) return;
+        e.preventDefault();
+        el.scrollLeft = next;
+      },
+      { passive: false },
+    );
+  }, []);
+}
+
 function WeatherCard({ weather, place }: { weather: Outcome<Weather> | null; place: Place | null }) {
   const [picking, setPicking] = useState(false);
+  const wheelSideways = useWheelSideways();
   const title = (
     <h2>
       <span>Tempo{place ? ` em ${place.name}` : ""}</span>
@@ -182,7 +202,7 @@ function WeatherCard({ weather, place }: { weather: Outcome<Weather> | null; pla
             umidade {now.humidity}% · vento {Math.round(now.wind)} km/h
           </div>
         </div>
-        <div className="welcome-hours">
+        <div className="welcome-hours welcome-strip" ref={wheelSideways}>
           {hours.map((h) => (
             <div key={h.time} className="welcome-hour">
               <div className="welcome-muted">{h.time.slice(0, 2)}h</div>
@@ -192,7 +212,7 @@ function WeatherCard({ weather, place }: { weather: Outcome<Weather> | null; pla
             </div>
           ))}
         </div>
-        <div className="welcome-days">
+        <div className="welcome-days welcome-strip" ref={wheelSideways}>
           {days.slice(1).map((d) => (
             <div key={d.date} className="welcome-day" title={`${weatherText(d.code)}, chuva ${d.rain}%`}>
               <div className="welcome-muted">{weekday(d.date)}</div>
@@ -212,10 +232,7 @@ function DoneCard({ data }: { data: Welcome }) {
   const { work, github } = data;
   const commits = "value" in work ? work.value.repos.reduce((n, r) => n + r.commits.length, 0) : undefined;
   return (
-    <section className="welcome-card">
-      <h2>
-        <span>O que você fez · {dayLabel(data.day)}</span>
-      </h2>
+    <section className="welcome-card welcome-columns">
       {"error" in work ? (
         <Failed outcome={work} />
       ) : (
@@ -240,10 +257,10 @@ function DoneCard({ data }: { data: Welcome }) {
         </>
       )}
       {"error" in github ? (
-        <>
+        <div className="welcome-section">
           <h3>GitHub</h3>
           <Failed outcome={github} />
-        </>
+        </div>
       ) : (
         <PullsDone gh={github.value} />
       )}
@@ -426,10 +443,7 @@ function JiraSection({ jira }: { jira: Outcome<Jira> | null }) {
 function TodayCard({ data }: { data: Welcome }) {
   const { github, todos } = data;
   return (
-    <section className="welcome-card">
-      <h2>
-        <span>Pendências de hoje</span>
-      </h2>
+    <section className="welcome-card welcome-columns">
       {todos && (
         <Section title="Todo list" count={todos.length} empty="Lista vazia.">
           <ul>
@@ -441,12 +455,14 @@ function TodayCard({ data }: { data: Welcome }) {
           </ul>
         </Section>
       )}
-      <JiraSection jira={data.jira} />
+      <div className="welcome-section">
+        <JiraSection jira={data.jira} />
+      </div>
       {"error" in github ? (
-        <>
+        <div className="welcome-section">
           <h3>GitHub</h3>
           <Failed outcome={github} />
-        </>
+        </div>
       ) : (
         <>
           <Section title="Seus PRs abertos" count={github.value.mine.length} empty="Nenhum PR aberto.">
@@ -479,9 +495,27 @@ function TodayCard({ data }: { data: Welcome }) {
   );
 }
 
+const ok = <T,>(o: Outcome<T> | null | undefined): T | null => (o && "value" in o ? o.value : null);
+
+function pendingCount(d: Welcome) {
+  const gh = ok(d.github);
+  return (d.todos?.length ?? 0) + (ok(d.jira)?.open.length ?? 0) + (gh ? gh.mine.length + gh.asked.length : 0);
+}
+
+function doneCount(d: Welcome) {
+  const gh = ok(d.github);
+  const work = ok(d.work);
+  return (
+    (work ? work.repos.reduce((n, r) => n + r.commits.length, 0) + work.sessions.length : 0) +
+    (gh ? gh.opened.length + gh.merged.length + gh.reviewed.length : 0) +
+    (ok(d.jira)?.moved.length ?? 0)
+  );
+}
+
 /** The whole page; in the side panel it stacks into one column. */
 export function WelcomePage({ compact, onClose }: { compact?: boolean; onClose?: () => void }) {
   const { data, loading, place, refresh } = useWelcome();
+  const [tab, setTab] = useState<"today" | "done">("today");
   const today = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
   return (
     <div className={`welcome-page ${compact ? "compact" : ""}`}>
@@ -507,10 +541,15 @@ export function WelcomePage({ compact, onClose }: { compact?: boolean; onClose?:
       ) : (
         <>
           <WeatherCard weather={data.weather} place={place} />
-          <div className="welcome-grid">
-            <DoneCard data={data} />
-            <TodayCard data={data} />
+          <div className="welcome-tabs" role="tablist">
+            <button role="tab" aria-selected={tab === "today"} className={tab === "today" ? "on" : ""} onClick={() => setTab("today")}>
+              Pendências <span className="welcome-count">{pendingCount(data)}</span>
+            </button>
+            <button role="tab" aria-selected={tab === "done"} className={tab === "done" ? "on" : ""} onClick={() => setTab("done")}>
+              O que você fez · {dayLabel(data.day)} <span className="welcome-count">{doneCount(data)}</span>
+            </button>
           </div>
+          {tab === "today" ? <TodayCard data={data} /> : <DoneCard data={data} />}
         </>
       )}
     </div>

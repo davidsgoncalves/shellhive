@@ -31,7 +31,7 @@ shell, então `.zshrc`, aliases e tudo mais continuam valendo.
   abaixo do terminal, que dá para copiar como imagem ou salvar em SVG. O
   **Bom dia** abre uma página no lugar do terminal na primeira vez do dia, com
   o que você fez no último dia útil (commits, PRs, reviews, tarefas do Jira e
-  sessões), o que está pendente hoje (Todo list, Jira e PRs) e a previsão do
+  sessões), o que está pendente (Todo list, Jira e PRs) e a previsão do
   tempo da sua cidade.
 - **Limites de uso.** Consumo das janelas de 5 horas e 7 dias no topo, contexto
   e custo por aba.
@@ -142,7 +142,7 @@ Qualquer mudança nos arquivos pede aprovação de novo.
 | --- | --- |
 | `open_editor` | Do plugin Editor em painel. Abre o editor e devolve o texto final. Salva o arquivo quando recebe um caminho. Detecta planilha, JSON e XML pela extensão |
 | `show_diagram` | Do plugin Diagramas Mermaid. Mostra um diagrama Mermaid no painel abaixo do terminal; um erro de sintaxe volta para o Claude corrigir |
-| `daily_summary` | Do plugin Bom dia. Resume o último dia útil e as pendências de hoje, e abre a página Bom dia no lugar do terminal |
+| `daily_summary` | Do plugin Bom dia. Resume o último dia útil e as pendências, e abre a página Bom dia no lugar do terminal |
 | `list_sessions` | Lista as sessões gravadas na máquina, com título e pasta |
 | `suggest_command` | Mostra um comando de shell como botão na fila. Ao clicar em Executar, ele roda na sessão como `! comando` |
 

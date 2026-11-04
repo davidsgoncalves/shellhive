@@ -38,7 +38,7 @@ export function summary(data: Welcome, place: Place | null): string {
     for (const i of data.jira.value.moved) lines.push(`- Tarefa movida no Jira: ${i.key} ${i.summary} → ${i.status} (${i.url})`);
   }
 
-  lines.push("", "## Pendências de hoje");
+  lines.push("", "## Pendências");
   if (data.todos?.length) {
     lines.push("Todo list:");
     for (const t of data.todos) lines.push(`- ${t}`);
