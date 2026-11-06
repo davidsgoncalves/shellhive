@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { IDisposable, Terminal } from "@xterm/xterm";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { WebLinksAddon } from "@xterm/addon-web-links";
-import { primaryMod } from "./shortcuts";
+import { IS_MAC, primaryMod } from "./shortcuts";
 
 /**
  * Measures emoji such as ❓ and 🔵 as two cells, as Claude Code does. With
@@ -24,13 +24,20 @@ function open(target: string, cwd: string | null): void {
 /**
  * Cmd+click (Ctrl+click on Linux) opens web URLs, OSC 8 links (which Claude Code prints for files)
  * and plain file paths that exist, relative paths resolved from the tab's folder.
+ *
+ * Off macOS, an app that tracks the mouse also gets the Ctrl+click and may open the link itself,
+ * as Claude Code's fullscreen mode does, so the link is left to it. Cmd never reaches the app, so
+ * on macOS the click is always ours.
  */
 export function attachLinks(term: Terminal, getCwd: () => string | null): IDisposable {
-  term.options.linkHandler = {
-    allowNonHttpProtocols: true,
-    activate: (e, text) => primaryMod(e) && open(text, getCwd()),
+  const follow = (e: MouseEvent, target: string) => {
+    if (!primaryMod(e)) return;
+    if (!IS_MAC && term.modes.mouseTrackingMode !== "none") return;
+    open(target, getCwd());
   };
-  const web = new WebLinksAddon((e, uri) => primaryMod(e) && open(uri, getCwd()));
+
+  term.options.linkHandler = { allowNonHttpProtocols: true, activate: follow };
+  const web = new WebLinksAddon(follow);
   term.loadAddon(web);
 
   const known = new Map<string, boolean>();
@@ -56,7 +63,7 @@ export function attachLinks(term: Terminal, getCwd: () => string | null): IDispo
             text: m[0],
             range: { start: { x: m.index + 1, y }, end: { x: m.index + m[0].length, y } },
             decorations: { underline: true, pointerCursor: true },
-            activate: (e: MouseEvent, text: string) => primaryMod(e) && open(text, getCwd()),
+            activate: follow,
           }));
         callback(links.length ? links : undefined);
       });
