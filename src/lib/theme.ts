@@ -9,7 +9,7 @@ import { GROUP_COLORS } from "./types";
 import { IS_MAC } from "./shortcuts";
 import { reportError } from "./errors";
 
-export type ThemeId = "classic" | "glass" | "glow" | "glow-amber";
+export type ThemeId = "classic" | "glass" | "glow" | "glow-amber" | "glow-light";
 
 interface ThemeSpec {
   label: string;
@@ -58,6 +58,34 @@ const LAYERED_TERMINAL: ITheme = {
 
 const LAYERED_GROUPS = ["#6ee7a8", "#4fd1c5", "#b69cff", "#ff8fc7", "#cfe06a", "#e2c9a0"];
 
+/** Terminal colours of Glow Claro, darkened until each passes 4.5:1 on the near-white background. */
+const LIGHT_TERMINAL: ITheme = {
+  background: "#fcfcfd",
+  foreground: "#161a24",
+  cursor: "#161a24",
+  cursorAccent: "#ffffff",
+  selectionBackground: "#e0e8fb",
+  black: "#1f2330",
+  red: "#c22d3f",
+  green: "#1f7537",
+  yellow: "#8a5d00",
+  blue: "#2c5ccc",
+  magenta: "#9637b0",
+  cyan: "#0a6f7c",
+  white: "#5c6370",
+  brightBlack: "#5f6573",
+  brightRed: "#a8243a",
+  brightGreen: "#1b6a31",
+  brightYellow: "#7a5200",
+  brightBlue: "#1f4fb8",
+  brightMagenta: "#82309a",
+  brightCyan: "#075f6b",
+  brightWhite: "#2a2f3a",
+};
+
+/** None of them is orange, amber, blue or grey, which belong to the session states. */
+const LIGHT_GROUPS = ["#1f7f4a", "#0b7c86", "#6a46d0", "#b8337a", "#6f7310", "#7d5a3c"];
+
 export const THEMES: Record<ThemeId, ThemeSpec> = {
   classic: {
     label: "Clássico",
@@ -93,6 +121,15 @@ export const THEMES: Record<ThemeId, ThemeSpec> = {
     fontFamily: `'Geist Mono', ${SYSTEM_MONO}`,
     lineHeight: 18 / 13,
     groupColors: LAYERED_GROUPS,
+    vibrancy: false,
+    layers: true,
+  },
+  "glow-light": {
+    label: "Glow Claro",
+    terminal: LIGHT_TERMINAL,
+    fontFamily: `'Geist Mono', ${SYSTEM_MONO}`,
+    lineHeight: 18 / 13,
+    groupColors: LIGHT_GROUPS,
     vibrancy: false,
     layers: true,
   },
