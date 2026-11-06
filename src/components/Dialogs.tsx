@@ -526,6 +526,12 @@ function SettingsDialog({ initialTab, onClose }: { initialTab?: SettingsTab; onC
             </button>
           ))}
         </div>
+        {theme === "glow-light" && (
+          <p className="hint">
+            O Claude Code desenha as próprias cores. Para ele ficar legível no fundo claro, rode <code>/theme</code> dentro do
+            Claude e escolha um tema claro.
+          </p>
+        )}
       </section>
 
       <TerminalFontSection />

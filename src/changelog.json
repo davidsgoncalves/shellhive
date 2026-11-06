@@ -1,5 +1,14 @@
 [
   {
+    "version": "2.1.0-beta.6",
+    "date": "2026-11-06",
+    "items": [
+      "Tema Glow Claro: o layout do Glow em placas claras, com cores de terminal legíveis no fundo branco e formas diferentes para cada estado da sessão. Para o Claude Code acompanhar, rode /theme dentro dele e escolha um tema claro.",
+      "Plugin Bom dia: abre o dia com o que você fez ontem, as tarefas de hoje, as issues do Jira e a previsão do tempo.",
+      "Links não abrem mais duas vezes quando o Claude Code está em tela cheia."
+    ]
+  },
+  {
     "version": "2.1.0-beta.5",
     "date": "2026-10-29",
     "items": [
