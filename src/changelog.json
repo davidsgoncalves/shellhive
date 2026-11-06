@@ -1,5 +1,22 @@
 [
   {
+    "version": "2.1.0",
+    "date": "2026-11-06",
+    "items": [
+      "Tema Glow Claro: o layout do Glow em placas claras, com cores de terminal legíveis no fundo branco e formas diferentes para cada estado da sessão. Para o Claude Code acompanhar, rode /theme dentro dele e escolha um tema claro.",
+      "Card de cache em cima do terminal: numa sessão esperando você, com contexto grande, mostra quanto tempo falta para o cache do Claude expirar e quanto custa responder agora. Keep warm manda uma mensagem curta para renovar o cache. Em Configurações › Aparência dá para trocar o card por um selo minimalista com o contador.",
+      "Worker bee por evento: roda quando uma sessão termina de responder, é encerrada ou espera você, depois de uma ferramenta, quando um subagente ou outra worker bee termina, quando o uso passa de um limite ou quando o app abre.",
+      "Worker bee: limite de uso da sessão (5h) e semanal (7d), pasta já marcada como confiável para o Claude, e o comando que ela sugerir fica na Fila para você executar.",
+      "Arquivar grupo: fecha as abas e guarda as sessões; Histórico › Grupos arquivados restaura tudo. No menu do grupo também dá para escolher modelo, modo de permissão e prompt inicial das abas novas.",
+      "Cmd+Shift+F (Ctrl+Shift+G no Linux) busca um texto em todas as abas abertas.",
+      "Clique num subagente embaixo da aba para ver a conversa dele, só para leitura.",
+      "Botão no cabeçalho com os processos de cada aba e as portas em uso, com opção de encerrar.",
+      "Plugins ganharam uma tela própria na barra lateral, com o botão Criar plugin com o Claude. Novo plugin Bom dia: o que você fez ontem, as tarefas de hoje, as issues do Jira e a previsão do tempo.",
+      "Template de review: PR sem bloqueante e sem dúvida deixa o approve na Fila para você aprovar com um clique.",
+      "Correções: selects legíveis no Linux e links que abriam duas vezes com o Claude Code em tela cheia."
+    ]
+  },
+  {
     "version": "2.1.0-beta.6",
     "date": "2026-11-06",
     "items": [
