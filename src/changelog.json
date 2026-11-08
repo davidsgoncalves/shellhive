@@ -1,5 +1,12 @@
 [
   {
+    "version": "2.1.1",
+    "date": "2026-11-08",
+    "items": [
+      "Pergunta do Claude não abre mais um pedido de permissão nem notifica de novo: ela aparece direto no terminal e no card de pergunta."
+    ]
+  },
+  {
     "version": "2.1.0",
     "date": "2026-11-06",
     "items": [
