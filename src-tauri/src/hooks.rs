@@ -191,6 +191,12 @@ fn handle(app: AppHandle, mut req: tiny_http::Request) {
     }
 
     if url.starts_with("/permission") {
+        // A question is not a permission: the app already shows it from
+        // PreToolUse, and holding it here keeps it out of the terminal.
+        if payload.get("tool_name").and_then(|v| v.as_str()) == Some("AskUserQuestion") {
+            let _ = req.respond(json_response(&serde_json::json!({})));
+            return;
+        }
         let id = next_id();
         if let Some(db) = app.try_state::<Db>() {
             let conn = db.0.lock().unwrap();
