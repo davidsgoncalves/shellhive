@@ -105,11 +105,20 @@ fn zshenv_script(shim: &str) -> String {
          \x20 add-zle-hook-widget -d line-init _shellhive_resume_line\n\
          \x20 if [[ -n \"$_shellhive_resume\" ]]; then\n\
          \x20   BUFFER=\"claude --resume $_shellhive_resume${{_shellhive_fork:+ --fork-session}}\"\n\
+         \x20   unset _shellhive_start\n\
          \x20 else\n\
-         \x20   BUFFER=\"claude ${{(q)_shellhive_start}}\"\n\
+         \x20   # The line names the variable, so zle never draws a long prompt;\n\
+         \x20   # it is cleared once the command has run.\n\
+         \x20   BUFFER='claude \"$_shellhive_start\"'\n\
+         \x20   precmd_functions+=(_shellhive_forget)\n\
          \x20 fi\n\
-         \x20 unset _shellhive_resume _shellhive_fork _shellhive_start\n\
+         \x20 unset _shellhive_resume _shellhive_fork\n\
          \x20 zle accept-line\n\
+         }}\n\
+         _shellhive_forget() {{\n\
+         \x20 precmd_functions=(${{precmd_functions:#_shellhive_forget}})\n\
+         \x20 unfunction _shellhive_forget\n\
+         \x20 unset _shellhive_start\n\
          }}\n\
          _shellhive_init() {{\n\
          \x20 claude() {{ {shim} \"$@\"; }}\n\
@@ -267,6 +276,16 @@ fn claude_function() -> Option<String> {
 
 // A Tauri command takes its arguments as parameters, one per field the
 // interface sends.
+/// The size a new pty opens with: the measured one, or 80x24 when the
+/// terminal was measured too small to be real.
+fn spawn_size(cols: u16, rows: u16) -> (u16, u16) {
+    if cols < 20 || rows < 5 {
+        (80, 24)
+    } else {
+        (cols, rows)
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub fn pty_spawn(
@@ -286,6 +305,9 @@ pub fn pty_spawn(
         return Ok(());
     }
 
+    // A tab born hidden measures a few columns; zsh can crash drawing its
+    // first line that narrow. The refit on show sets the real size.
+    let (cols, rows) = spawn_size(cols, rows);
     let pair = native_pty_system()
         .openpty(PtySize {
             rows,
@@ -498,14 +520,22 @@ mod tests {
         assert!(!valid_session("$(id)"));
     }
 
-    /// The first prompt reaches zsh only through ${(q)...}, which quotes it
-    /// as a single word, so it can never run as code.
+    /// The first prompt reaches claude only as the quoted variable, a single
+    /// word that can never run as code, and never lands in zle's buffer.
     #[cfg(not(windows))]
     #[test]
     fn the_first_prompt_is_quoted_by_zsh() {
         let script = zshenv_script("'/shim'");
-        assert!(script.contains("BUFFER=\"claude ${(q)_shellhive_start}\""));
+        assert!(script.contains("BUFFER='claude \"$_shellhive_start\"'"));
         assert!(script.contains("unset SHELLHIVE_RESUME SHELLHIVE_FORK SHELLHIVE_START"));
+    }
+
+    /// A terminal measured while hidden opens at a usable size.
+    #[test]
+    fn a_hidden_terminal_opens_at_a_usable_size() {
+        assert_eq!(super::spawn_size(2, 40), (80, 24));
+        assert_eq!(super::spawn_size(120, 0), (80, 24));
+        assert_eq!(super::spawn_size(120, 40), (120, 40));
     }
 
     /// A duplicated tab resumes a copy of the session, never the session itself.
