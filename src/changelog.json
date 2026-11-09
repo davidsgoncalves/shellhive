@@ -1,5 +1,12 @@
 [
   {
+    "version": "2.1.2",
+    "date": "2026-11-09",
+    "items": [
+      "Worker bee automática não falha mais com \"O terminal fechou antes do fim\": a aba, que nasce escondida, abre o shell com um tamanho utilizável e o prompt da bee não é mais desenhado inteiro na linha de comando."
+    ]
+  },
+  {
     "version": "2.1.1",
     "date": "2026-11-08",
     "items": [
