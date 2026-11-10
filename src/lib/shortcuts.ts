@@ -111,6 +111,22 @@ export function pluginKeyOf(e: KeyboardEvent): string | null {
   return ok ? e.code : null;
 }
 
+/**
+ * Copy keys inside a terminal. macOS copies with Cmd+C natively and adds
+ * Cmd+Shift+C for one line; elsewhere Ctrl+C belongs to the shell, so copy is
+ * Ctrl+Shift+C, as in Linux terminals, and one line is Ctrl+Shift+X.
+ */
+export function copyKeyOf(e: KeyboardEvent): "copy" | "oneLine" | null {
+  if (e.altKey) return null;
+  if (IS_MAC) return e.metaKey && e.shiftKey && !e.ctrlKey && e.code === "KeyC" ? "oneLine" : null;
+  if (!e.ctrlKey || !e.shiftKey || e.metaKey) return null;
+  if (e.code === "KeyC") return "copy";
+  return e.code === "KeyX" ? "oneLine" : null;
+}
+
+/** How this platform writes the one-line copy shortcut. */
+export const ONE_LINE_COPY_LABEL = IS_MAC ? "⌘⇧C" : "Ctrl+Shift+X";
+
 /** Keys some enabled plugin claims; only these are kept from the terminal. */
 const claimed = new Set<string>();
 export function setClaimedPluginKeys(keys: string[]): void {

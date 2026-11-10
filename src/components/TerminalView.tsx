@@ -6,7 +6,8 @@ import { SerializeAddon } from "@xterm/addon-serialize";
 import { SearchAddon } from "@xterm/addon-search";
 import { searches, serializers, terminals } from "../lib/terminals";
 import { terminalOptions, trackTerminal } from "../lib/theme";
-import { actionOf, isAppShortcut } from "../lib/shortcuts";
+import { actionOf, copyKeyOf, isAppShortcut } from "../lib/shortcuts";
+import { copySelection } from "../lib/copyLine";
 import { reportError } from "../lib/errors";
 import { sessionFromDrag, useStore, type SessionRef } from "../lib/store";
 import { attachLinks, carriesFiles, carriesSession, carriesTab, fixEmojiWidth, fixLinuxInput, pasteDroppedFiles } from "../lib/termExtras";
@@ -75,6 +76,11 @@ export function TerminalView({
       if (e.type !== "keydown") return true;
       if (actionOf(e) === "clear") {
         term.clear();
+        return false;
+      }
+      const copy = copyKeyOf(e);
+      if (copy) {
+        copySelection(term, copy === "oneLine");
         return false;
       }
       // App shortcuts bubble up to the window handler instead of reaching the shell.

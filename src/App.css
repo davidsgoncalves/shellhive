@@ -613,6 +613,7 @@ button.star.on { color: var(--accent); }
   padding: 6px 8px; border-radius: 5px; font-size: 12px;
 }
 .menu-item:hover { background: rgba(255,255,255,.08); }
+.menu-item .muted { margin-left: 8px; color: var(--muted); font-size: 11px; }
 .menu-item.danger { color: var(--danger); }
 .menu-item.danger:hover { background: color-mix(in srgb, var(--danger) 14%, transparent); }
 .menu-item.danger.confirming { background: var(--danger-strong); color: #fff; font-weight: 600; }
