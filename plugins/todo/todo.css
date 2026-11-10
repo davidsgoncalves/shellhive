@@ -1,12 +1,15 @@
-/* List in the right column. */
-.todo { display: flex; flex-direction: column; gap: 6px; padding: 6px; }
+/* List in the right column: the input stays on top and the items scroll under it. */
+.todo { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 6px; padding: 6px; }
 .todo-input {
-  width: 100%; box-sizing: border-box; resize: none; outline: none; padding: 7px 8px; user-select: text;
+  flex-shrink: 0; width: 100%; box-sizing: border-box; resize: none; outline: none; padding: 7px 8px; user-select: text;
   background: var(--panel); color: var(--fg); border: 1px solid var(--border); border-radius: 6px;
   font: inherit; font-size: 12px; line-height: 1.4;
 }
 .todo-input:focus { border-color: var(--accent); }
-.todo-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.todo-list {
+  flex: 1; min-height: 0; overflow-y: auto;
+  list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px;
+}
 .todo-list li { display: flex; align-items: flex-start; gap: 6px; padding: 6px 4px 6px 6px; border-radius: 6px; }
 .todo-list li:hover { background: var(--panel-2); }
 .todo-list li input { margin-top: 2px; flex-shrink: 0; cursor: pointer; }
