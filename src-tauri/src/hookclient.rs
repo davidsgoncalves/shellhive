@@ -8,7 +8,7 @@ use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpStream};
 use std::time::Duration;
 
-use crate::hooks::PORT;
+use crate::hooks::{token_path, PORT, TOKEN_HEADER};
 use crate::permissions::DECISION_TIMEOUT;
 
 const QUICK: Duration = Duration::from_secs(2);
@@ -56,6 +56,8 @@ pub fn run(kind: &str) -> i32 {
 
 /// A bare HTTP/1.1 POST to the app's local server, returning the body.
 fn post(path: &str, tab: &str, body: &[u8], timeout: Duration) -> Option<String> {
+    // Read on each call: the app writes a new token every time it opens.
+    let token = std::fs::read_to_string(token_path()?).ok()?;
     let addr = SocketAddr::from(([127, 0, 0, 1], PORT));
     let mut stream = TcpStream::connect_timeout(&addr, QUICK).ok()?;
     stream.set_read_timeout(Some(timeout)).ok()?;
@@ -65,6 +67,7 @@ fn post(path: &str, tab: &str, body: &[u8], timeout: Duration) -> Option<String>
          Host: 127.0.0.1:{PORT}\r\n\
          Content-Type: application/json\r\n\
          X-Tab-Id: {tab}\r\n\
+         {TOKEN_HEADER}: {token}\r\n\
          Content-Length: {}\r\n\
          Connection: close\r\n\r\n",
         body.len()

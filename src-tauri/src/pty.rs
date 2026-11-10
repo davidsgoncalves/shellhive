@@ -255,10 +255,14 @@ fn claude_function() -> Option<String> {
         let settings = crate::hooks::settings_path()?;
         let settings = settings.to_string_lossy().replace('\'', "''");
         let port = crate::hooks::PORT;
+        let token_header = crate::hooks::TOKEN_HEADER;
+        let token_file = crate::hooks::token_path()?;
+        let token_file = token_file.to_string_lossy().replace('\'', "''");
         Some(format!(
             "function claude {{ $t = $env:SHELLHIVE_TAB_ID; \
              $m = Join-Path $env:TEMP \"shellhive-mcp-$t.json\"; \
-             '{{\"mcpServers\":{{\"shellhive\":{{\"type\":\"http\",\"url\":\"http://127.0.0.1:{port}/mcp\",\"headers\":{{\"X-Tab-Id\":\"' + $t + '\"}}}}}}}}' | Set-Content -Encoding ascii $m; \
+             $k = (Get-Content -Raw '{token_file}' -ErrorAction SilentlyContinue); \
+             '{{\"mcpServers\":{{\"shellhive\":{{\"type\":\"http\",\"url\":\"http://127.0.0.1:{port}/mcp\",\"headers\":{{\"X-Tab-Id\":\"' + $t + '\",\"{token_header}\":\"' + $k + '\"}}}}}}}}' | Set-Content -Encoding ascii $m; \
              $real = (Get-Command claude -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1).Source; \
              if (-not $real) {{ Write-Error 'claude nao encontrado no PATH'; return }}; \
              $s = if ($env:SHELLHIVE_SETTINGS) {{ $env:SHELLHIVE_SETTINGS }} else {{ '{settings}' }}; \

@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::OnceLock;
 use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -15,6 +16,75 @@ pub const PORT: u16 = if cfg!(feature = "preview") {
 } else {
     47831
 };
+
+/// Header every caller of the local server sends with the current token.
+pub const TOKEN_HEADER: &str = "X-Shellhive-Token";
+
+static TOKEN: OnceLock<String> = OnceLock::new();
+
+/// File holding the token, readable only by the user. Hook scripts read it on
+/// each call, so they keep working after the app restarts with a new one.
+pub fn token_path() -> Option<PathBuf> {
+    Some(crate::paths::data_dir()?.join("token"))
+}
+
+/// The token for this run of the app, created on first use. Any web page can
+/// reach 127.0.0.1, so the server answers only callers that can read the file.
+pub fn token() -> &'static str {
+    TOKEN.get_or_init(|| {
+        let mut bytes = [0u8; 32];
+        if let Err(e) = getrandom::fill(&mut bytes) {
+            crate::errors::record("hooks", &format!("token aleatorio falhou: {e}"));
+        }
+        let token: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
+        if let Some(path) = token_path() {
+            if let Err(e) = write_private(&path, &token) {
+                crate::errors::record("hooks", &format!("token nao gravado: {e}"));
+            }
+        }
+        token
+    })
+}
+
+/// Writes a file only its owner can read.
+fn write_private(path: &PathBuf, content: &str) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::io::Write;
+        use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(path)?;
+        // A file left by an older version keeps its mode on open.
+        file.set_permissions(fs::Permissions::from_mode(0o600))?;
+        file.write_all(content.as_bytes())
+    }
+    #[cfg(not(unix))]
+    {
+        fs::write(path, content)
+    }
+}
+
+/// Whether a request may reach the server: it carries the token, and it does
+/// not come from a browser. A page sends Origin on cross-site requests, and a
+/// DNS rebinding attack shows up as a Host other than the loopback address.
+fn request_allowed(origin: Option<&str>, host: Option<&str>, token: Option<&str>, expected: &str) -> bool {
+    if origin.is_some() {
+        return false;
+    }
+    let host_ok = host.is_some_and(|h| {
+        h == format!("127.0.0.1:{PORT}") || h == format!("localhost:{PORT}")
+    });
+    host_ok && token.is_some_and(|t| same_secret(t.as_bytes(), expected.as_bytes()))
+}
+
+/// Compares without stopping at the first different byte.
+fn same_secret(a: &[u8], b: &[u8]) -> bool {
+    a.len() == b.len() && a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+}
 
 /// What SessionStart tells Claude about running inside this app.
 /// What Claude is told when a session starts: that it runs inside Shellhive,
@@ -131,6 +201,8 @@ fn json_response(value: &serde_json::Value) -> Response<std::io::Cursor<Vec<u8>>
 const BIND_RETRY: std::time::Duration = std::time::Duration::from_secs(3);
 
 pub fn start_server(app: AppHandle) {
+    // Written before the port opens, so no caller finds the file missing.
+    token();
     thread::spawn(move || {
         // Another copy of the app (or an older one still open) may hold the
         // port. Giving up would leave hooks, permissions and the editor dead
@@ -161,6 +233,21 @@ pub fn start_server(app: AppHandle) {
 }
 
 fn handle(app: AppHandle, mut req: tiny_http::Request) {
+    let header = |name: &'static str| {
+        req.headers()
+            .iter()
+            .find(|h| h.field.equiv(name))
+            .map(|h| h.value.to_string())
+    };
+    if !request_allowed(
+        header("Origin").as_deref(),
+        header("Host").as_deref(),
+        header(TOKEN_HEADER).as_deref(),
+        token(),
+    ) {
+        let _ = req.respond(Response::empty(403));
+        return;
+    }
     let mut body = String::new();
     let _ = req.as_reader().read_to_string(&mut body);
     let tab_id = req
@@ -395,6 +482,11 @@ pub fn hooks_setup() -> Result<HookSetup, String> {
 
 pub fn write_scripts() -> Result<HookSetup, String> {
     let dir = config_dir()?;
+    let token_file = shell_single_quote(
+        &token_path()
+            .ok_or("no config dir")?
+            .to_string_lossy(),
+    );
     let forward_sh = dir.join("forward.sh");
     let statusline_sh = dir.join("statusline.sh");
     let permission_sh = dir.join("permission.sh");
@@ -409,6 +501,7 @@ pub fn write_scripts() -> Result<HookSetup, String> {
              curl -s --max-time 2 -X POST \\\n\
              \x20 -H \"Content-Type: application/json\" \\\n\
              \x20 -H \"X-Tab-Id: ${{SHELLHIVE_TAB_ID:-}}\" \\\n\
+             \x20 -H \"{TOKEN_HEADER}: $(cat {token_file} 2>/dev/null)\" \\\n\
              \x20 --data-binary @- \"http://127.0.0.1:{PORT}/hook\" >/dev/null 2>&1 || true\n\
              exit 0\n"
         ),
@@ -426,6 +519,7 @@ pub fn write_scripts() -> Result<HookSetup, String> {
              out=$(curl -s --max-time {curl_timeout} -X POST \\\n\
              \x20 -H \"Content-Type: application/json\" \\\n\
              \x20 -H \"X-Tab-Id: ${{SHELLHIVE_TAB_ID:-}}\" \\\n\
+             \x20 -H \"{TOKEN_HEADER}: $(cat {token_file} 2>/dev/null)\" \\\n\
              \x20 --data-binary @- \"http://127.0.0.1:{PORT}/permission\" 2>/dev/null)\n\
              case \"$out\" in\n\
              \x20 *permissionDecision*) printf '%s' \"$out\" ;;\n\
@@ -445,6 +539,7 @@ pub fn write_scripts() -> Result<HookSetup, String> {
              out=$(curl -s --max-time 2 -X POST \\\n\
              \x20 -H \"Content-Type: application/json\" \\\n\
              \x20 -H \"X-Tab-Id: ${{SHELLHIVE_TAB_ID:-}}\" \\\n\
+             \x20 -H \"{TOKEN_HEADER}: $(cat {token_file} 2>/dev/null)\" \\\n\
              \x20 --data-binary @- \"http://127.0.0.1:{PORT}/prompt\" 2>/dev/null)\n\
              case \"$out\" in\n\
              \x20 *decision*) printf '%s' \"$out\" ;;\n\
@@ -463,6 +558,7 @@ pub fn write_scripts() -> Result<HookSetup, String> {
              printf '%s' \"$input\" | curl -s --max-time 2 -X POST \\\n\
              \x20 -H \"Content-Type: application/json\" \\\n\
              \x20 -H \"X-Tab-Id: ${{SHELLHIVE_TAB_ID:-}}\" \\\n\
+             \x20 -H \"{TOKEN_HEADER}: $(cat {token_file} 2>/dev/null)\" \\\n\
              \x20 --data-binary @- \"http://127.0.0.1:{PORT}/session-start\" 2>/dev/null || true\n\
              exit 0\n"
         ),
@@ -481,6 +577,7 @@ pub fn write_scripts() -> Result<HookSetup, String> {
              printf '%s' \"$input\" | curl -s --max-time 2 -X POST \\\n\
              \x20 -H \"Content-Type: application/json\" \\\n\
              \x20 -H \"X-Tab-Id: ${{SHELLHIVE_TAB_ID:-}}\" \\\n\
+             \x20 -H \"{TOKEN_HEADER}: $(cat {token_file} 2>/dev/null)\" \\\n\
              \x20 --data-binary @- \"http://127.0.0.1:{PORT}/statusline\" >/dev/null 2>&1 || true\n\
              ORIG={original}\n\
              if [ -n \"$ORIG\" ]; then\n\
@@ -545,13 +642,15 @@ pub fn write_scripts() -> Result<HookSetup, String> {
     // binary from a PATH with this directory removed, which keeps it working
     // whatever version manager installed Claude Code.
     let mcp_json = dir.join("mcp.json");
-    fs::write(
+    // Holds the token, so only the user may read it.
+    write_private(
         &mcp_json,
-        serde_json::to_string_pretty(&serde_json::json!({
+        &serde_json::to_string_pretty(&serde_json::json!({
             "mcpServers": {
                 "shellhive": {
                     "type": "http",
                     "url": format!("http://127.0.0.1:{PORT}/mcp"),
+                    "headers": { TOKEN_HEADER: token() },
                 }
             }
         }))
@@ -584,7 +683,10 @@ pub fn write_scripts() -> Result<HookSetup, String> {
              # to know which tab a tool call comes from.\n\
              if [ -n \"${{SHELLHIVE_TAB_ID:-}}\" ]; then\n\
              \x20 TAB_MCP=\"${{TMPDIR:-/tmp}}/shellhive-mcp-$SHELLHIVE_TAB_ID.json\"\n\
-             \x20 printf '{{\"mcpServers\":{{\"shellhive\":{{\"type\":\"http\",\"url\":\"http://127.0.0.1:{PORT}/mcp\",\"headers\":{{\"X-Tab-Id\":\"%s\"}}}}}}}}' \"$SHELLHIVE_TAB_ID\" > \"$TAB_MCP\" && MCP=\"$TAB_MCP\"\n\
+             \x20 # It carries the token: written fresh and readable only by the user,\n\
+             \x20 # since /tmp is shared on Linux.\n\
+             \x20 rm -f \"$TAB_MCP\"\n\
+             \x20 (umask 077 && printf '{{\"mcpServers\":{{\"shellhive\":{{\"type\":\"http\",\"url\":\"http://127.0.0.1:{PORT}/mcp\",\"headers\":{{\"X-Tab-Id\":\"%s\",\"{TOKEN_HEADER}\":\"%s\"}}}}}}}}' \"$SHELLHIVE_TAB_ID\" \"$(cat {token_file} 2>/dev/null)\" > \"$TAB_MCP\") && MCP=\"$TAB_MCP\"\n\
              fi\n\
              # A tab whose group sets a model or permission mode has its own\n\
              # copy of the settings, written by the app when the tab opened.\n\
@@ -628,5 +730,35 @@ mod tests {
         assert_eq!(command_of(":unknown"), None);
         assert_eq!(command_of("duplicate"), None);
         assert_eq!(command_of("use :duplicate"), None);
+    }
+
+    fn host() -> String {
+        format!("127.0.0.1:{PORT}")
+    }
+
+    /// Hooks, the shim and the MCP client pass with the token and no Origin.
+    #[test]
+    fn a_local_caller_with_the_token_passes() {
+        assert!(request_allowed(None, Some(&host()), Some("abc"), "abc"));
+        let localhost = format!("localhost:{PORT}");
+        assert!(request_allowed(None, Some(&localhost), Some("abc"), "abc"));
+    }
+
+    /// A missing or wrong token is refused.
+    #[test]
+    fn a_caller_without_the_token_is_refused() {
+        assert!(!request_allowed(None, Some(&host()), None, "abc"));
+        assert!(!request_allowed(None, Some(&host()), Some("abd"), "abc"));
+        assert!(!request_allowed(None, Some(&host()), Some("ab"), "abc"));
+        assert!(!request_allowed(None, Some(&host()), Some(""), "abc"));
+    }
+
+    /// A browser sends Origin; a rebound DNS name shows up in Host.
+    #[test]
+    fn a_browser_is_refused_even_with_the_token() {
+        assert!(!request_allowed(Some("https://evil.example"), Some(&host()), Some("abc"), "abc"));
+        assert!(!request_allowed(Some("null"), Some(&host()), Some("abc"), "abc"));
+        assert!(!request_allowed(None, Some("evil.example:47831"), Some("abc"), "abc"));
+        assert!(!request_allowed(None, None, Some("abc"), "abc"));
     }
 }
