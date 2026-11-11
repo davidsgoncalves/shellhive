@@ -177,7 +177,7 @@ function AboutTab() {
   const [status, setStatus] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
   const { version: available, phase, progress, message, look: lookForUpdate, install, restart } = useUpdater();
-  const { showEvents, setShowEvents, betaChannel, setBetaChannel, setTourOpen, openModal } = useStore();
+  const { showEvents, setShowEvents, updateChannel, setUpdateChannel, setTourOpen, openModal } = useStore();
 
   useEffect(() => {
     void getVersion().then(setVersion);
@@ -251,30 +251,31 @@ function AboutTab() {
     </section>
 
     <section className="settings-section">
-      <h3>Programa beta</h3>
+      <h3>Versões de teste</h3>
       <p className="hint">
-        Recebe as versões beta antes de todo mundo, além das versões normais. Uma beta pode ter problemas que a versão
-        normal não tem. Ao sair, o app fica na versão instalada até sair uma versão normal mais nova.
+        O beta recebe as versões beta antes de todo mundo, além das normais. O alpha recebe também as versões alpha,
+        mais cedo e menos testadas, além das beta e das normais. Ao voltar para um canal mais estável, o app fica na
+        versão instalada até sair uma versão mais nova nesse canal.
       </p>
       <div className="chip-row">
-        <button
-          className={`chip ${betaChannel ? "on" : ""}`}
-          onClick={() => {
-            setBetaChannel(true);
-            void look();
-          }}
-        >
-          Participar do beta
-        </button>
-        <button
-          className={`chip ${!betaChannel ? "on" : ""}`}
-          onClick={() => {
-            setBetaChannel(false);
-            void look();
-          }}
-        >
-          Só versões normais
-        </button>
+        {(
+          [
+            ["regular", "Só versões normais"],
+            ["beta", "Beta"],
+            ["alpha", "Alpha"],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            key={value}
+            className={`chip ${updateChannel === value ? "on" : ""}`}
+            onClick={() => {
+              setUpdateChannel(value);
+              void look();
+            }}
+          >
+            {label}
+          </button>
+        ))}
       </div>
     </section>
 
@@ -314,6 +315,7 @@ function AboutTab() {
             <div className="changelog-head">
               <strong>{entry.version}</strong>
               {entry.version.includes("-beta") && <span className="changelog-tag beta">beta</span>}
+              {entry.version.includes("-alpha") && <span className="changelog-tag beta">alpha</span>}
               {entry.version === version && <span className="changelog-tag">instalada</span>}
               <time>{new Date(`${entry.date}T12:00:00`).toLocaleDateString()}</time>
             </div>

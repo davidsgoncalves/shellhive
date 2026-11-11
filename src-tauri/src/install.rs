@@ -34,17 +34,23 @@ fn run(program: &str, args: &[&str]) -> Result<(), String> {
 /// Entry of the .deb build in the updater manifest.
 const DEB_TARGET: &str = "linux-x86_64-deb";
 
-/// Manifest of the beta channel: always the newest release, beta or not, so
-/// people in the beta also get every regular version.
-const BETA_ENDPOINT: &str =
-    "https://github.com/davidsgoncalves/shellhive/releases/download/beta-channel/latest.json";
+/// Manifest of a channel other than the regular one. The beta channel serves
+/// the newest beta or regular release; the alpha channel the newest of any
+/// kind, so each channel also gets every version of the ones after it.
+fn channel_endpoint(channel: &str) -> Option<&'static str> {
+    match channel {
+        "beta" => Some("https://github.com/davidsgoncalves/shellhive/releases/download/beta-channel/latest.json"),
+        "alpha" => Some("https://github.com/davidsgoncalves/shellhive/releases/download/alpha-channel/latest.json"),
+        _ => None,
+    }
+}
 
 /// Looks for a newer release in the chosen channel. The check runs in Rust:
 /// the webview cannot read release files, GitHub sends no CORS headers for
 /// them, and the JS updater cannot switch endpoints.
 async fn find_update(
     app: &AppHandle,
-    beta: bool,
+    channel: &str,
 ) -> Result<Option<tauri_plugin_updater::Update>, String> {
     // The preview build is replaced by hand, never by a release.
     if cfg!(feature = "preview") {
@@ -55,8 +61,8 @@ async fn find_update(
     if install_kind() == "package" {
         builder = builder.target(DEB_TARGET);
     }
-    if beta {
-        let url = tauri::Url::parse(BETA_ENDPOINT).map_err(|e| e.to_string())?;
+    if let Some(endpoint) = channel_endpoint(channel) {
+        let url = tauri::Url::parse(endpoint).map_err(|e| e.to_string())?;
         builder = builder.endpoints(vec![url]).map_err(|e| e.to_string())?;
     }
     builder
@@ -69,16 +75,16 @@ async fn find_update(
 
 /// Version of a newer release in the channel, or None when this one is current.
 #[tauri::command]
-pub async fn update_check(app: AppHandle, beta: bool) -> Result<Option<String>, String> {
-    Ok(find_update(&app, beta).await?.map(|u| u.version))
+pub async fn update_check(app: AppHandle, channel: String) -> Result<Option<String>, String> {
+    Ok(find_update(&app, &channel).await?.map(|u| u.version))
 }
 
 /// Downloads the newer release, checks its signature and installs it,
 /// reporting progress as `update-progress` in percent. Returns "installed"
 /// when a restart finishes the job.
 #[tauri::command]
-pub async fn update_install(app: AppHandle, beta: bool) -> Result<String, String> {
-    let update = find_update(&app, beta)
+pub async fn update_install(app: AppHandle, channel: String) -> Result<String, String> {
+    let update = find_update(&app, &channel)
         .await?
         .ok_or("nenhuma atualização disponível")?;
     let progress = app.clone();
@@ -145,7 +151,7 @@ fn install_package(file_name: String, bytes: Vec<u8>) -> Result<String, String> 
             "o sistema não tem como pedir sua senha (pkexec). Rode numa aba: {by_hand}"
         ));
     }
-    // dpkg orders 1.3.0-beta.7 after 1.3.0, so leaving a beta for the
+    // dpkg orders 1.3.0-beta.7 after 1.3.0, so leaving a pre-release for the
     // release looks like a downgrade, which apt refuses under -y. The updater
     // already checked the signature and that the version is newer. The lock
     // timeout waits out an unattended upgrade instead of failing.

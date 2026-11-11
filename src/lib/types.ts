@@ -54,6 +54,9 @@ export interface Group {
   launch?: GroupLaunch;
 }
 
+/** Where updates come from. Each channel also gets every version of the ones after it. */
+export type UpdateChannel = "regular" | "beta" | "alpha";
+
 /** What a new tab opens as: a plain shell, or an agent session in chat or terminal. */
 export type SessionKind =
   | "terminal"

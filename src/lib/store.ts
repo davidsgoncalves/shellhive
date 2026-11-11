@@ -41,6 +41,7 @@ import {
   type SessionKind,
   type Tab,
   type TabState,
+  type UpdateChannel,
 } from "./types";
 
 /** A tab whose terminal reopens its session when it wakes: Claude, or Codex in terminal mode. */
@@ -215,8 +216,8 @@ interface Store {
   pluginBands: Record<string, Record<string, PluginBand>>;
   /** The local plugin panel on screen. */
   pluginPanel: PluginPanel | null;
-  /** Follows the beta channel for updates. */
-  betaChannel: boolean;
+  /** Where updates come from: regular versions only, or also betas, or also alphas. */
+  updateChannel: UpdateChannel;
   /** Official plugins the user turned on; all start off, and the choice
    *  is kept across updates. */
   enabledPlugins: string[];
@@ -356,7 +357,7 @@ interface Store {
   setTourOpen: (open: boolean) => void;
   dismissAnnouncement: (id: string) => void;
   setPluginEnabled: (id: string, on: boolean) => void;
-  setBetaChannel: (on: boolean) => void;
+  setUpdateChannel: (channel: UpdateChannel) => void;
   setLocalPlugins: (list: LocalPlugin[]) => void;
   deferApproval: (id: string, hash: string) => void;
   openPluginPanel: (panel: PluginPanel | null) => void;
@@ -431,7 +432,7 @@ export const useStore = create<Store>()(
       tourOpen: false,
       dismissedAnnouncements: [],
       enabledPlugins: [],
-      betaChannel: false,
+      updateChannel: "regular",
       localPlugins: [],
       deferredApprovals: {},
       pluginPanel: null,
@@ -868,7 +869,7 @@ export const useStore = create<Store>()(
       setTheme: (theme) => set({ theme }),
       setTerminalFont: (f) => set((s) => ({ terminalFont: { ...s.terminalFont, ...f } })),
       resetTerminalFont: () => set({ terminalFont: THEME_FONT }),
-      setBetaChannel: (betaChannel) => set({ betaChannel }),
+      setUpdateChannel: (updateChannel) => set({ updateChannel }),
       setLocalPlugins: (localPlugins) =>
         set((s) => {
           // A removed plugin is forgotten; a changed one keeps its switch and
@@ -1022,15 +1023,22 @@ export const useStore = create<Store>()(
     }),
     {
       name: "claude-terminal-layout",
-      version: 2,
+      version: 3,
       storage: createJSONStorage(() => fileStorage),
       // main.tsx rehydrates before the first render; see persist.ts.
       skipHydration: true,
-      // v1 layouts predate pinned sessions; everything else carries over.
+      // v1 layouts predate pinned sessions, v2 the alpha channel (a beta
+      // switch then); everything else carries over.
       migrate: (persisted) => {
         const prev = (persisted ?? {}) as Record<string, unknown>;
+        const { betaChannel, ...rest } = prev;
         return {
-          ...prev,
+          ...rest,
+          updateChannel: ["regular", "beta", "alpha"].includes(prev.updateChannel as string)
+            ? prev.updateChannel
+            : betaChannel === true
+              ? "beta"
+              : "regular",
           pinned: Array.isArray(prev.pinned) ? prev.pinned : [],
           folders: Array.isArray(prev.folders) ? prev.folders : [],
           groups: (Array.isArray(prev.groups) ? prev.groups : []).map((g: Record<string, unknown>) => ({
@@ -1070,7 +1078,7 @@ export const useStore = create<Store>()(
         tourSeen: s.tourSeen,
         dismissedAnnouncements: s.dismissedAnnouncements,
         enabledPlugins: s.enabledPlugins,
-        betaChannel: s.betaChannel,
+        updateChannel: s.updateChannel,
         miniPanel: s.miniPanel,
         showEvents: s.showEvents,
         errorReportsAsked: s.errorReportsAsked,

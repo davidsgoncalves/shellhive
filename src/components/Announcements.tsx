@@ -29,9 +29,9 @@ export function Announcements() {
     theme,
     setTheme,
     barPosition,
-    betaChannel,
+    updateChannel,
   } = useStore();
-  const ITEMS = ALL.filter((a) => (betaChannel || !a.beta) && !dismissedAnnouncements.includes(a.id));
+  const ITEMS = ALL.filter((a) => (updateChannel !== "regular" || !a.beta) && !dismissedAnnouncements.includes(a.id));
   const unseen = ITEMS.filter((a) => !seenAnnouncements.includes(a.id));
   const [open, setOpen] = useState(() => unseen.some((a) => a.highlight));
   const ref = useRef<HTMLDivElement>(null);
