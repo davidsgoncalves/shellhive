@@ -104,16 +104,39 @@ html, body, #root {
 /* Where a dragged icon will land: it takes this icon's place. */
 .rail-btn.drop-target { box-shadow: inset 0 2px 0 var(--accent); }
 .activity-rail.drop-end { box-shadow: inset 0 -2px 0 var(--accent); }
-.usage-rings { margin-top: auto; display: flex; flex-direction: column; align-items: center; gap: 6px; padding-top: 8px; }
-.usage-ring { position: relative; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: default; }
-.usage-ring svg { position: absolute; inset: 0; }
-.usage-ring.stale { opacity: .55; }
-.usage-ring.cost { border: 1px solid var(--border); border-radius: 50%; width: 28px; height: 28px; }
-.ring-track { fill: none; stroke: var(--border); stroke-width: 3; }
-.ring-fill { fill: none; stroke-width: 3; stroke-linecap: round; stroke: var(--success, #3fb950); }
-.ring-fill.warn { stroke: var(--c-permission, #d29922); }
+.usage-rings { margin-top: auto; padding-top: 8px; }
+.usage-rings-btn { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 4px 0; border: none; background: none; cursor: pointer; border-radius: 10px; }
+.usage-rings-btn:hover { background: var(--panel-2); }
+.usage-ring { position: relative; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; }
+.usage-ring svg:first-child { position: absolute; inset: 0; }
+.usage-ring.cost svg { position: static; }
+.usage-ring.cost { width: 30px; height: 30px; border: 3px solid var(--border); border-radius: 50%; color: var(--muted); }
+.ring-track { fill: none; stroke: color-mix(in srgb, var(--fg) 10%, transparent); stroke-width: 3.5; }
+.ring-fill { fill: none; stroke-width: 3.5; stroke-linecap: round; stroke: #4fc66a; transition: stroke-dasharray .4s ease; }
+.ring-fill.warn { stroke: #e3b341; }
 .ring-fill.crit { stroke: var(--danger); }
-.ring-mark { font-size: 8px; font-weight: 700; color: var(--muted); letter-spacing: .02em; }
+.ring-mark { position: relative; display: flex; }
+.mark-claude line { stroke: #d97757; stroke-width: 2.2; stroke-linecap: round; }
+.mark-codex { fill: none; stroke: var(--fg); stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
+.usage-card {
+  position: fixed; left: 52px; z-index: 300; width: 340px; padding: 14px 16px; border-radius: 14px;
+  background: var(--panel-2); border: 1px solid var(--border); box-shadow: 0 12px 32px rgba(0,0,0,.45);
+  display: flex; flex-direction: column; gap: 14px; animation: pop-in .12s cubic-bezier(.22,.9,.3,1); cursor: default;
+}
+.usage-card h3 { margin: 0; display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; }
+.usage-card h3 svg { fill: none; stroke: var(--fg); stroke-width: 2; stroke-linecap: round; }
+.usage-provider { display: flex; flex-direction: column; gap: 6px; }
+.usage-provider h4 { margin: 0 0 2px; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
+.usage-stale { font-weight: 400; font-size: 11px; color: var(--muted); margin-left: auto; }
+.usage-row { display: grid; grid-template-columns: 58px 1fr auto 72px; align-items: center; gap: 10px; font-size: 12px; }
+.usage-label { color: var(--muted); }
+.usage-bar { height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--fg) 10%, transparent); overflow: hidden; }
+.usage-bar > span { display: block; height: 100%; border-radius: 2px; background: var(--fg); }
+.usage-bar > span.warn { background: #e3b341; }
+.usage-bar > span.crit { background: var(--danger); }
+.usage-left { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.usage-reset { color: var(--muted); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.usage-empty { margin: 0; font-size: 12px; color: var(--muted); }
 .sessions-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 
 .sidebar-header {
