@@ -4,6 +4,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { fileStorage } from "./persist";
 import { markPendingFork, markPendingPrompt, markPendingResume } from "./restored";
 import { sameRule } from "./permRules";
+import { mergeRateLimits } from "./rateLimits";
 import type { MiniBounds } from "./mini";
 import { THEME_FONT, THEMES, type TerminalFont, type ThemeId } from "./theme";
 import { isView, viewOf, type LocalPlugin, type PluginPanel } from "./localPlugins";
@@ -770,9 +771,7 @@ export const useStore = create<Store>()(
           const next: Partial<Store> = {};
           if (e.tab_id) next.statusByTab = { ...s.statusByTab, [e.tab_id]: e.payload };
           const rl = e.payload.rate_limits;
-          if (rl && (!s.rateLimits || e.received_at >= s.rateLimits.receivedAt)) {
-            next.rateLimits = { ...rl, receivedAt: e.received_at, fromTabId: e.tab_id };
-          }
+          if (rl) next.rateLimits = mergeRateLimits(s.rateLimits, rl, e.received_at, e.tab_id);
           return next;
         }),
       addPermission: (p) => set((s) => ({ permissions: [...s.permissions, p] })),
