@@ -1,13 +1,32 @@
-// Points the beta channel at this release when it is newer than what the
-// channel serves. The channel is a fixed pre-release, tagged beta-channel,
-// whose latest.json the app reads when the user joined the beta; it serves the
-// newest release of any kind, so beta users also get every regular version.
+// Points an update channel (beta or alpha, the first argument) at this release
+// when the channel takes it and it is newer than what the channel serves. A
+// channel is a fixed pre-release, tagged <name>-channel, whose latest.json the
+// app reads when the user joined it. The alpha channel takes every release;
+// the beta channel takes betas and regular versions, never an alpha.
 import { execFileSync } from "node:child_process";
 import { readFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const CHANNEL = "beta-channel";
+const CHANNELS = {
+  beta: {
+    title: "Canal beta",
+    notes: "Usado pela atualização automática de quem participa do programa beta. Não baixe daqui; os instaladores ficam em cada versão.",
+    takes: (version) => !/-alpha/.test(version),
+  },
+  alpha: {
+    title: "Canal alpha",
+    notes: "Usado pela atualização automática de quem participa do programa alpha. Não baixe daqui; os instaladores ficam em cada versão.",
+    takes: () => true,
+  },
+};
+const name = process.argv[2];
+const channel = CHANNELS[name];
+if (!channel) {
+  console.error(`usage: channel.mjs ${Object.keys(CHANNELS).join("|")}`);
+  process.exit(1);
+}
+const CHANNEL = `${name}-channel`;
 const repo = process.env.GITHUB_REPOSITORY;
 if (!repo) {
   console.error("GITHUB_REPOSITORY is required");
@@ -44,6 +63,10 @@ function compare(a, b) {
 }
 
 const fresh = JSON.parse(readFileSync("latest.json", "utf8"));
+if (!channel.takes(fresh.version)) {
+  console.log(`${name} channel does not take ${fresh.version}`);
+  process.exit(0);
+}
 
 let exists = true;
 try {
@@ -54,14 +77,14 @@ try {
 if (!exists) {
   gh([
     "release", "create", CHANNEL, "--repo", repo, "--prerelease", "--latest=false",
-    "--title", "Canal beta",
-    "--notes", "Usado pela atualização automática de quem participa do programa beta. Não baixe daqui; os instaladores ficam em cada versão.",
+    "--title", channel.title,
+    "--notes", channel.notes,
   ]);
 }
 
 let current = null;
 try {
-  const dir = mkdtempSync(join(tmpdir(), "beta-"));
+  const dir = mkdtempSync(join(tmpdir(), `${name}-`));
   gh(["release", "download", CHANNEL, "--repo", repo, "--pattern", "latest.json", "--dir", dir]);
   current = JSON.parse(readFileSync(join(dir, "latest.json"), "utf8")).version;
 } catch {
@@ -69,8 +92,8 @@ try {
 }
 
 if (current && compare(fresh.version, current) < 0) {
-  console.log(`beta channel keeps ${current}, newer than ${fresh.version}`);
+  console.log(`${name} channel keeps ${current}, newer than ${fresh.version}`);
   process.exit(0);
 }
 gh(["release", "upload", CHANNEL, "latest.json", "--clobber", "--repo", repo]);
-console.log(`beta channel now serves ${fresh.version}${current ? ` (was ${current})` : ""}`);
+console.log(`${name} channel now serves ${fresh.version}${current ? ` (was ${current})` : ""}`);

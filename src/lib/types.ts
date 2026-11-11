@@ -38,6 +38,9 @@ export interface Group {
   launch?: GroupLaunch;
 }
 
+/** Where updates come from. Each channel also gets every version of the ones after it. */
+export type UpdateChannel = "regular" | "beta" | "alpha";
+
 export interface GroupLaunch {
   model?: string | null;
   permissionMode?: string | null;
