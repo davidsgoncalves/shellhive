@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { create } from "zustand";
 import { useStore } from "./store";
+import { sendMessage } from "./typing";
 import { agentCommand, PROVIDER_NAMES, type Provider } from "./providers";
 import type { ChatEntry } from "./types";
 
@@ -76,7 +77,8 @@ export function watchAgentTabs(): () => void {
   const sync = () => {
     const tabs = useStore.getState().tabs;
     for (const t of tabs) if (t.provider && t.state !== "dormant") void startAgent(t.id);
-    for (const id of [...started.keys()]) if (!tabs.some((t) => t.id === id && t.state !== "dormant")) stopAgent(id);
+    for (const [id, provider] of [...started.entries()])
+      if (!tabs.some((t) => t.id === id && t.state !== "dormant" && t.provider === provider)) stopAgent(id);
   };
   sync();
   const unsub = useStore.subscribe(sync);
@@ -87,4 +89,47 @@ export function watchAgentTabs(): () => void {
     unsub();
     void sub.then((u) => u());
   };
+}
+
+/** Resolves once the tab is back at its shell, or after `ms`. */
+function shellReturns(tabId: string, ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    const done = () => {
+      clearTimeout(timer);
+      unsub();
+      resolve();
+    };
+    const atShell = () => {
+      const state = useStore.getState().tabs.find((t) => t.id === tabId)?.state;
+      return state === undefined || state === "shell" || state === "dormant";
+    };
+    const timer = setTimeout(done, ms);
+    const unsub = useStore.subscribe(() => atShell() && done());
+    if (atShell()) done();
+  });
+}
+
+/**
+ * Changes the agent of a tab whose chat is still empty. The current agent
+ * ends first, so its end is never taken for the new one's.
+ */
+export async function switchAgent(tabId: string, to: Provider | "claude"): Promise<void> {
+  const store = useStore.getState();
+  const tab = store.tabs.find((t) => t.id === tabId);
+  if (!tab || (tab.provider ?? "claude") === to) return;
+  if (tab.provider) {
+    store.patchTab(tabId, { provider: undefined, agentSessionId: undefined, agentModel: undefined });
+  } else if (tab.state !== "shell" && tab.state !== "dormant") {
+    // Claude runs in the tab's terminal and leaves it for the other agent.
+    await sendMessage(tabId, "/exit");
+  }
+  await shellReturns(tabId, 8000);
+  const title = tab.customTitle ? tab.title : to === "claude" ? tab.title : PROVIDER_NAMES[to];
+  if (to === "claude") {
+    useStore.getState().patchTab(tabId, { view: "chat", title });
+    void invoke("pty_write", { id: tabId, data: "claude\r" }).catch(() => {});
+  } else {
+    // The tab's Claude session is gone; it must not resume when the app reopens.
+    useStore.getState().patchTab(tabId, { provider: to, view: "chat", title, claudeSessionId: null, transcriptPath: null });
+  }
 }

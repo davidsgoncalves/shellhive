@@ -3,8 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { useStore } from "../lib/store";
 import { terminals } from "../lib/terminals";
 import { sendMessage } from "../lib/typing";
-import { pushEntries, useAgentEntries, useAgentModels } from "../lib/agents";
-import { agentCommand, CLAUDE_MODELS, PROVIDER_NAMES } from "../lib/providers";
+import { pushEntries, switchAgent, useAgentEntries, useAgentModels } from "../lib/agents";
+import { agentCommand, CLAUDE_MODELS, PROVIDER_NAMES, type Provider } from "../lib/providers";
 import { Markdown } from "../lib/markdown";
 import type { ChatEntry as Entry, Tab } from "../lib/types";
 
@@ -156,6 +156,7 @@ export function ChatView({ tab, rect }: Props) {
   const items = useMemo(() => itemsOf(entries), [entries]);
   const [draft, setDraft] = useState("");
   const [images, setImages] = useState<Attached[]>([]);
+  const [switching, setSwitching] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const patchTab = useStore((s) => s.patchTab);
   const agentModels = useAgentModels((s) => s.byTab[tab.id]);
@@ -294,6 +295,25 @@ export function ChatView({ tab, rect }: Props) {
               e.target.value = "";
             }}
           />
+          {items.length === 0 && (
+            <select
+              className="chat-model"
+              value={provider ?? "claude"}
+              disabled={switching}
+              title="Agente desta aba, enquanto a conversa não começou"
+              onChange={(e) => {
+                setSwitching(true);
+                void switchAgent(tab.id, e.target.value as Provider | "claude").finally(() => setSwitching(false));
+              }}
+            >
+              <option value="claude">Claude</option>
+              {(Object.keys(PROVIDER_NAMES) as Provider[]).map((p) => (
+                <option key={p} value={p}>
+                  {PROVIDER_NAMES[p]}
+                </option>
+              ))}
+            </select>
+          )}
           {models.length > 0 && (
             <select
               className="chat-model"
