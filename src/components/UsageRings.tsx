@@ -95,9 +95,11 @@ export function UsageRings() {
   const claude = useStore((s) => s.rateLimits);
   const codex = useAgentUsage((s) => s.codex);
   const costs = useAgentUsage((s) => s.opencodeCost);
-  const openTabs = useStore((s) => s.tabs.map((t) => t.provider));
-  const usesCodex = !!codex || openTabs.includes("codex");
-  const usesOpencode = Object.keys(costs).length > 0 || openTabs.includes("opencode");
+  // Booleans, not a list: a selector must return the same value for the same state.
+  const codexTab = useStore((s) => s.tabs.some((t) => t.provider === "codex"));
+  const opencodeTab = useStore((s) => s.tabs.some((t) => t.provider === "opencode"));
+  const usesCodex = !!codex || codexTab;
+  const usesOpencode = Object.keys(costs).length > 0 || opencodeTab;
   const cost = Object.values(costs).reduce((a, b) => a + b, 0);
   return (
     <div className="usage-rings">
