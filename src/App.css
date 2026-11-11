@@ -1652,6 +1652,29 @@ button.link.danger { color: var(--danger); }
 .chat-step-list pre { margin: 0; font-family: var(--font-mono); font-size: 11px; color: var(--muted); white-space: pre-wrap; word-break: break-word; user-select: text; }
 .chat-ask { display: flex; align-items: center; gap: 12px; margin: 0 16px 8px; padding: 8px 12px; border-radius: 8px; font-size: 12px; background: color-mix(in srgb, var(--c-waiting, var(--accent)) 18%, var(--panel-2)); }
 .chat-composer { display: flex; align-items: flex-end; gap: 8px; padding: 10px 16px 14px; border-top: 1px solid var(--border); }
+.chat-tools { display: flex; flex-direction: column; gap: 4px; }
+.chat-model { max-width: 160px; font-size: 11px; padding: 3px 4px; border-radius: 6px; border: 1px solid var(--border); background: var(--panel); color: var(--fg); }
+.chat-attached { display: flex; gap: 6px; padding: 8px 16px 0; border-top: 1px solid var(--border); }
+.chat-attached + .chat-composer { border-top: none; }
+.chat-thumb { padding: 0; border: 1px solid var(--border); border-radius: 6px; background: none; cursor: pointer; overflow: hidden; width: 52px; height: 52px; }
+.chat-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.chat-thumb:hover { border-color: var(--danger); }
+.chat-msg.from-agent { white-space: normal; }
+.md > :first-child { margin-top: 0; }
+.md > :last-child { margin-bottom: 0; }
+.md p, .md ul, .md ol, .md blockquote, .md pre, .md .md-table { margin: 0 0 8px; }
+.md ul, .md ol { padding-left: 20px; }
+.md h3, .md h4, .md h5, .md h6 { margin: 10px 0 6px; font-size: 13px; }
+.md h3 { font-size: 14px; }
+.md code { font-family: var(--font-mono); font-size: 12px; padding: 1px 4px; border-radius: 4px; background: color-mix(in srgb, var(--fg) 8%, transparent); }
+.md pre { padding: 8px 10px; border-radius: 6px; overflow-x: auto; background: var(--panel); border: 1px solid var(--border); }
+.md pre code { padding: 0; background: none; white-space: pre; }
+.md blockquote { padding-left: 10px; border-left: 3px solid var(--border-strong, var(--border)); color: var(--muted); }
+.md a { color: var(--accent); }
+.md hr { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
+.md-table { overflow-x: auto; }
+.md table { border-collapse: collapse; font-size: 12px; }
+.md th, .md td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; }
 .chat-composer textarea {
   flex: 1; resize: none; max-height: 40vh; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border);
   background: var(--panel); color: var(--fg); font: inherit; font-size: 13px; line-height: 1.4;

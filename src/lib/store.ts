@@ -3,7 +3,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { fileStorage } from "./persist";
 import { PROVIDER_NAMES } from "./providers";
-import { markPendingFork, markPendingPrompt, markPendingResume } from "./restored";
+import { markPendingFork, markPendingLaunch, markPendingPrompt, markPendingResume } from "./restored";
 import { sameRule } from "./permRules";
 import type { MiniBounds } from "./mini";
 import { THEME_FONT, THEMES, type TerminalFont, type ThemeId } from "./theme";
@@ -38,6 +38,7 @@ import {
   type GroupTint,
   type StatusEnvelope,
   type StatusPayload,
+  type SessionKind,
   type Tab,
   type TabState,
 } from "./types";
@@ -101,7 +102,7 @@ export type Modal =
   | { kind: "searchAll" }
   | { kind: "groupLaunch"; groupId: string }
   | { kind: "pluginCreator" }
-  | { kind: "pickFolder"; groupId: string };
+  | { kind: "pickFolder"; groupId: string; open?: SessionKind };
 
 export type CacheStyle = "expressive" | "minimal";
 
@@ -169,6 +170,8 @@ interface Store {
   modal: Modal;
   /** Open group context menu, with the cursor position that opened it. */
   groupMenu: { x: number; y: number; groupId: string } | null;
+  /** The + menu of a group, to pick what a new tab opens as. */
+  newSessionMenu: { x: number; y: number; groupId: string } | null;
   /** Open tab context menu. */
   tabMenu: { x: number; y: number; tabId: string } | null;
   /** Tab waiting to be dropped into a pane, while the slot overlay is up. */
@@ -330,6 +333,7 @@ interface Store {
   setLayout: (l: Layout) => void;
   setBarPosition: (p: BarPosition) => void;
   openGroupMenu: (m: { x: number; y: number; groupId: string } | null) => void;
+  openNewSessionMenu: (m: { x: number; y: number; groupId: string } | null) => void;
   setGroupColor: (id: string, color: string) => void;
   setGroupEmoji: (id: string, emoji: string | null) => void;
   ungroupTabs: (id: string) => void;
@@ -404,6 +408,7 @@ export const useStore = create<Store>()(
       defaultFolderId: null,
       modal: null,
       groupMenu: null,
+      newSessionMenu: null,
       tabMenu: null,
       paneAssign: null,
       layout: "sidebar",
@@ -814,6 +819,7 @@ export const useStore = create<Store>()(
       setLayout: (layout) => set({ layout }),
       setBarPosition: (barPosition) => set({ barPosition }),
       openGroupMenu: (groupMenu) => set({ groupMenu }),
+      openNewSessionMenu: (newSessionMenu) => set({ newSessionMenu }),
       setGroupColor: (id, color) =>
         set((s) => ({ groups: s.groups.map((g) => (g.id === id ? { ...g, color } : g)) })),
       setGroupEmoji: (id, emoji) =>
@@ -1120,26 +1126,30 @@ export function ensureUngrouped(): void {
  * Opens a session in a group: straight into the group's base folder when it has
  * one, otherwise through the folder picker.
  */
-export function openSessionInGroup(groupId: string): void {
+export function openSessionInGroup(groupId: string, open?: SessionKind): void {
   const s = useStore.getState();
   const group = s.groups.find((g) => g.id === groupId);
+  const kind = open ?? group?.launch?.open ?? "terminal";
   // The catch-all group has no folder of its own; it always uses the base folder.
   const wanted = group?.fixed ? s.defaultFolderId : group?.folderId;
   const folder = wanted ? s.folders.find((f) => f.id === wanted) : undefined;
   if (folder) {
-    newTabInGroup(groupId, folder.path, folder.name);
+    startSession(groupId, folder.path, folder.name, kind);
     return;
   }
-  s.openModal({ kind: "pickFolder", groupId });
+  s.openModal({ kind: "pickFolder", groupId, open: kind });
 }
 
-/** A new agent chat in a group, in the group's base folder or the default one. */
-export function newAgentTab(groupId: string, provider: NonNullable<Tab["provider"]>): void {
+/** A new tab in a group and folder, opened as `open` asks. */
+export function startSession(groupId: string, cwd: string, title: string, open: SessionKind = "terminal"): string {
   const s = useStore.getState();
-  const group = s.groups.find((g) => g.id === groupId);
-  const wanted = group?.fixed ? s.defaultFolderId : (group?.folderId ?? s.defaultFolderId);
-  const folder = wanted ? s.folders.find((f) => f.id === wanted) : undefined;
-  s.addTab(groupId, { cwd: folder?.path ?? null, title: PROVIDER_NAMES[provider], provider });
+  if (open === "codex" || open === "opencode") {
+    return s.addTab(groupId, { cwd, title: PROVIDER_NAMES[open], provider: open });
+  }
+  const id = newTabInGroup(groupId, cwd, title);
+  if (open !== "terminal") markPendingLaunch(id);
+  if (open === "claude-chat") s.setTabView(id, "chat");
+  return id;
 }
 
 /** A new tab in a group, started with the group's first prompt when it has one. */

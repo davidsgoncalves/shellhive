@@ -97,22 +97,25 @@ fn zshenv_script(shim: &str) -> String {
          _shellhive_resume=${{SHELLHIVE_RESUME-}}\n\
          _shellhive_fork=${{SHELLHIVE_FORK-}}\n\
          _shellhive_start=${{SHELLHIVE_START-}}\n\
-         unset SHELLHIVE_RESUME SHELLHIVE_FORK SHELLHIVE_START\n\
+         _shellhive_launch=${{SHELLHIVE_LAUNCH-}}\n\
+         unset SHELLHIVE_RESUME SHELLHIVE_FORK SHELLHIVE_START SHELLHIVE_LAUNCH\n\
          [[ -r \"${{ZDOTDIR:-$HOME}}/.zshenv\" ]] && source \"${{ZDOTDIR:-$HOME}}/.zshenv\"\n\
-         # Runs the session to reopen, or a new one with a first prompt, as if\n\
-         # typed at the first prompt.\n\
+         # Runs the session to reopen, or a new one with or without a first\n\
+         # prompt, as if typed at the first prompt.\n\
          _shellhive_resume_line() {{\n\
          \x20 add-zle-hook-widget -d line-init _shellhive_resume_line\n\
          \x20 if [[ -n \"$_shellhive_resume\" ]]; then\n\
          \x20   BUFFER=\"claude --resume $_shellhive_resume${{_shellhive_fork:+ --fork-session}}\"\n\
          \x20   unset _shellhive_start\n\
+         \x20 elif [[ -z \"$_shellhive_start\" ]]; then\n\
+         \x20   BUFFER=claude\n\
          \x20 else\n\
          \x20   # The line names the variable, so zle never draws a long prompt;\n\
          \x20   # it is cleared once the command has run.\n\
          \x20   BUFFER='claude \"$_shellhive_start\"'\n\
          \x20   precmd_functions+=(_shellhive_forget)\n\
          \x20 fi\n\
-         \x20 unset _shellhive_resume _shellhive_fork\n\
+         \x20 unset _shellhive_resume _shellhive_fork _shellhive_launch\n\
          \x20 zle accept-line\n\
          }}\n\
          _shellhive_forget() {{\n\
@@ -124,7 +127,7 @@ fn zshenv_script(shim: &str) -> String {
          \x20 claude() {{ {shim} \"$@\"; }}\n\
          \x20 precmd_functions=(${{precmd_functions:#_shellhive_init}})\n\
          \x20 unfunction _shellhive_init\n\
-         \x20 if [[ -n \"$_shellhive_resume$_shellhive_start\" ]]; then\n\
+         \x20 if [[ -n \"$_shellhive_resume$_shellhive_start$_shellhive_launch\" ]]; then\n\
          \x20   autoload -Uz add-zle-hook-widget\n\
          \x20   add-zle-hook-widget line-init _shellhive_resume_line\n\
          \x20 fi\n\
@@ -245,6 +248,18 @@ fn start_line() -> Option<String> {
     }
 }
 
+/// Line typed into a new tab to start Claude with no first prompt.
+fn launch_line() -> Option<String> {
+    #[cfg(windows)]
+    {
+        Some("claude\r".to_string())
+    }
+    #[cfg(not(windows))]
+    {
+        Some(format!("{}\n", quoted_shim()?))
+    }
+}
+
 /// Line typed into a new tab so every `claude` there carries the app's
 /// settings and a per-tab MCP config. On Unix it points at the shim; on
 /// Windows it is a PowerShell function doing the same thing, since there is
@@ -302,6 +317,7 @@ pub fn pty_spawn(
     resume: Option<String>,
     fork: Option<bool>,
     prompt: Option<String>,
+    launch: Option<bool>,
     model: Option<String>,
     permission_mode: Option<String>,
 ) -> Result<(), String> {
@@ -390,6 +406,11 @@ pub fn pty_spawn(
     if let Some(text) = &prompt {
         cmd.env("SHELLHIVE_START", text);
     }
+    // Starts Claude with no first prompt, for a tab opened as a Claude session.
+    let launch = launch.unwrap_or(false) && resume.is_none() && prompt.is_none();
+    if launch {
+        cmd.env("SHELLHIVE_LAUNCH", "1");
+    }
     // zsh reopens the session from its startup files, where no startup file
     // can swallow the command.
     if zsh_ready {
@@ -422,7 +443,8 @@ pub fn pty_spawn(
     let (init, resume, start) = if zsh_ready {
         (None, None, None)
     } else {
-        (claude_function(), resume, prompt.and_then(|_| start_line()))
+        let start = if prompt.is_some() { start_line() } else if launch { launch_line() } else { None };
+        (claude_function(), resume, start)
     };
     let lines = init
         .into_iter()
@@ -531,7 +553,18 @@ mod tests {
     fn the_first_prompt_is_quoted_by_zsh() {
         let script = zshenv_script("'/shim'");
         assert!(script.contains("BUFFER='claude \"$_shellhive_start\"'"));
-        assert!(script.contains("unset SHELLHIVE_RESUME SHELLHIVE_FORK SHELLHIVE_START"));
+        assert!(script.contains("unset SHELLHIVE_RESUME SHELLHIVE_FORK SHELLHIVE_START SHELLHIVE_LAUNCH"));
+    }
+
+    /// A tab opened as a Claude session starts `claude` with no prompt.
+    #[cfg(not(windows))]
+    #[test]
+    fn a_launch_without_a_prompt_starts_plain_claude() {
+        let script = zshenv_script("'/shim'");
+        assert!(script.contains("elif [[ -z \"$_shellhive_start\" ]]; then\n    BUFFER=claude\n"));
+        assert!(script.contains("$_shellhive_resume$_shellhive_start$_shellhive_launch"));
+        let checked = std::process::Command::new("zsh").arg("-n").arg("-c").arg(&script).status();
+        assert!(checked.map(|s| s.success()).unwrap_or(true));
     }
 
     /// A terminal measured while hidden opens at a usable size.

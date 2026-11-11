@@ -3,8 +3,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { useStore } from "../lib/store";
 import { terminals } from "../lib/terminals";
 import { sendMessage } from "../lib/typing";
-import { useAgentEntries } from "../lib/agents";
-import { agentCommand, PROVIDER_NAMES } from "../lib/providers";
+import { pushEntries, useAgentEntries, useAgentModels } from "../lib/agents";
+import { agentCommand, CLAUDE_MODELS, PROVIDER_NAMES } from "../lib/providers";
+import { Markdown } from "../lib/markdown";
 import type { ChatEntry as Entry, Tab } from "../lib/types";
 
 /** How often a session's transcript is read for new entries. */
@@ -46,6 +47,24 @@ function itemsOf(entries: Entry[]): Item[] {
     items.push({ kind: e.kind, id: e.id, text: e.text });
   }
   return items;
+}
+
+interface Attached {
+  path: string;
+  preview: string;
+}
+
+/** Saves a pasted or picked image to a file the agent can take. */
+async function saveImage(file: Blob): Promise<Attached> {
+  const data = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(",")[1] ?? "");
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+  const ext = file.type.split("/")[1] ?? "png";
+  const path = await invoke<string>("chat_save_image", { data, ext });
+  return { path, preview: URL.createObjectURL(file) };
 }
 
 /** The transcript of a tab's session, followed as it grows. */
@@ -136,6 +155,11 @@ export function ChatView({ tab, rect }: Props) {
   const agent = provider ? PROVIDER_NAMES[provider] : "Claude";
   const items = useMemo(() => itemsOf(entries), [entries]);
   const [draft, setDraft] = useState("");
+  const [images, setImages] = useState<Attached[]>([]);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const patchTab = useStore((s) => s.patchTab);
+  const agentModels = useAgentModels((s) => s.byTab[tab.id]);
+  const claudeModel = useStore((s) => s.statusByTab[tab.id]?.model?.id);
   const listRef = useRef<HTMLOListElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const working = tab.state === "working";
@@ -149,13 +173,38 @@ export function ChatView({ tab, rect }: Props) {
 
   useEffect(() => inputRef.current?.focus(), [tab.id]);
 
+  const attach = (files: Iterable<Blob>) => {
+    for (const f of files) {
+      if (!f.type.startsWith("image/")) continue;
+      saveImage(f)
+        .then((img) => setImages((list) => [...list, img]))
+        .catch((err) => pushEntries(tab.id, [{ kind: "error", id: `img:${Date.now()}`, text: `A imagem não foi anexada: ${String(err)}` }]));
+    }
+  };
+
   const send = () => {
     const text = draft.trim();
-    if (!text || !claudeRunning) return;
+    if ((!text && images.length === 0) || !claudeRunning) return;
+    const paths = images.map((i) => i.path);
+    images.forEach((i) => URL.revokeObjectURL(i.preview));
     setDraft("");
-    if (provider) void invoke(agentCommand(provider, "send"), { tabId: tab.id, text, model: tab.agentModel ?? null }).catch(() => {});
-    else void sendMessage(tab.id, text);
+    setImages([]);
+    if (provider) {
+      void invoke(agentCommand(provider, "send"), { tabId: tab.id, text, model: tab.agentModel ?? null, images: paths }).catch((err) =>
+        pushEntries(tab.id, [{ kind: "error", id: `send:${Date.now()}`, text: `A mensagem não foi enviada: ${String(err)}` }]),
+      );
+    } else {
+      // Claude takes an image named by its path in the message.
+      void sendMessage(tab.id, [text, ...paths].filter(Boolean).join(" "));
+    }
   };
+
+  const pickModel = (model: string) => {
+    if (provider) patchTab(tab.id, { agentModel: model });
+    else if (model) void sendMessage(tab.id, `/model ${model}`);
+  };
+  const models = provider ? (agentModels ?? []) : CLAUDE_MODELS;
+  const currentModel = provider ? (tab.agentModel ?? "") : "";
 
   const toTerminal = () => {
     setTabView(tab.id, undefined);
@@ -193,7 +242,7 @@ export function ChatView({ tab, rect }: Props) {
               key={`${it.kind}:${it.id}`}
               className={it.kind === "error" ? "chat-error" : `chat-msg ${it.kind === "user" ? "from-user" : "from-agent"}`}
             >
-              {it.text}
+              {it.kind === "text" ? <Markdown text={it.text} /> : it.text}
             </li>
           ),
         )}
@@ -207,7 +256,61 @@ export function ChatView({ tab, rect }: Props) {
           </button>
         </div>
       )}
+      {images.length > 0 && (
+        <div className="chat-attached">
+          {images.map((img) => (
+            <button
+              key={img.path}
+              className="chat-thumb"
+              title="Remover a imagem"
+              onClick={() => {
+                URL.revokeObjectURL(img.preview);
+                setImages((list) => list.filter((i) => i !== img));
+              }}
+            >
+              <img src={img.preview} alt="" />
+            </button>
+          ))}
+        </div>
+      )}
       <div className="chat-composer">
+        <div className="chat-tools">
+          <button
+            className="ghost auto"
+            title="Anexar imagem"
+            disabled={!claudeRunning}
+            onClick={() => fileRef.current?.click()}
+          >
+            Imagem
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            multiple
+            hidden
+            onChange={(e) => {
+              attach(Array.from(e.target.files ?? []));
+              e.target.value = "";
+            }}
+          />
+          {models.length > 0 && (
+            <select
+              className="chat-model"
+              value={currentModel}
+              disabled={!claudeRunning}
+              title={provider ? "Modelo das próximas mensagens" : `Troca o modelo com /model${claudeModel ? ` (agora: ${claudeModel})` : ""}`}
+              onChange={(e) => pickModel(e.target.value)}
+            >
+              {!provider && <option value="">Modelo</option>}
+              {models.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
         <textarea
           ref={inputRef}
           value={draft}
@@ -215,6 +318,13 @@ export function ChatView({ tab, rect }: Props) {
           placeholder={claudeRunning ? `Mensagem para o ${agent}` : `O ${agent} não está rodando nesta aba`}
           disabled={!claudeRunning}
           onChange={(e) => setDraft(e.target.value)}
+          onPaste={(e) => {
+            const files = Array.from(e.clipboardData.files).filter((f) => f.type.startsWith("image/"));
+            if (files.length) {
+              e.preventDefault();
+              attach(files);
+            }
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault();
@@ -234,7 +344,7 @@ export function ChatView({ tab, rect }: Props) {
             Parar
           </button>
         ) : (
-          <button className="primary" onClick={send} disabled={!draft.trim() || !claudeRunning}>
+          <button className="primary" onClick={send} disabled={(!draft.trim() && images.length === 0) || !claudeRunning}>
             Enviar
           </button>
         )}

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { newAgentTab, useStore } from "../lib/store";
+import { useStore } from "../lib/store";
 import { THEMES } from "../lib/theme";
 import { describeRule } from "../lib/permRules";
 
@@ -152,26 +152,6 @@ export function GroupMenu() {
         }}
       >
         Ocultar grupo
-      </button>
-
-      <button
-        className="menu-item"
-        onClick={() => {
-          newAgentTab(group.id, "codex");
-          close();
-        }}
-      >
-        Nova sessão do Codex
-      </button>
-
-      <button
-        className="menu-item"
-        onClick={() => {
-          newAgentTab(group.id, "opencode");
-          close();
-        }}
-      >
-        Nova sessão do OpenCode
       </button>
 
       <button

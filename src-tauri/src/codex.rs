@@ -482,11 +482,19 @@ fn start(app: &AppHandle, tab_id: String, cwd: String, thread_id: Option<String>
 
 /// Sends a message: a new turn, or into the running turn when there is one.
 #[tauri::command]
-pub async fn codex_send(app: AppHandle, tab_id: String, text: String, model: Option<String>) -> Result<(), String> {
+pub async fn codex_send(
+    app: AppHandle,
+    tab_id: String,
+    text: String,
+    model: Option<String>,
+    images: Option<Vec<String>>,
+) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         let s = session(&app.state::<CodexSessions>(), &tab_id)?;
         let thread = s.thread()?;
-        let input = json!([{ "type": "text", "text": text }]);
+        let mut input = vec![json!({ "type": "text", "text": text })];
+        input.extend(images.unwrap_or_default().into_iter().map(|path| json!({ "type": "localImage", "path": path })));
+        let input = Value::Array(input);
         hook(&app, &tab_id, "UserPromptSubmit", json!({ "prompt": text }));
         let running = s.turn_id.lock().unwrap().clone();
         match running {

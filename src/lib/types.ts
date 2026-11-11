@@ -54,7 +54,12 @@ export interface Group {
   launch?: GroupLaunch;
 }
 
+/** What a new tab opens as: a plain shell, or an agent session in chat or terminal. */
+export type SessionKind = "terminal" | "claude-chat" | "claude-terminal" | "codex" | "opencode";
+
 export interface GroupLaunch {
+  /** What the group's new tabs open as when not picked from the + menu. */
+  open?: SessionKind | null;
   model?: string | null;
   permissionMode?: string | null;
   /** Sent as the first prompt when a new tab opens in the group. */

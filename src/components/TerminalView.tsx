@@ -11,7 +11,7 @@ import { copySelection } from "../lib/copyLine";
 import { reportError } from "../lib/errors";
 import { sessionFromDrag, useStore, type SessionRef } from "../lib/store";
 import { attachLinks, carriesFiles, carriesSession, carriesTab, fixEmojiWidth, fixLinuxInput, pasteDroppedFiles } from "../lib/termExtras";
-import { takePendingFork, takePendingPrompt, takePendingResume } from "../lib/restored";
+import { takePendingFork, takePendingLaunch, takePendingPrompt, takePendingResume } from "../lib/restored";
 import type { Tab } from "../lib/types";
 
 interface Props {
@@ -109,6 +109,7 @@ export function TerminalView({
       resume,
       fork: !!fork,
       prompt,
+      launch: takePendingLaunch(tab.id),
       model: launch?.model ?? null,
       permissionMode: launch?.permissionMode ?? null,
     })

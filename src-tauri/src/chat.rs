@@ -168,6 +168,34 @@ fn entry(kind: &'static str, id: String, text: String) -> ChatEntry {
     ChatEntry { kind, id, text, tool: None, error: false }
 }
 
+/// Saves an image pasted or picked in the chat composer and returns its path.
+/// Agents take images as files (Codex, and Claude reading a path in the
+/// message) or read them from there (OpenCode).
+#[tauri::command]
+pub fn chat_save_image(data: String, ext: String) -> Result<String, String> {
+    use base64::Engine;
+    let bytes = base64::engine::general_purpose::STANDARD.decode(data.as_bytes()).map_err(|e| e.to_string())?;
+    let ext: String = ext.chars().filter(|c| c.is_ascii_alphanumeric()).take(5).collect();
+    let dir = std::env::temp_dir().join("shellhive-images");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let mut name = [0u8; 8];
+    let _ = getrandom::fill(&mut name);
+    let name: String = name.iter().map(|b| format!("{b:02x}")).collect();
+    let path = dir.join(format!("{name}.{}", if ext.is_empty() { "png" } else { &ext }));
+    std::fs::write(&path, bytes).map_err(|e| e.to_string())?;
+    Ok(path.to_string_lossy().into_owned())
+}
+
+/// Media type of an image file, by its extension.
+pub fn image_mime(path: &str) -> &'static str {
+    match path.rsplit('.').next().map(str::to_ascii_lowercase).as_deref() {
+        Some("jpg") | Some("jpeg") => "image/jpeg",
+        Some("gif") => "image/gif",
+        Some("webp") => "image/webp",
+        _ => "image/png",
+    }
+}
+
 /// What an agent adapter reports once its session is up.
 #[derive(serde::Serialize)]
 pub struct StartInfo {

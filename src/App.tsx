@@ -11,6 +11,7 @@ import { SidePanel } from "./components/SidePanel";
 import { TopBar } from "./components/TopBar";
 import { Dialogs } from "./components/Dialogs";
 import { GroupMenu } from "./components/GroupMenu";
+import { NewSessionMenu } from "./components/NewSessionMenu";
 import { TabMenu } from "./components/TabMenu";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { ErrorReportsPrompt } from "./components/ErrorReportsPrompt";
@@ -957,6 +958,7 @@ function App() {
       <Dialogs />
       <Tour />
       <GroupMenu />
+      <NewSessionMenu />
       <TabMenu />
     </div>
   );

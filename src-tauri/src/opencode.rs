@@ -556,11 +556,25 @@ fn server(app: &AppHandle, tab_id: &str) -> Result<Arc<Server>, String> {
 
 /// Sends a message. The server queues it when a turn is running.
 #[tauri::command]
-pub async fn opencode_send(app: AppHandle, tab_id: String, text: String, model: Option<String>) -> Result<(), String> {
+pub async fn opencode_send(
+    app: AppHandle,
+    tab_id: String,
+    text: String,
+    model: Option<String>,
+    images: Option<Vec<String>>,
+) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         let s = server(&app, &tab_id)?;
         let id = s.session()?;
-        let body = prompt_body(&text, model.as_deref());
+        let mut body = prompt_body(&text, model.as_deref());
+        for path in images.unwrap_or_default() {
+            let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
+            let mime = crate::chat::image_mime(&path);
+            let name = std::path::Path::new(&path).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+            if let Some(parts) = body["parts"].as_array_mut() {
+                parts.push(json!({ "type": "file", "mime": mime, "filename": name, "url": format!("data:{mime};base64,{}", B64.encode(bytes)) }));
+            }
+        }
         agent_hook(&app, &tab_id, PROVIDER, "UserPromptSubmit", json!({ "prompt": text }));
         s.post(&format!("/session/{id}/prompt_async"), &body).map(|_| ())
     })

@@ -3,7 +3,6 @@ import {
   closeButtonTitle,
   closeWithButton,
   openSession,
-  openSessionInGroup,
   sessionFromDrag,
   useStore,
 } from "../lib/store";
@@ -262,7 +261,7 @@ function GroupSection({ group, tabs, activeTabId }: { group: Group; tabs: Tab[];
         <button
           className="icon-btn"
           title={folder ? `Nova sessão em ${folder.path}` : "Nova sessão neste grupo"}
-          onClick={() => openSessionInGroup(group.id)}
+          onClick={(e) => useStore.getState().openNewSessionMenu({ x: e.clientX, y: e.clientY, groupId: group.id })}
         >
           +
         </button>

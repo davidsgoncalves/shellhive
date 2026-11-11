@@ -9,7 +9,8 @@ import { useUpdater } from "../lib/updater";
 import type { ReportsState } from "../lib/errors";
 import { shortcutLabel, withShortcuts } from "../lib/shortcuts";
 import { open } from "@tauri-apps/plugin-dialog";
-import { newTabInGroup, useStore, type SettingsTab } from "../lib/store";
+import { startSession, useStore, type SettingsTab } from "../lib/store";
+import { CLAUDE_MODELS as MODELS, SESSION_KINDS } from "../lib/providers";
 import { openPluginCreator } from "../lib/pluginCreator";
 import { ConnectionsTab } from "./WorkSettings";
 import { DEFAULT_FONT_SIZE, THEMES, type ThemeId } from "../lib/theme";
@@ -19,7 +20,7 @@ import { BORDER_OPTIONS } from "../lib/types";
 import { QuickSwitcher } from "./QuickSwitcher";
 import { SearchAll } from "./SearchAll";
 import changelog from "../changelog.json";
-import type { PathCheck } from "../lib/types";
+import type { PathCheck, SessionKind } from "../lib/types";
 
 const INSTALL_LABEL: Record<string, string> = {
   native: "instalação nativa",
@@ -775,7 +776,6 @@ function NewGroupDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
-const MODELS = ["fable", "opus", "sonnet", "haiku"];
 
 const PERMISSION_MODES: Array<[string, string]> = [
   ["manual", "Perguntar tudo"],
@@ -790,6 +790,7 @@ const PERMISSION_MODES: Array<[string, string]> = [
 function GroupLaunchDialog({ groupId, onClose }: { groupId: string; onClose: () => void }) {
   const { groups, setGroupLaunch } = useStore();
   const group = groups.find((g) => g.id === groupId);
+  const [openAs, setOpenAs] = useState<SessionKind>(group?.launch?.open ?? "terminal");
   const [model, setModel] = useState(group?.launch?.model ?? "");
   const [mode, setMode] = useState(group?.launch?.permissionMode ?? "");
   const [prompt, setPrompt] = useState(group?.launch?.prompt ?? "");
@@ -797,6 +798,7 @@ function GroupLaunchDialog({ groupId, onClose }: { groupId: string; onClose: () 
 
   const save = () => {
     setGroupLaunch(groupId, {
+      open: openAs === "terminal" ? null : openAs,
       model: model.trim() || null,
       permissionMode: mode || null,
       prompt: prompt.trim() || null,
@@ -820,8 +822,18 @@ function GroupLaunchDialog({ groupId, onClose }: { groupId: string; onClose: () 
       }
     >
       <p className="hint">
-        Vale para o claude iniciado nas abas abertas depois de salvar. Campo vazio deixa o padrão do Claude.
+        Vale para as abas abertas depois de salvar. Modelo, modo de permissão e prompt valem para o Claude; campo vazio deixa o padrão dele.
       </p>
+      <label className="field">
+        <span>Abrir como</span>
+        <select className="bee-select" value={openAs} onChange={(e) => setOpenAs(e.target.value as SessionKind)}>
+          {SESSION_KINDS.map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </label>
       <label className="field">
         <span>Modelo</span>
         <input list="group-models" placeholder="Padrão do Claude" value={model} onChange={(e) => setModel(e.target.value)} />
@@ -855,14 +867,14 @@ function GroupLaunchDialog({ groupId, onClose }: { groupId: string; onClose: () 
   );
 }
 
-function PickFolderDialog({ groupId, onClose }: { groupId: string; onClose: () => void }) {
+function PickFolderDialog({ groupId, kind, onClose }: { groupId: string; kind?: SessionKind; onClose: () => void }) {
   const { folders, setGroupFolder, groups } = useStore();
   const group = groups.find((g) => g.id === groupId);
   const [remember, setRemember] = useState(false);
 
   const openIn = (path: string, name: string, folderId?: string) => {
     if (remember && folderId) setGroupFolder(groupId, folderId);
-    newTabInGroup(groupId, path, name);
+    startSession(groupId, path, name, kind);
     onClose();
   };
 
@@ -965,5 +977,5 @@ export function Dialogs() {
   if (modal.kind === "searchAll") return <SearchAll onClose={close} />;
   if (modal.kind === "groupLaunch") return <GroupLaunchDialog groupId={modal.groupId} onClose={close} />;
   if (modal.kind === "pluginCreator") return <PluginCreatorDialog onClose={close} />;
-  return <PickFolderDialog groupId={modal.groupId} onClose={close} />;
+  return <PickFolderDialog groupId={modal.groupId} kind={modal.open} onClose={close} />;
 }
