@@ -56,14 +56,21 @@ pub async fn bee_command_run(command: String, cwd: Option<String>) -> Result<Str
             text.push_str(&err);
         }
         if text.len() > COMMAND_OUTPUT_MAX {
-            let cut = (0..=COMMAND_OUTPUT_MAX).rev().find(|&i| text.is_char_boundary(i)).unwrap_or(0);
+            let cut = (0..=COMMAND_OUTPUT_MAX)
+                .rev()
+                .find(|&i| text.is_char_boundary(i))
+                .unwrap_or(0);
             text.truncate(cut);
             text.push('…');
         }
         if out.status.success() {
             Ok(text)
         } else {
-            Err(if text.is_empty() { format!("saiu com {}", out.status) } else { text })
+            Err(if text.is_empty() {
+                format!("saiu com {}", out.status)
+            } else {
+                text
+            })
         }
     })
     .await
@@ -82,7 +89,11 @@ fn claude_config_path() -> Option<PathBuf> {
 fn trust_folder(dir: &str) -> Result<(), String> {
     let path = claude_config_path().ok_or("no home dir")?;
     // Claude writes Windows paths with forward slashes.
-    let key = if cfg!(windows) { dir.replace('\\', "/") } else { dir.to_string() };
+    let key = if cfg!(windows) {
+        dir.replace('\\', "/")
+    } else {
+        dir.to_string()
+    };
     let text = fs::read_to_string(&path).map_err(|e| e.to_string())?;
     let mut config: serde_json::Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
     if !mark_trusted(&mut config, &key) {
@@ -96,11 +107,19 @@ fn trust_folder(dir: &str) -> Result<(), String> {
 
 /// Sets the trust flag on the project `key`; false when nothing changed.
 fn mark_trusted(config: &mut serde_json::Value, key: &str) -> bool {
-    let Some(root) = config.as_object_mut() else { return false };
-    let projects = root.entry("projects").or_insert_with(|| serde_json::json!({}));
-    let Some(projects) = projects.as_object_mut() else { return false };
+    let Some(root) = config.as_object_mut() else {
+        return false;
+    };
+    let projects = root
+        .entry("projects")
+        .or_insert_with(|| serde_json::json!({}));
+    let Some(projects) = projects.as_object_mut() else {
+        return false;
+    };
     let project = projects.entry(key).or_insert_with(|| serde_json::json!({}));
-    let Some(project) = project.as_object_mut() else { return false };
+    let Some(project) = project.as_object_mut() else {
+        return false;
+    };
     if project.get("hasTrustDialogAccepted") == Some(&serde_json::Value::Bool(true)) {
         return false;
     }
@@ -117,14 +136,18 @@ mod tests {
     fn trusts_a_new_folder_and_keeps_the_rest() {
         let mut config = json!({ "theme": "dark", "projects": { "/a": { "x": 1 } } });
         assert!(mark_trusted(&mut config, "/b"));
-        assert_eq!(config["projects"]["/b"]["hasTrustDialogAccepted"], json!(true));
+        assert_eq!(
+            config["projects"]["/b"]["hasTrustDialogAccepted"],
+            json!(true)
+        );
         assert_eq!(config["projects"]["/a"], json!({ "x": 1 }));
         assert_eq!(config["theme"], json!("dark"));
     }
 
     #[test]
     fn leaves_a_trusted_folder_alone() {
-        let mut config = json!({ "projects": { "/b": { "hasTrustDialogAccepted": true, "y": 2 } } });
+        let mut config =
+            json!({ "projects": { "/b": { "hasTrustDialogAccepted": true, "y": 2 } } });
         assert!(!mark_trusted(&mut config, "/b"));
         assert_eq!(config["projects"]["/b"]["y"], json!(2));
     }

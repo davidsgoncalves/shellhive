@@ -1,5 +1,14 @@
 [
   {
+    "version": "2.1.3",
+    "date": "2026-11-11",
+    "items": [
+      "Canal alpha: em Configurações > Versões de teste dá para escolher entre só versões normais, beta ou alpha. O alpha recebe versões ainda mais cedo que o beta, além das beta e das normais. Quem já estava no beta continua nele.",
+      "O medidor de uso do topo não volta mais para um valor antigo quando uma aba parada redesenha a statusline.",
+      "A lista de todos rola quando tem mais itens do que cabem na coluna, com o campo de novo item fixo no topo."
+    ]
+  },
+  {
     "version": "2.1.2",
     "date": "2026-11-09",
     "items": [

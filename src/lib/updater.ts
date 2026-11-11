@@ -28,12 +28,12 @@ interface Updater {
 
 const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
-/** Whether this install follows the beta channel. */
-const beta = () => useStore.getState().betaChannel;
+/** The channel this install takes updates from. */
+const channel = () => useStore.getState().updateChannel;
 
 /**
  * One update state for the banner and the Sobre tab, so a check made from
- * either one shows up in both. The backend checks the regular or the beta
+ * either one shows up in both. The backend checks the regular, beta or alpha
  * channel, and installs the update bundle, or a .deb for a package install.
  */
 export const useUpdater = create<Updater>()((set, get) => ({
@@ -46,7 +46,7 @@ export const useUpdater = create<Updater>()((set, get) => ({
   look: async () => {
     // A download in progress or a pending restart must not be reset.
     if (get().phase !== "idle" && get().phase !== "found") return get().version;
-    const version = await invoke<string | null>("update_check", { beta: beta() });
+    const version = await invoke<string | null>("update_check", { channel: channel() });
     if (!version) {
       set({ version: null, phase: "idle" });
       return null;
@@ -59,7 +59,7 @@ export const useUpdater = create<Updater>()((set, get) => ({
     set({ phase: "working", progress: 0, dismissed: false });
     const unlisten = await listen<number>("update-progress", (ev) => set({ progress: ev.payload }));
     try {
-      await invoke<string>("update_install", { beta: beta() });
+      await invoke<string>("update_install", { channel: channel() });
       set({ phase: "ready" });
     } catch (err) {
       reportError("update", err);
