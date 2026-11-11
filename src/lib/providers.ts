@@ -21,5 +21,10 @@ export const SESSION_KINDS: [SessionKind, string][] = [
   ["opencode-terminal", "OpenCode no terminal"],
 ];
 
-/** Model aliases Claude Code takes in `--model` and `/model`. */
-export const CLAUDE_MODELS = ["fable", "opus", "sonnet", "haiku"];
+/** Claude models offered by id, with the name Claude Code shows. Update when a model comes out. */
+export const CLAUDE_MODELS: [string, string][] = [
+  ["claude-opus-5-5", "Opus 5.5"],
+  ["claude-sonnet-5-5", "Sonnet 5.5"],
+  ["claude-haiku-5-5", "Haiku 5.5"],
+  ["claude-fable-5-2", "Fable 5.2"],
+];

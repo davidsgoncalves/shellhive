@@ -838,8 +838,10 @@ function GroupLaunchDialog({ groupId, onClose }: { groupId: string; onClose: () 
         <span>Modelo</span>
         <input list="group-models" placeholder="Padrão do Claude" value={model} onChange={(e) => setModel(e.target.value)} />
         <datalist id="group-models">
-          {MODELS.map((m) => (
-            <option key={m} value={m} />
+          {MODELS.map(([id, label]) => (
+            <option key={id} value={id}>
+              {label}
+            </option>
           ))}
         </datalist>
       </label>
