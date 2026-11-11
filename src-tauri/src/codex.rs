@@ -466,7 +466,12 @@ fn start(app: &AppHandle, tab_id: String, cwd: String, thread_id: Option<String>
         Some(id) => {
             let mut p = params.clone();
             p["threadId"] = json!(id);
-            s.request("thread/resume", p)
+            match s.request("thread/resume", p) {
+                // Codex saves a thread with its first message; one that never
+                // got any has nothing to resume, so the tab starts a new one.
+                Err(e) if e.contains("no rollout found") => s.request("thread/start", params),
+                other => other,
+            }
         }
         None => s.request("thread/start", params),
     }

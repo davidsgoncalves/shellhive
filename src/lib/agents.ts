@@ -86,9 +86,10 @@ async function startAgent(tabId: string): Promise<void> {
     const now = useStore.getState().tabs.find((t) => t.id === tabId);
     if (now && provider === "opencode" && now.view !== "chat") void openAgentTerminal(now);
   } catch (err) {
-    started.delete(tabId);
+    // Stays marked as started, so it is not retried on every change of the
+    // store; it is tried again when the tab wakes or is reopened.
     const text = `O ${PROVIDER_NAMES[provider]} não abriu: ${String(err)}`;
-    pushEntries(tabId, [{ kind: "error", id: `start:${Date.now()}`, text }]);
+    pushEntries(tabId, [{ kind: "error", id: "start", text }]);
   }
 }
 
