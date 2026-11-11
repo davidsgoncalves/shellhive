@@ -168,6 +168,51 @@ fn entry(kind: &'static str, id: String, text: String) -> ChatEntry {
     ChatEntry { kind, id, text, tool: None, error: false }
 }
 
+/// What an agent adapter reports once its session is up.
+#[derive(serde::Serialize)]
+pub struct StartInfo {
+    pub session_id: String,
+    pub model: String,
+    pub models: Vec<String>,
+}
+
+#[derive(Clone, serde::Serialize)]
+struct EntriesEvent {
+    tab_id: String,
+    entries: Vec<ChatEntry>,
+}
+
+#[derive(Clone, serde::Serialize)]
+struct UsageEvent {
+    tab_id: String,
+    provider: &'static str,
+    limits: serde_json::Value,
+}
+
+/// Chat entries of an agent that reports them itself (Codex, OpenCode).
+pub fn emit_entries(app: &tauri::AppHandle, tab_id: &str, entries: Vec<ChatEntry>) {
+    use tauri::Emitter;
+    if !entries.is_empty() {
+        let _ = app.emit("agent-entries", EntriesEvent { tab_id: tab_id.to_string(), entries });
+    }
+}
+
+/// Usage an agent reports: rate limits for Codex, cost for OpenCode.
+pub fn emit_usage(app: &tauri::AppHandle, tab_id: &str, provider: &'static str, limits: serde_json::Value) {
+    use tauri::Emitter;
+    let _ = app.emit("agent-usage", UsageEvent { tab_id: tab_id.to_string(), provider, limits });
+}
+
+/// A hook event made up for an agent without Claude's hooks, so tab state,
+/// the queue and notifications follow it the same way.
+pub fn agent_hook(app: &tauri::AppHandle, tab_id: &str, provider: &str, name: &str, extra: serde_json::Value) {
+    let mut payload = serde_json::json!({ "hook_event_name": name, "provider": provider });
+    if let (Some(p), Some(e)) = (payload.as_object_mut(), extra.as_object()) {
+        p.extend(e.clone());
+    }
+    crate::hooks::emit_hook(app, Some(tab_id.to_string()), payload);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

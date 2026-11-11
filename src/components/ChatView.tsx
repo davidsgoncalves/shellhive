@@ -3,7 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { useStore } from "../lib/store";
 import { terminals } from "../lib/terminals";
 import { sendMessage } from "../lib/typing";
-import { useAgentEntries } from "../lib/codex";
+import { useAgentEntries } from "../lib/agents";
+import { agentCommand, PROVIDER_NAMES } from "../lib/providers";
 import type { ChatEntry as Entry, Tab } from "../lib/types";
 
 /** How often a session's transcript is read for new entries. */
@@ -121,18 +122,18 @@ interface Props {
 /**
  * A tab's agent session as a chat. Claude keeps running in the tab's terminal
  * underneath: messages are typed into it and the conversation is read back
- * from the session's transcript. Codex runs in its app-server, which reports
- * the conversation and takes the messages.
+ * from the session's transcript. Codex and OpenCode run in a process of
+ * their own, which reports the conversation and takes the messages.
  */
 export function ChatView({ tab, rect }: Props) {
   const setTabView = useStore((s) => s.setTabView);
   const asking = useStore((s) => s.questions.some((q) => q.tab_id === tab.id));
-  const codex = tab.provider === "codex";
-  const transcript = useTranscript(codex ? null : tab.transcriptPath);
-  const codexEntries = useAgentEntries((s) => s.byTab[tab.id]);
-  const entries = codex ? (codexEntries ?? []) : transcript.entries;
-  const clipped = !codex && transcript.clipped;
-  const agent = codex ? "Codex" : "Claude";
+  const provider = tab.provider;
+  const transcript = useTranscript(provider ? null : tab.transcriptPath);
+  const agentEntries = useAgentEntries((s) => s.byTab[tab.id]);
+  const entries = provider ? (agentEntries ?? []) : transcript.entries;
+  const clipped = !provider && transcript.clipped;
+  const agent = provider ? PROVIDER_NAMES[provider] : "Claude";
   const items = useMemo(() => itemsOf(entries), [entries]);
   const [draft, setDraft] = useState("");
   const listRef = useRef<HTMLOListElement>(null);
@@ -152,7 +153,7 @@ export function ChatView({ tab, rect }: Props) {
     const text = draft.trim();
     if (!text || !claudeRunning) return;
     setDraft("");
-    if (codex) void invoke("codex_send", { tabId: tab.id, text }).catch(() => {});
+    if (provider) void invoke(agentCommand(provider, "send"), { tabId: tab.id, text, model: tab.agentModel ?? null }).catch(() => {});
     else void sendMessage(tab.id, text);
   };
 
@@ -165,7 +166,7 @@ export function ChatView({ tab, rect }: Props) {
     <div className="chat-view" style={rect}>
       <header className="chat-head">
         <h2>{tab.title}</h2>
-        {!codex && (
+        {!provider && (
           <button className="ghost auto" onClick={toTerminal} title="Mostrar o terminal desta aba">
             Ver terminal
           </button>
@@ -175,10 +176,10 @@ export function ChatView({ tab, rect }: Props) {
         {clipped && <li className="chat-note">O começo desta sessão ficou de fora. Ele continua no terminal.</li>}
         {items.length === 0 && (
           <li className="chat-note">
-            {codex
+            {provider
               ? claudeRunning
-                ? "Mande a primeira mensagem para o Codex."
-                : "Abrindo o Codex…"
+                ? `Mande a primeira mensagem para o ${agent}.`
+                : `Abrindo o ${agent}…`
               : tab.transcriptPath
                 ? "A conversa aparece aqui conforme o Claude grava."
                 : "Nenhuma sessão do Claude nesta aba ainda."}
@@ -198,7 +199,7 @@ export function ChatView({ tab, rect }: Props) {
         )}
         {working && <li className="chat-note working">Trabalhando…</li>}
       </ol>
-      {asking && !codex && (
+      {asking && !provider && (
         <div className="chat-ask">
           O Claude fez uma pergunta com opções. Responda no terminal.
           <button className="ghost auto" onClick={toTerminal}>
@@ -223,8 +224,8 @@ export function ChatView({ tab, rect }: Props) {
         />
         {working ? (
           <button className="ghost danger auto" onClick={() =>
-              void (codex
-                ? invoke("codex_interrupt", { tabId: tab.id })
+              void (provider
+                ? invoke(agentCommand(provider, "interrupt"), { tabId: tab.id })
                 : invoke("pty_write", { id: tab.id, data: "\x1b" })
               ).catch(() => {})
             }

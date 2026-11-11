@@ -20,13 +20,13 @@ export interface Tab {
   /** Shown as a chat over its terminal; the session keeps running there. */
   view?: "chat";
   /** The agent this tab runs when it is not Claude. */
-  provider?: "codex";
-  /** Codex thread of the tab, resumed when the tab wakes. */
-  codexThreadId?: string;
-  codexModel?: string;
+  provider?: "codex" | "opencode";
+  /** Session of that agent (a Codex thread, an OpenCode session), resumed when the tab wakes. */
+  agentSessionId?: string;
+  agentModel?: string;
 }
 
-/** One line of a session's chat, from Claude's transcript or a Codex app-server. */
+/** One line of a session's chat, from Claude's transcript or an agent's own reports. */
 export interface ChatEntry {
   kind: "user" | "text" | "step" | "result" | "error";
   id: string;

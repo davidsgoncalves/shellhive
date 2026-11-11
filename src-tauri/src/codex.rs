@@ -13,10 +13,10 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use serde_json::{json, Value};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Manager};
 
-use crate::chat::ChatEntry;
-use crate::hooks::{emit_hook, now_ms, raise_permission, PORT, TOKEN_HEADER};
+use crate::chat::{agent_hook, emit_entries, emit_usage, ChatEntry, StartInfo};
+use crate::hooks::{now_ms, raise_permission, PORT, TOKEN_HEADER};
 use crate::permissions::Decision;
 use crate::sessions::truncate;
 
@@ -66,42 +66,12 @@ impl Session {
     }
 }
 
-#[derive(Clone, serde::Serialize)]
-struct EntriesEvent {
-    tab_id: String,
-    entries: Vec<ChatEntry>,
-}
-
-#[derive(Clone, serde::Serialize)]
-struct UsageEvent {
-    tab_id: String,
-    provider: &'static str,
-    limits: Value,
-}
-
-#[derive(serde::Serialize)]
-pub struct StartInfo {
-    pub thread_id: String,
-    pub model: String,
-    pub models: Vec<String>,
-}
-
-fn emit_entries(app: &AppHandle, tab_id: &str, entries: Vec<ChatEntry>) {
-    if !entries.is_empty() {
-        let _ = app.emit("agent-entries", EntriesEvent { tab_id: tab_id.to_string(), entries });
-    }
-}
-
 fn entry(kind: &'static str, id: &str, text: String) -> ChatEntry {
     ChatEntry { kind, id: id.to_string(), text, tool: None, error: false }
 }
 
 fn hook(app: &AppHandle, tab_id: &str, name: &str, extra: Value) {
-    let mut payload = json!({ "hook_event_name": name, "provider": "codex" });
-    if let (Some(p), Some(e)) = (payload.as_object_mut(), extra.as_object()) {
-        p.extend(e.clone());
-    }
-    emit_hook(app, Some(tab_id.to_string()), payload);
+    agent_hook(app, tab_id, "codex", name, extra);
 }
 
 /// Text of a user message item: its text inputs joined.
@@ -274,8 +244,7 @@ fn on_notification(app: &AppHandle, s: &Session, method: &str, params: &Value) {
             hook(app, tab, "Stop", json!({}));
         }
         "account/rateLimits/updated" => {
-            let limits = params.get("rateLimits").cloned().unwrap_or_default();
-            let _ = app.emit("agent-usage", UsageEvent { tab_id: tab.to_string(), provider: "codex", limits });
+            emit_usage(app, tab, "codex", params.get("rateLimits").cloned().unwrap_or_default());
         }
         _ => {}
     }
@@ -399,17 +368,17 @@ fn history_entries(thread: &Value) -> Vec<ChatEntry> {
     out
 }
 
-/// Starts the tab's Codex: a new thread, or `thread_id` resumed. Uses `model`
+/// Starts the tab's Codex: a new thread, or the thread `session_id` resumed. Uses `model`
 /// when given and accepted, else the app-server's default model.
 #[tauri::command]
 pub async fn codex_start(
     app: AppHandle,
     tab_id: String,
     cwd: String,
-    thread_id: Option<String>,
+    session_id: Option<String>,
     model: Option<String>,
 ) -> Result<StartInfo, String> {
-    tauri::async_runtime::spawn_blocking(move || start(&app, tab_id, cwd, thread_id, model))
+    tauri::async_runtime::spawn_blocking(move || start(&app, tab_id, cwd, session_id, model))
         .await
         .map_err(|e| e.to_string())?
 }
@@ -508,7 +477,7 @@ fn start(app: &AppHandle, tab_id: String, cwd: String, thread_id: Option<String>
     *s.thread_id.lock().unwrap() = Some(id.clone());
     emit_entries(app, &tab_id, history_entries(&thread));
     hook(app, &tab_id, "SessionStart", json!({ "session_id": id }));
-    Ok(StartInfo { thread_id: id, model, models: names })
+    Ok(StartInfo { session_id: id, model, models: names })
 }
 
 /// Sends a message: a new turn, or into the running turn when there is one.

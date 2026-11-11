@@ -3923,6 +3923,7 @@ dependencies = [
  "tauri-plugin-process",
  "tauri-plugin-updater",
  "tiny_http",
+ "ureq",
 ]
 
 [[package]]

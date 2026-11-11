@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { fileStorage } from "./persist";
+import { PROVIDER_NAMES } from "./providers";
 import { markPendingFork, markPendingPrompt, markPendingResume } from "./restored";
 import { sameRule } from "./permRules";
 import type { MiniBounds } from "./mini";
@@ -569,7 +570,7 @@ export const useStore = create<Store>()(
           transcriptPath: null,
           claudeTitle: null,
           ...(opts.beeCreator ? { beeCreator: true } : {}),
-          // A Codex tab has no Claude in its terminal; its chat is the session.
+          // An agent tab other than Claude has no terminal; its chat is the session.
           ...(opts.provider ? { provider: opts.provider, view: "chat" as const } : {}),
         };
         // A background tab runs without taking a pane or the focus.
@@ -1132,13 +1133,13 @@ export function openSessionInGroup(groupId: string): void {
   s.openModal({ kind: "pickFolder", groupId });
 }
 
-/** A new Codex chat in a group, in the group's base folder or the default one. */
-export function newCodexTab(groupId: string): void {
+/** A new agent chat in a group, in the group's base folder or the default one. */
+export function newAgentTab(groupId: string, provider: NonNullable<Tab["provider"]>): void {
   const s = useStore.getState();
   const group = s.groups.find((g) => g.id === groupId);
   const wanted = group?.fixed ? s.defaultFolderId : (group?.folderId ?? s.defaultFolderId);
   const folder = wanted ? s.folders.find((f) => f.id === wanted) : undefined;
-  s.addTab(groupId, { cwd: folder?.path ?? null, title: "Codex", provider: "codex" });
+  s.addTab(groupId, { cwd: folder?.path ?? null, title: PROVIDER_NAMES[provider], provider });
 }
 
 /** A new tab in a group, started with the group's first prompt when it has one. */

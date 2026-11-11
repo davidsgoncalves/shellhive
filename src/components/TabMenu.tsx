@@ -70,7 +70,7 @@ export function TabMenu() {
           Copiar como uma linha<span className="muted">{ONE_LINE_COPY_LABEL}</span>
         </button>
       )}
-      {!isDetached && tab.state !== "dormant" && tab.provider !== "codex" && (
+      {!isDetached && tab.state !== "dormant" && !tab.provider && (
         <button
           className="menu-item"
           onClick={() => {
@@ -143,7 +143,7 @@ export function TabMenu() {
             Abrir painel: {p.panel!.title}
           </button>
         ))}
-      {tab.claudeSessionId && tab.provider !== "codex" && (
+      {tab.claudeSessionId && !tab.provider && (
         <button
           className="menu-item"
           title="Abre uma cópia desta sessão numa aba nova; a original continua aqui"
@@ -155,7 +155,7 @@ export function TabMenu() {
           Duplicar sessão
         </button>
       )}
-      {tab.claudeSessionId && tab.provider !== "codex" && (
+      {tab.claudeSessionId && !tab.provider && (
         <button
           className="menu-item"
           onClick={() => {
