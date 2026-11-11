@@ -3,18 +3,11 @@ import { invoke } from "@tauri-apps/api/core";
 import { useStore } from "../lib/store";
 import { terminals } from "../lib/terminals";
 import { sendMessage } from "../lib/typing";
-import type { Tab } from "../lib/types";
+import { useAgentEntries } from "../lib/codex";
+import type { ChatEntry as Entry, Tab } from "../lib/types";
 
 /** How often a session's transcript is read for new entries. */
 const READ_MS = 700;
-
-interface Entry {
-  kind: "user" | "text" | "step" | "result";
-  id: string;
-  text: string;
-  tool?: string;
-  error?: boolean;
-}
 
 interface Chunk {
   entries: Entry[];
@@ -32,7 +25,7 @@ interface Step {
 }
 
 type Item =
-  | { kind: "user" | "text"; id: string; text: string }
+  | { kind: "user" | "text" | "error"; id: string; text: string }
   | { kind: "steps"; id: string; steps: Step[] };
 
 /** Groups the steps between two messages into one row, with each result under its step. */
@@ -126,14 +119,20 @@ interface Props {
 }
 
 /**
- * A tab's Claude session as a chat. Claude keeps running in the tab's terminal
- * underneath; messages are typed into it and the conversation is read back
- * from the session's transcript.
+ * A tab's agent session as a chat. Claude keeps running in the tab's terminal
+ * underneath: messages are typed into it and the conversation is read back
+ * from the session's transcript. Codex runs in its app-server, which reports
+ * the conversation and takes the messages.
  */
 export function ChatView({ tab, rect }: Props) {
   const setTabView = useStore((s) => s.setTabView);
   const asking = useStore((s) => s.questions.some((q) => q.tab_id === tab.id));
-  const { entries, clipped } = useTranscript(tab.transcriptPath);
+  const codex = tab.provider === "codex";
+  const transcript = useTranscript(codex ? null : tab.transcriptPath);
+  const codexEntries = useAgentEntries((s) => s.byTab[tab.id]);
+  const entries = codex ? (codexEntries ?? []) : transcript.entries;
+  const clipped = !codex && transcript.clipped;
+  const agent = codex ? "Codex" : "Claude";
   const items = useMemo(() => itemsOf(entries), [entries]);
   const [draft, setDraft] = useState("");
   const listRef = useRef<HTMLOListElement>(null);
@@ -153,7 +152,8 @@ export function ChatView({ tab, rect }: Props) {
     const text = draft.trim();
     if (!text || !claudeRunning) return;
     setDraft("");
-    void sendMessage(tab.id, text);
+    if (codex) void invoke("codex_send", { tabId: tab.id, text }).catch(() => {});
+    else void sendMessage(tab.id, text);
   };
 
   const toTerminal = () => {
@@ -165,29 +165,40 @@ export function ChatView({ tab, rect }: Props) {
     <div className="chat-view" style={rect}>
       <header className="chat-head">
         <h2>{tab.title}</h2>
-        <button className="ghost auto" onClick={toTerminal} title="Mostrar o terminal desta aba">
-          Ver terminal
-        </button>
+        {!codex && (
+          <button className="ghost auto" onClick={toTerminal} title="Mostrar o terminal desta aba">
+            Ver terminal
+          </button>
+        )}
       </header>
       <ol className="chat-list" ref={listRef}>
         {clipped && <li className="chat-note">O começo desta sessão ficou de fora. Ele continua no terminal.</li>}
         {items.length === 0 && (
           <li className="chat-note">
-            {tab.transcriptPath ? "A conversa aparece aqui conforme o Claude grava." : "Nenhuma sessão do Claude nesta aba ainda."}
+            {codex
+              ? claudeRunning
+                ? "Mande a primeira mensagem para o Codex."
+                : "Abrindo o Codex…"
+              : tab.transcriptPath
+                ? "A conversa aparece aqui conforme o Claude grava."
+                : "Nenhuma sessão do Claude nesta aba ainda."}
           </li>
         )}
         {items.map((it, i) =>
           it.kind === "steps" ? (
             <StepsRow key={it.id} steps={it.steps} running={working && i === items.length - 1} />
           ) : (
-            <li key={it.id} className={`chat-msg ${it.kind === "user" ? "from-user" : "from-agent"}`}>
+            <li
+              key={`${it.kind}:${it.id}`}
+              className={it.kind === "error" ? "chat-error" : `chat-msg ${it.kind === "user" ? "from-user" : "from-agent"}`}
+            >
               {it.text}
             </li>
           ),
         )}
         {working && <li className="chat-note working">Trabalhando…</li>}
       </ol>
-      {asking && (
+      {asking && !codex && (
         <div className="chat-ask">
           O Claude fez uma pergunta com opções. Responda no terminal.
           <button className="ghost auto" onClick={toTerminal}>
@@ -200,7 +211,7 @@ export function ChatView({ tab, rect }: Props) {
           ref={inputRef}
           value={draft}
           rows={2}
-          placeholder={claudeRunning ? "Mensagem para o Claude" : "O Claude não está rodando nesta aba"}
+          placeholder={claudeRunning ? `Mensagem para o ${agent}` : `O ${agent} não está rodando nesta aba`}
           disabled={!claudeRunning}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
@@ -211,7 +222,14 @@ export function ChatView({ tab, rect }: Props) {
           }}
         />
         {working ? (
-          <button className="ghost danger auto" onClick={() => void invoke("pty_write", { id: tab.id, data: "\x1b" })} title="Interrompe o Claude (Esc)">
+          <button className="ghost danger auto" onClick={() =>
+              void (codex
+                ? invoke("codex_interrupt", { tabId: tab.id })
+                : invoke("pty_write", { id: tab.id, data: "\x1b" })
+              ).catch(() => {})
+            }
+            title={`Interrompe o ${agent}`}
+          >
             Parar
           </button>
         ) : (

@@ -281,6 +281,7 @@ interface Store {
       customTitle?: boolean;
       background?: boolean;
       beeCreator?: boolean;
+      provider?: Tab["provider"];
     },
   ) => string;
   closeTab: (id: string) => void;
@@ -568,6 +569,8 @@ export const useStore = create<Store>()(
           transcriptPath: null,
           claudeTitle: null,
           ...(opts.beeCreator ? { beeCreator: true } : {}),
+          // A Codex tab has no Claude in its terminal; its chat is the session.
+          ...(opts.provider ? { provider: opts.provider, view: "chat" as const } : {}),
         };
         // A background tab runs without taking a pane or the focus.
         if (opts.background) {
@@ -1127,6 +1130,15 @@ export function openSessionInGroup(groupId: string): void {
     return;
   }
   s.openModal({ kind: "pickFolder", groupId });
+}
+
+/** A new Codex chat in a group, in the group's base folder or the default one. */
+export function newCodexTab(groupId: string): void {
+  const s = useStore.getState();
+  const group = s.groups.find((g) => g.id === groupId);
+  const wanted = group?.fixed ? s.defaultFolderId : (group?.folderId ?? s.defaultFolderId);
+  const folder = wanted ? s.folders.find((f) => f.id === wanted) : undefined;
+  s.addTab(groupId, { cwd: folder?.path ?? null, title: "Codex", provider: "codex" });
 }
 
 /** A new tab in a group, started with the group's first prompt when it has one. */

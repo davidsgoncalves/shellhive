@@ -1,5 +1,6 @@
 mod bees;
 mod chat;
+mod codex;
 mod connections;
 mod db;
 mod errors;
@@ -35,6 +36,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .manage(pty::PtyState::default())
         .manage(permissions::Permissions::default())
+        .manage(codex::CodexSessions::default())
         .manage(plugins::editor::Editors::default())
         .setup(|app| {
             // Before anything opens the data folder.
@@ -70,6 +72,10 @@ pub fn run() {
             sessions::sessions_search,
             sessions::session_titles,
             chat::chat_read,
+            codex::codex_start,
+            codex::codex_send,
+            codex::codex_interrupt,
+            codex::codex_stop,
             db::state_load,
             db::state_save,
             db::metrics_summary,

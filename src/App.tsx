@@ -35,6 +35,7 @@ import { PluginsMain } from "./components/PluginsScreen";
 import { CacheCard } from "./components/CacheCard";
 import { SubagentView } from "./components/SubagentView";
 import { ChatView } from "./components/ChatView";
+import { watchCodexTabs } from "./lib/codex";
 import { CACHE_CARD_HEIGHT, cacheCardOf, refreshCache, refreshCacheAfterTurn, useCache } from "./lib/cache";
 import { applyLook, shareLook } from "./lib/theme";
 import { defaultGroupId, duplicateSession, ensureUngrouped, onScreen, openSession, openSessionInGroup, useStore } from "./lib/store";
@@ -714,6 +715,7 @@ function App() {
   usePerfHistory();
   useTitlePoll();
   useSessionGroups();
+  useEffect(() => watchCodexTabs(), []);
   useQueuedCommands();
   useWatchdog();
   useCacheOnLoad();

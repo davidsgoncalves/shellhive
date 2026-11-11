@@ -15,6 +15,14 @@ pub enum Decision {
 }
 
 impl Decision {
+    pub fn label(&self) -> &'static str {
+        match self {
+            Decision::Allow => "allow",
+            Decision::Deny => "deny",
+            Decision::Ask => "ask",
+        }
+    }
+
     /// The JSON Claude Code expects on the hook's stdout.
     pub fn to_hook_output(&self, reason: &str) -> serde_json::Value {
         let decision = match self {
@@ -51,11 +59,11 @@ impl Permissions {
         lock.lock().unwrap().waiting.insert(id.to_string(), ());
     }
 
-    /// Blocks until the app decides or the timeout elapses.
-    pub fn wait(&self, id: &str) -> Option<(Decision, String)> {
+    /// Blocks until the app decides or `timeout` elapses.
+    pub fn wait_for(&self, id: &str, timeout: Duration) -> Option<(Decision, String)> {
         let (lock, cv) = &*self.inner;
         let mut guard = lock.lock().unwrap();
-        let deadline = std::time::Instant::now() + DECISION_TIMEOUT;
+        let deadline = std::time::Instant::now() + timeout;
         loop {
             if let Some(answer) = guard.answers.remove(id) {
                 guard.waiting.remove(id);

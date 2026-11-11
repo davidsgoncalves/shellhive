@@ -12,9 +12,9 @@ const FIRST_READ_BYTES: u64 = 4 * 1024 * 1024;
 /// How much of a step's input and result the chat keeps.
 const STEP_TEXT: usize = 400;
 
-#[derive(Debug, serde::Serialize, PartialEq)]
+#[derive(Clone, Debug, serde::Serialize, PartialEq)]
 pub struct ChatEntry {
-    /// "user", "text", "step" or "result".
+    /// "user", "text", "step", "result" or "error".
     pub kind: &'static str,
     /// Unique within the session. A result carries the id of its step.
     pub id: String,

@@ -232,6 +232,66 @@ pub fn start_server(app: AppHandle) {
     });
 }
 
+/// Puts a permission request in the app's queue and waits for the decision.
+/// Claude's hook and the Codex adapter both ask through here, so the queue,
+/// the cards over the tab and the group rules work the same for both.
+/// `payload` follows Claude Code's shape: `tool_name` and `tool_input`.
+pub fn raise_permission(
+    app: &AppHandle,
+    tab_id: Option<String>,
+    payload: serde_json::Value,
+    received_at: u128,
+    wait: std::time::Duration,
+) -> Option<(crate::permissions::Decision, String)> {
+    let id = next_id();
+    if let Some(db) = app.try_state::<Db>() {
+        let conn = db.0.lock().unwrap();
+        crate::db::record_permission_raised(&conn, &id, tab_id.as_deref(), &payload, received_at as i64);
+    }
+    let permissions = app.state::<Permissions>().inner().clone();
+    permissions.register(&id);
+    let _ = app.emit(
+        "permission-request",
+        PermissionRequestEvent {
+            id: id.clone(),
+            received_at,
+            tab_id: tab_id.clone(),
+            payload: payload.clone(),
+            expires_in: wait.as_secs(),
+        },
+    );
+    eprintln!(
+        "[permission] tab={} tool={} id={}",
+        tab_id.as_deref().unwrap_or("-"),
+        payload.get("tool_name").and_then(|v| v.as_str()).unwrap_or("?"),
+        id
+    );
+    let answer = permissions.wait_for(&id, wait);
+    let label = answer.as_ref().map(|(d, _)| d.label().to_string());
+    if let Some(db) = app.try_state::<Db>() {
+        let conn = db.0.lock().unwrap();
+        crate::db::record_permission_decided(&conn, &id, label.as_deref());
+    }
+    let _ = app.emit("permission-resolved", PermissionResolvedEvent { id, decision: label });
+    answer
+}
+
+/// Hands an event to the app as if a Claude Code hook had sent it: tab state,
+/// notifications, plugins and worker bee triggers all read these.
+pub fn emit_hook(app: &AppHandle, tab_id: Option<String>, payload: serde_json::Value) {
+    let received_at = now_millis();
+    if let Some(db) = app.try_state::<Db>() {
+        let conn = db.0.lock().unwrap();
+        crate::db::record_event(&conn, tab_id.as_deref(), &payload, received_at as i64);
+    }
+    crate::plugins::events::record(app, tab_id.clone(), received_at as u64, &payload);
+    let _ = app.emit("hook-event", Envelope { received_at, tab_id, payload });
+}
+
+pub fn now_ms() -> u128 {
+    now_millis()
+}
+
 fn handle(app: AppHandle, mut req: tiny_http::Request) {
     let header = |name: &'static str| {
         req.headers()
@@ -261,6 +321,19 @@ fn handle(app: AppHandle, mut req: tiny_http::Request) {
     let received_at = now_millis();
     let url = req.url().to_string();
 
+    // Anything else, such as the OAuth discovery Codex tries before using an
+    // MCP server, is not for this server; it must not become a hook event.
+    const ROUTES: &[&str] = &["/mcp", "/permission", "/prompt", "/session-start", "/statusline", "/hook"];
+    let path = url.split('?').next().unwrap_or("");
+    if !ROUTES.contains(&path) {
+        let _ = req.respond(Response::empty(404));
+        return;
+    }
+    // MCP clients may open a GET stream for server messages; this server sends none.
+    if path == "/mcp" && *req.method() != tiny_http::Method::Post {
+        let _ = req.respond(Response::empty(405));
+        return;
+    }
     if url.starts_with("/mcp") {
         let reply = serde_json::from_str::<serde_json::Value>(&body)
             .ok()
@@ -284,63 +357,12 @@ fn handle(app: AppHandle, mut req: tiny_http::Request) {
             let _ = req.respond(json_response(&serde_json::json!({})));
             return;
         }
-        let id = next_id();
-        if let Some(db) = app.try_state::<Db>() {
-            let conn = db.0.lock().unwrap();
-            crate::db::record_permission_raised(
-                &conn,
-                &id,
-                tab_id.as_deref(),
-                &payload,
-                received_at as i64,
-            );
-        }
-        let permissions = app.state::<Permissions>().inner().clone();
-        permissions.register(&id);
-        let _ = app.emit(
-            "permission-request",
-            PermissionRequestEvent {
-                id: id.clone(),
-                received_at,
-                tab_id: tab_id.clone(),
-                payload: payload.clone(),
-                expires_in: DECISION_TIMEOUT.as_secs(),
-            },
-        );
-        eprintln!(
-            "[permission] tab={} tool={} id={}",
-            tab_id.as_deref().unwrap_or("-"),
-            payload
-                .get("tool_name")
-                .and_then(|v| v.as_str())
-                .unwrap_or("?"),
-            id
-        );
-
-        let answer = permissions.wait(&id);
-        let (response, label) = match &answer {
-            Some((decision, reason)) => {
-                let json = decision.to_hook_output(reason);
-                let label = json["hookSpecificOutput"]["permissionDecision"]
-                    .as_str()
-                    .unwrap_or("?")
-                    .to_string();
-                (json, Some(label))
-            }
+        let answer = raise_permission(&app, tab_id.clone(), payload.clone(), received_at, DECISION_TIMEOUT);
+        let response = match &answer {
+            Some((decision, reason)) => decision.to_hook_output(reason),
             // No answer in time: stay silent so Claude Code prompts in the terminal.
-            None => (serde_json::json!({}), None),
+            None => serde_json::json!({}),
         };
-        if let Some(db) = app.try_state::<Db>() {
-            let conn = db.0.lock().unwrap();
-            crate::db::record_permission_decided(&conn, &id, label.as_deref());
-        }
-        let _ = app.emit(
-            "permission-resolved",
-            PermissionResolvedEvent {
-                id,
-                decision: label,
-            },
-        );
         let _ = req.respond(json_response(&response));
         return;
     }

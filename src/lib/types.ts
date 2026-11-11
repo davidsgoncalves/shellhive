@@ -19,6 +19,20 @@ export interface Tab {
   beeCreator?: boolean;
   /** Shown as a chat over its terminal; the session keeps running there. */
   view?: "chat";
+  /** The agent this tab runs when it is not Claude. */
+  provider?: "codex";
+  /** Codex thread of the tab, resumed when the tab wakes. */
+  codexThreadId?: string;
+  codexModel?: string;
+}
+
+/** One line of a session's chat, from Claude's transcript or a Codex app-server. */
+export interface ChatEntry {
+  kind: "user" | "text" | "step" | "result" | "error";
+  id: string;
+  text: string;
+  tool?: string;
+  error?: boolean;
 }
 
 export interface Group {

@@ -1657,3 +1657,4 @@ button.link.danger { color: var(--danger); }
   background: var(--panel); color: var(--fg); font: inherit; font-size: 13px; line-height: 1.4;
 }
 .chat-composer textarea:focus { outline: none; border-color: var(--accent); }
+.chat-error { align-self: flex-start; max-width: min(720px, 85%); padding: 8px 12px; border-radius: 8px; font-size: 12px; white-space: pre-wrap; color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, var(--panel-2)); user-select: text; }
