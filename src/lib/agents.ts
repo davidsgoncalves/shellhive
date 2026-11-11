@@ -4,7 +4,7 @@ import { create } from "zustand";
 import { useStore } from "./store";
 import { sendMessage } from "./typing";
 import { agentCommand, PROVIDER_NAMES, type Provider } from "./providers";
-import type { ChatEntry, Tab } from "./types";
+import type { ChatEntry, RateLimits, RateWindow, Tab } from "./types";
 
 interface StartInfo {
   session_id: string;
@@ -32,6 +32,36 @@ export function pushEntries(tabId: string, entries: ChatEntry[]): void {
 }
 
 /** Models each agent tab can switch to. */
+/** Usage the other agents report: Codex's limits, in Claude's shape, and each OpenCode tab's cost. */
+export const useAgentUsage = create<{ codex: RateLimits | null; opencodeCost: Record<string, number> }>(() => ({
+  codex: null,
+  opencodeCost: {},
+}));
+
+interface CodexWindow {
+  usedPercent?: number;
+  resetsAt?: number;
+}
+
+function codexWindow(w: CodexWindow | null | undefined): RateWindow | undefined {
+  if (!w || typeof w.usedPercent !== "number") return undefined;
+  return { used_percentage: w.usedPercent, resets_at: w.resetsAt ?? 0 };
+}
+
+function onUsage(tabId: string, provider: string, limits: Record<string, unknown>): void {
+  if (provider === "codex") {
+    const primary = codexWindow(limits.primary as CodexWindow);
+    const secondary = codexWindow(limits.secondary as CodexWindow);
+    if (!primary && !secondary) return;
+    useAgentUsage.setState({
+      codex: { five_hour: primary, seven_day: secondary, receivedAt: Date.now(), fromTabId: tabId },
+    });
+  } else if (provider === "opencode" && typeof limits.cost === "number") {
+    const cost = limits.cost;
+    useAgentUsage.setState((s) => ({ opencodeCost: { ...s.opencodeCost, [tabId]: cost } }));
+  }
+}
+
 export const useAgentModels = create<{ byTab: Record<string, string[]> }>(() => ({ byTab: {} }));
 
 /** Tabs whose agent process was started, with its provider. */
@@ -98,9 +128,13 @@ export function watchAgentTabs(): () => void {
   const sub = listen<{ tab_id: string; entries: ChatEntry[] }>("agent-entries", (ev) =>
     pushEntries(ev.payload.tab_id, ev.payload.entries),
   );
+  const usage = listen<{ tab_id: string; provider: string; limits: Record<string, unknown> }>("agent-usage", (ev) =>
+    onUsage(ev.payload.tab_id, ev.payload.provider, ev.payload.limits ?? {}),
+  );
   return () => {
     unsub();
     void sub.then((u) => u());
+    void usage.then((u) => u());
   };
 }
 

@@ -9,6 +9,7 @@ import { shortcutLabel } from "../lib/shortcuts";
 import { PLUGINS } from "../lib/plugins";
 import { ColumnResizer } from "./ColumnResizer";
 import { RailIcon } from "./RailIcon";
+import { UsageRings } from "./UsageRings";
 import { BeePanel, NewBeeButton, useBeeWaiting } from "./WorkerBee";
 import { PluginsPanel } from "./PluginsScreen";
 
@@ -178,6 +179,7 @@ export function SidePanel() {
             {t.badge ? <span className="badge">{t.badge}</span> : null}
           </button>
         ))}
+        <UsageRings />
       </nav>
 
       {panelOpen && (

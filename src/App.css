@@ -63,18 +63,7 @@ html, body, #root {
 }
 .topbar .brand { font-weight: 600; letter-spacing: .02em; }
 .topbar .muted { color: var(--muted); }
-.limits { display: flex; gap: 14px; align-items: center; }
-.limits.stale { opacity: .55; }
-.meter { display: flex; align-items: center; gap: 6px; }
-.meter-label { color: var(--muted); font-size: 11px; width: 18px; text-align: right; }
-.meter-bar { width: 90px; height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; display: inline-block; }
-.meter-bar > span { display: block; height: 100%; background: var(--c-waiting); transition: width .3s ease; }
-.meter.ok .meter-bar > span { background: var(--success); }
-.meter.warn .meter-bar > span { background: var(--c-permission); }
-.meter.crit .meter-bar > span { background: var(--danger); }
-.meter-value { font-variant-numeric: tabular-nums; min-width: 30px; }
-.meter-reset { color: var(--muted); font-size: 11px; }
-.meter.no-data .meter-value { color: var(--muted); }
+
 .counts { display: flex; align-items: center; gap: 10px; }
 .count-chip { display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; }
 .count-chip.zero { opacity: .35; }
@@ -115,6 +104,16 @@ html, body, #root {
 /* Where a dragged icon will land: it takes this icon's place. */
 .rail-btn.drop-target { box-shadow: inset 0 2px 0 var(--accent); }
 .activity-rail.drop-end { box-shadow: inset 0 -2px 0 var(--accent); }
+.usage-rings { margin-top: auto; display: flex; flex-direction: column; align-items: center; gap: 6px; padding-top: 8px; }
+.usage-ring { position: relative; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: default; }
+.usage-ring svg { position: absolute; inset: 0; }
+.usage-ring.stale { opacity: .55; }
+.usage-ring.cost { border: 1px solid var(--border); border-radius: 50%; width: 28px; height: 28px; }
+.ring-track { fill: none; stroke: var(--border); stroke-width: 3; }
+.ring-fill { fill: none; stroke-width: 3; stroke-linecap: round; stroke: var(--success, #3fb950); }
+.ring-fill.warn { stroke: var(--c-permission, #d29922); }
+.ring-fill.crit { stroke: var(--danger); }
+.ring-mark { font-size: 8px; font-weight: 700; color: var(--muted); letter-spacing: .02em; }
 .sessions-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 
 .sidebar-header {
@@ -201,7 +200,6 @@ button.ghost:disabled { opacity: .4; cursor: default; }
 .state-dormant .dot, .dot.state-dormant { background: var(--c-dormant); }
 .tab-row.state-dormant .tab-title { color: var(--muted); }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
-
 
 /* ---------- events panel ---------- */
 .actions { padding: 10px 12px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
@@ -467,7 +465,6 @@ button.star.on { color: var(--accent); }
   padding: 1px 4px; max-width: 70px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
-
 /* ---------- terminal border in the active group's color ---------- */
 /* Panes are absolutely placed so a terminal never remounts when the split
    changes, which would kill its shell. */
@@ -667,7 +664,6 @@ button.star.on { color: var(--accent); }
 .pick-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .pick-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pick-tag { font-size: 10px; color: var(--muted); }
-
 
 /* ---------- motion ---------- */
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
@@ -1009,16 +1005,6 @@ button.ghost.danger { border-color: var(--danger); color: var(--danger); }
 [data-layers] .icon-btn { border-radius: 999px; }
 [data-layers] .rail-btn.active { background: var(--selected); }
 
-/* Limits bar */
-[data-layers] .meter { background: rgba(255,255,255,.06); border-radius: 999px; padding: 5px 12px; }
-[data-layers] .meter-bar { width: 64px; height: 5px; background: rgba(255,255,255,.12); }
-[data-layers] .meter .meter-bar > span,
-[data-layers] .meter.ok .meter-bar > span {
-  background: linear-gradient(90deg, #9ecbff, #ffffff); border-radius: 3px; box-shadow: 0 0 8px rgba(158,203,255,.6);
-}
-[data-layers] .meter.warn .meter-bar > span { background: linear-gradient(90deg, var(--c-permission), #fff3cf); }
-[data-layers] .meter.crit .meter-bar > span { background: linear-gradient(90deg, var(--danger), #ffd0d4); }
-[data-layers] .meter-value { color: var(--fg); font-weight: 600; }
 [data-layers] .split-picker { background: rgba(0,0,0,.2); border-radius: 10px; padding: 2px; }
 [data-layers] .split-picker button { border-radius: 8px; }
 [data-layers] .split-picker button.on { background: rgba(255,255,255,.88); color: #0d1016; border-color: transparent; }
@@ -1189,8 +1175,6 @@ button.ghost.danger { border-color: var(--danger); color: var(--danger); }
   --glass-edge: inset 0 1px 0 #363b48;
   --glass-shadow: 0 10px 30px rgba(0,0,0,.25);
   --overlay: #262b38;
-  --meter-fill: linear-gradient(90deg, #9ecbff, #ffffff);
-  --meter-glow: 0 0 8px rgba(158,203,255,.6);
   /* Each layer: fill, border, top highlight, glow colour. */
   --top-fill: linear-gradient(90deg, #26345a, #21404a 55%, #2b2c4a);
   --top-border: #3a4a6e; --top-edge: #4a5c86; --top-glow: rgba(90,140,230,.45);
@@ -1207,8 +1191,6 @@ button.ghost.danger { border-color: var(--danger); color: var(--danger); }
   --panel: #2a1d17;
   --panel-2: #3a2a20;
   --border: #6e4a34;
-  --meter-fill: linear-gradient(90deg, #ff9a4d, #ffd6a8);
-  --meter-glow: 0 0 8px rgba(255,154,77,.6);
   --top-fill: linear-gradient(90deg, #4a2c1e, #3a3424 55%, #1d3a3e);
   --top-border: #6e4a34; --top-edge: #8a5e40; --top-glow: rgba(240,140,70,.45);
   --list-fill: linear-gradient(180deg, #4a2c1e, #3a2419);
@@ -1260,11 +1242,7 @@ button.ghost.danger { border-color: var(--danger); color: var(--danger); }
 :is([data-theme="glow"], [data-theme="glow-amber"]) .sidebar:not(.tint-none) .group:not(.fixed) {
   box-shadow: inset 3px 0 0 var(--group-color), inset 0 0 0 1px var(--border);
 }
-:is([data-theme="glow"], [data-theme="glow-amber"]) .meter { background: #262a36; }
-:is([data-theme="glow"], [data-theme="glow-amber"]) .meter .meter-bar > span,
-:is([data-theme="glow"], [data-theme="glow-amber"]) .meter.ok .meter-bar > span {
-  background: var(--meter-fill); box-shadow: var(--meter-glow);
-}
+
 :is([data-theme="glow"], [data-theme="glow-amber"]) .split-picker button.on { background: #e8ebf2; }
 :is([data-theme="glow"], [data-theme="glow-amber"]) .term-pane { box-shadow: 0 10px 30px rgba(0,0,0,.35), 0 0 0 1px #262a36; }
 :is([data-theme="glow"], [data-theme="glow-amber"]) .mini,
@@ -1351,7 +1329,6 @@ button.ghost.danger { border-color: var(--danger); color: var(--danger); }
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .plugin-status-chip:hover { border-color: var(--accent); }
-
 
 /* ---------- tour ---------- */
 .tour-backdrop {
@@ -1453,7 +1430,6 @@ button.link.danger { color: var(--danger); }
 .cache-card-head button { margin-left: auto; padding: 2px 8px; font-size: 11px; }
 .cache-card-text { margin: 0; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-
 /* ---------- Glow Claro ----------
    Glow's layers on a light backdrop: near-white solid plates with a 1px
    border, a white top highlight and a short cool shadow. Every colour a
@@ -1542,13 +1518,7 @@ button.link.danger { color: var(--danger); }
   :root[data-theme="glow-light"] :is(.dot) { animation: none; }
 }
 
-/* Limits bar and split picker */
-:root[data-theme="glow-light"] .meter { background: #eff1f6; }
-:root[data-theme="glow-light"] .meter-bar { background: var(--border); }
-:root[data-theme="glow-light"] .meter .meter-bar > span,
-:root[data-theme="glow-light"] .meter.ok .meter-bar > span { background: var(--accent); box-shadow: none; }
-:root[data-theme="glow-light"] .meter.warn .meter-bar > span { background: var(--c-permission); }
-:root[data-theme="glow-light"] .meter.crit .meter-bar > span { background: var(--danger); }
+/* Split picker */
 :root[data-theme="glow-light"] .split-picker { background: #eff1f6; }
 :root[data-theme="glow-light"] .split-picker button.on {
   background: #ffffff; color: var(--fg); box-shadow: 0 1px 2px rgba(22,26,36,.14);

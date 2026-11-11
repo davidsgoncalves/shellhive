@@ -477,6 +477,12 @@ fn start(app: &AppHandle, tab_id: String, cwd: String, thread_id: Option<String>
         return Err(fail("o Codex não devolveu a thread".into()));
     }
     *s.thread_id.lock().unwrap() = Some(id.clone());
+    // The limits come after each reply; reading them now fills the usage rings sooner.
+    if let Ok(read) = s.request("account/rateLimits/read", json!({})) {
+        if let Some(limits) = read.get("rateLimits").filter(|l| !l.is_null()) {
+            emit_usage(app, &tab_id, "codex", limits.clone());
+        }
+    }
     emit_entries(app, &tab_id, history_entries(&thread));
     hook(app, &tab_id, "SessionStart", json!({ "session_id": id }));
     Ok(StartInfo { session_id: id, model, models: names })
