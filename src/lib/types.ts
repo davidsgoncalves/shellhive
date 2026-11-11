@@ -322,6 +322,8 @@ export interface SessionInfo {
   first_prompt: string | null;
   git_branch: string | null;
   titles: SessionTitles;
+  /** The agent that ran it; none for Claude. */
+  provider?: "codex" | "opencode" | null;
 }
 
 export interface SessionMatch {

@@ -35,6 +35,8 @@ pub struct SessionInfo {
     pub git_branch: Option<String>,
     pub titles: SessionTitles,
     pub recap: Option<String>,
+    /// "codex" or "opencode"; none for Claude.
+    pub provider: Option<String>,
 }
 
 #[derive(serde::Serialize)]
@@ -519,16 +521,24 @@ fn row_to_info(row: &rusqlite::Row) -> rusqlite::Result<SessionInfo> {
         modified_at: row.get::<_, i64>(8)? as u64,
         size_bytes: row.get::<_, i64>(9)? as u64,
         recap: row.get(10)?,
+        provider: row.get(11)?,
     })
 }
 
 const SELECT: &str = "SELECT id, path, project, cwd, custom_title, ai_title, first_prompt,
-                             git_branch, modified_at, size_bytes, recap FROM sessions";
+                             git_branch, modified_at, size_bytes, recap, provider FROM sessions";
 
 #[tauri::command]
 pub fn sessions_list(db: tauri::State<Db>) -> Result<Vec<SessionInfo>, String> {
     let conn = db.0.lock().unwrap();
     reindex(&conn)?;
+    // Another agent's history failing to read never hides Claude's.
+    if let Err(e) = crate::agent_sessions::reindex_codex(&conn) {
+        crate::errors::record("sessions", &format!("codex: {e}"));
+    }
+    if let Err(e) = crate::agent_sessions::reindex_opencode(&conn) {
+        crate::errors::record("sessions", &format!("opencode: {e}"));
+    }
     let sql = format!("{SELECT} ORDER BY modified_at DESC");
     let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
     let rows = stmt.query_map([], row_to_info).map_err(|e| e.to_string())?;

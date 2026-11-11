@@ -1202,6 +1202,8 @@ export interface SessionRef {
   id: string;
   cwd: string | null;
   title: string;
+  /** A Codex or OpenCode session; none for Claude. */
+  provider?: Tab["provider"] | null;
 }
 
 /**
@@ -1212,7 +1214,7 @@ export interface SessionRef {
  */
 export function openSession(ref: SessionRef, opts: { groupId?: string; pane?: number } = {}): void {
   const s = useStore.getState();
-  const existing = s.tabs.find((t) => t.claudeSessionId === ref.id);
+  const existing = s.tabs.find((t) => (ref.provider ? t.agentSessionId : t.claudeSessionId) === ref.id);
   if (existing) {
     if (opts.groupId && opts.groupId !== existing.groupId) s.moveTab(existing.id, opts.groupId);
     if (opts.pane !== undefined) s.assignToPane(existing.id, opts.pane);
@@ -1228,6 +1230,13 @@ export function openSession(ref: SessionRef, opts: { groupId?: string; pane?: nu
   if (!groupId) {
     ensureUngrouped();
     groupId = UNGROUPED_ID;
+  }
+  if (ref.provider) {
+    // Another agent's session opens in its chat, which resumes it.
+    const tabId = s.addTab(groupId, { cwd: ref.cwd, title: ref.title, customTitle: true, provider: ref.provider });
+    useStore.getState().patchTab(tabId, { agentSessionId: ref.id });
+    if (opts.pane !== undefined) useStore.getState().assignToPane(tabId, opts.pane);
+    return;
   }
   const tabId = s.addTab(groupId, { cwd: ref.cwd, claudeSessionId: ref.id, title: ref.title, customTitle: true });
   markPendingResume([tabId]);

@@ -1,5 +1,6 @@
 mod bees;
 mod chat;
+mod agent_sessions;
 mod codex;
 mod opencode;
 mod connections;
