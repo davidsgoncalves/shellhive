@@ -15,14 +15,24 @@ export function tabPatchFor(tab: Tab, e: HookEvent): Partial<Tab> | null {
   const p = e.payload;
   const name = String(p.hook_event_name ?? "");
   const base: Partial<Tab> = { lastEventAt: e.received_at };
-  if (typeof p.transcript_path === "string") base.transcriptPath = p.transcript_path;
-  const sessionId = typeof p.session_id === "string" ? p.session_id : tab.claudeSessionId;
+  // Another agent (Codex, OpenCode) keeps its session apart from Claude's,
+  // which the tab would otherwise try to resume with `claude --resume`.
+  const provider = p.provider === "codex" || p.provider === "opencode" ? p.provider : null;
+  const session: Partial<Tab> = {};
+  if (provider) {
+    if (typeof p.session_id === "string") session.agentSessionId = p.session_id;
+  } else {
+    if (typeof p.transcript_path === "string") base.transcriptPath = p.transcript_path;
+    session.claudeSessionId = typeof p.session_id === "string" ? p.session_id : tab.claudeSessionId;
+  }
 
   switch (name) {
     case "SessionStart":
-      return { ...base, claudeSessionId: sessionId, state: "waiting", pendingMessage: null };
+      // A `codex` typed in a tab's shell makes it a Codex tab in terminal mode.
+      if (provider && !tab.provider) Object.assign(session, { provider, claudeSessionId: null, transcriptPath: null });
+      return { ...base, ...session, state: "waiting", pendingMessage: null };
     case "UserPromptSubmit": {
-      const patch: Partial<Tab> = { ...base, claudeSessionId: sessionId, state: "working", pendingMessage: null };
+      const patch: Partial<Tab> = { ...base, ...session, state: "working", pendingMessage: null };
       // Only fills a tab that has no name yet: a folder name stays until the
       // session's own title arrives from the transcript.
       if (!tab.customTitle && tab.title === DEFAULT_TAB_TITLE && typeof p.prompt === "string" && p.prompt.trim()) {

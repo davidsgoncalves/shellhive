@@ -1,3 +1,4 @@
+import { setAgentView } from "../lib/agents";
 import { useEffect, useRef } from "react";
 import { duplicateSession, useStore } from "../lib/store";
 import { closeDetachedWindow } from "../lib/detach";
@@ -70,11 +71,12 @@ export function TabMenu() {
           Copiar como uma linha<span className="muted">{ONE_LINE_COPY_LABEL}</span>
         </button>
       )}
-      {!isDetached && tab.state !== "dormant" && !tab.provider && (
+      {!isDetached && tab.state !== "dormant" && (
         <button
           className="menu-item"
           onClick={() => {
-            setTabView(tab.id, tab.view === "chat" ? undefined : "chat");
+            if (tab.provider) void setAgentView(tab.id, tab.view === "chat" ? "terminal" : "chat");
+            else setTabView(tab.id, tab.view === "chat" ? undefined : "chat");
             openTabMenu(null);
           }}
         >

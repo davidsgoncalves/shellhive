@@ -16,7 +16,9 @@ export const SESSION_KINDS: [SessionKind, string][] = [
   ["claude-chat", "Claude em chat"],
   ["claude-terminal", "Claude no terminal"],
   ["codex", "Codex em chat"],
+  ["codex-terminal", "Codex no terminal"],
   ["opencode", "OpenCode em chat"],
+  ["opencode-terminal", "OpenCode no terminal"],
 ];
 
 /** Model aliases Claude Code takes in `--model` and `/model`. */

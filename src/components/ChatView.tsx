@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useStore } from "../lib/store";
 import { terminals } from "../lib/terminals";
 import { sendMessage } from "../lib/typing";
-import { pushEntries, switchAgent, useAgentEntries, useAgentModels } from "../lib/agents";
+import { pushEntries, setAgentView, switchAgent, useAgentEntries, useAgentModels } from "../lib/agents";
 import { agentCommand, CLAUDE_MODELS, PROVIDER_NAMES, type Provider } from "../lib/providers";
 import { Markdown } from "../lib/markdown";
 import type { ChatEntry as Entry, Tab } from "../lib/types";
@@ -216,11 +216,13 @@ export function ChatView({ tab, rect }: Props) {
     <div className="chat-view" style={rect}>
       <header className="chat-head">
         <h2>{tab.title}</h2>
-        {!provider && (
-          <button className="ghost auto" onClick={toTerminal} title="Mostrar o terminal desta aba">
-            Ver terminal
-          </button>
-        )}
+        <button
+          className="ghost auto"
+          onClick={() => (provider ? void setAgentView(tab.id, "terminal") : toTerminal())}
+          title={provider ? `Abrir esta sessão na interface do ${agent}` : "Mostrar o terminal desta aba"}
+        >
+          Ver terminal
+        </button>
       </header>
       <ol className="chat-list" ref={listRef}>
         {clipped && <li className="chat-note">O começo desta sessão ficou de fora. Ele continua no terminal.</li>}

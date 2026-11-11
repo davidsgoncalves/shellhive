@@ -392,6 +392,8 @@ fn start(app: &AppHandle, tab_id: String, cwd: String, thread_id: Option<String>
     let mut child = crate::connections::tool("codex")
         .arg("app-server")
         .current_dir(&cwd)
+        // Its hooks must not reach a tab: the app reports this session itself.
+        .env_remove("SHELLHIVE_TAB_ID")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())

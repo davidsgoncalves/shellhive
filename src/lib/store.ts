@@ -43,6 +43,11 @@ import {
   type TabState,
 } from "./types";
 
+/** A tab whose terminal reopens its session when it wakes: Claude, or Codex in terminal mode. */
+function resumable(t: Tab): boolean {
+  return !!t.claudeSessionId || (t.provider === "codex" && t.view !== "chat");
+}
+
 const newId = () => crypto.randomUUID();
 
 const CLOSED_TABS_MAX = 20;
@@ -286,6 +291,8 @@ interface Store {
       background?: boolean;
       beeCreator?: boolean;
       provider?: Tab["provider"];
+      /** With a provider: false opens its terminal interface instead of the chat. */
+      chat?: boolean;
     },
   ) => string;
   closeTab: (id: string) => void;
@@ -575,8 +582,8 @@ export const useStore = create<Store>()(
           transcriptPath: null,
           claudeTitle: null,
           ...(opts.beeCreator ? { beeCreator: true } : {}),
-          // An agent tab other than Claude has no terminal; its chat is the session.
-          ...(opts.provider ? { provider: opts.provider, view: "chat" as const } : {}),
+          // Another agent opens in chat unless asked for its terminal.
+          ...(opts.provider ? { provider: opts.provider, ...(opts.chat === false ? {} : { view: "chat" as const }) } : {}),
         };
         // A background tab runs without taking a pane or the focus.
         if (opts.background) {
@@ -657,7 +664,7 @@ export const useStore = create<Store>()(
         if (get().detached.includes(id)) return focusDetachedWindow(id);
         // Reopening a closed tab continues the session it was running.
         const previous = get().tabs.find((t) => t.id === id);
-        if (previous?.state === "dormant" && previous.claudeSessionId) markPendingResume([id]);
+        if (previous?.state === "dormant" && resumable(previous)) markPendingResume([id]);
         set((s) => {
           const panes = [...s.panes];
           // A tab already on screen keeps its pane and takes focus there;
@@ -704,7 +711,7 @@ export const useStore = create<Store>()(
       restoreDetached: (ids) => {
         // Woken off the panes, so they do not push out the tabs restored there.
         const dormant = get().tabs.filter((t) => ids.includes(t.id) && t.state === "dormant");
-        markPendingResume(dormant.filter((t) => t.claudeSessionId).map((t) => t.id));
+        markPendingResume(dormant.filter(resumable).map((t) => t.id));
         set((s) => ({ tabs: s.tabs.map((t) => (dormant.includes(t) ? { ...t, state: "shell" as TabState } : t)) }));
         ids.forEach((id) => get().detachTab(id));
       },
@@ -971,7 +978,7 @@ export const useStore = create<Store>()(
       startPaneAssign: (paneAssign) => set({ paneAssign, tabMenu: null }),
       assignToPane: (tabId, index) => {
         const previous = get().tabs.find((t) => t.id === tabId);
-        if (previous?.state === "dormant" && previous.claudeSessionId) markPendingResume([tabId]);
+        if (previous?.state === "dormant" && resumable(previous)) markPendingResume([tabId]);
         // Placing a tab that lives in its own window brings it back first.
         if (get().detached.includes(tabId)) closeDetachedWindow(tabId);
         set((s) => {
@@ -1143,8 +1150,12 @@ export function openSessionInGroup(groupId: string, open?: SessionKind): void {
 /** A new tab in a group and folder, opened as `open` asks. */
 export function startSession(groupId: string, cwd: string, title: string, open: SessionKind = "terminal"): string {
   const s = useStore.getState();
-  if (open === "codex" || open === "opencode") {
-    return s.addTab(groupId, { cwd, title: PROVIDER_NAMES[open], provider: open });
+  if (open === "codex" || open === "opencode" || open === "codex-terminal" || open === "opencode-terminal") {
+    const provider = open.startsWith("codex") ? "codex" : "opencode";
+    const chat = !open.endsWith("-terminal");
+    const id = s.addTab(groupId, { cwd, title: PROVIDER_NAMES[provider], provider, chat });
+    if (!chat) markPendingLaunch(id);
+    return id;
   }
   const id = newTabInGroup(groupId, cwd, title);
   if (open !== "terminal") markPendingLaunch(id);

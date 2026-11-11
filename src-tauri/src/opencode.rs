@@ -17,8 +17,8 @@ use serde_json::{json, Value};
 use tauri::{AppHandle, Manager};
 
 use crate::chat::{agent_hook, emit_entries, emit_usage, ChatEntry, StartInfo};
-use crate::hooks::{now_ms, raise_permission, PORT, TOKEN_HEADER};
-use crate::permissions::Decision;
+use crate::hooks::{now_ms, raise_permission_as, PORT, TOKEN_HEADER};
+use crate::permissions::{Decision, Permissions};
 use crate::sessions::{tool_detail, truncate};
 
 const PROVIDER: &str = "opencode";
@@ -40,6 +40,10 @@ struct Server {
     child: Mutex<Child>,
     session_id: Mutex<Option<String>>,
     http: ureq::Agent,
+    /// The password, in a file only the user can read, for `opencode attach`.
+    password_file: Option<std::path::PathBuf>,
+    /// Permission requests answered in OpenCode's own interface.
+    answered_elsewhere: Mutex<HashSet<String>>,
 }
 
 impl Server {
@@ -73,6 +77,9 @@ impl Server {
     /// Asks the server to quit, then kills it if it lingers. TERM lets it
     /// close the language servers and MCP processes it started.
     fn shut_down(&self) {
+        if let Some(f) = &self.password_file {
+            let _ = std::fs::remove_file(f);
+        }
         let mut child = self.child.lock().unwrap();
         #[cfg(unix)]
         {
@@ -144,6 +151,8 @@ enum Out {
     Hook(&'static str, Value),
     /// A permission request, answered from the queue.
     Permission(Value),
+    /// A permission answered, maybe in OpenCode's own interface.
+    Replied(String),
     /// A question the chat cannot show yet; it is turned down.
     Question(String),
     /// The turn ended.
@@ -212,6 +221,7 @@ impl Tracker {
                 vec![Out::Entries(vec![entry("error", str_of(ev, "id"), msg)])]
             }
             "permission.asked" => vec![Out::Permission(props)],
+            "permission.replied" => vec![Out::Replied(str_of(&props, "requestID").to_string())],
             "question.asked" => vec![Out::Question(str_of(&props, "id").to_string())],
             _ => Vec::new(),
         }
@@ -326,13 +336,21 @@ fn answer_permission(app: &AppHandle, server: &Server, props: &Value) {
     let payload = permission_payload(props);
     let tool = payload["tool_name"].clone();
     agent_hook(app, &tab, PROVIDER, "PermissionRequest", json!({ "tool_name": tool }));
-    let answer = raise_permission(app, Some(tab.clone()), payload, now_ms(), APPROVAL_WAIT);
-    let reply = if matches!(answer, Some((Decision::Allow, _))) { "once" } else { "reject" };
     let id = str_of(props, "id");
+    let answer = raise_permission_as(app, queue_id(id), Some(tab.clone()), payload, now_ms(), APPROVAL_WAIT);
+    if server.answered_elsewhere.lock().unwrap().remove(id) {
+        return;
+    }
+    let reply = if matches!(answer, Some((Decision::Allow, _))) { "once" } else { "reject" };
     if let Err(e) = server.post(&format!("/permission/{id}/reply"), &json!({ "reply": reply })) {
         crate::errors::record("opencode", &e);
     }
     agent_hook(app, &tab, PROVIDER, "PreToolUse", json!({ "tool_name": tool }));
+}
+
+/// The queue's id for an OpenCode permission request.
+fn queue_id(request: &str) -> String {
+    format!("opencode-{request}")
 }
 
 fn report_cost(app: &AppHandle, server: &Server) {
@@ -377,6 +395,15 @@ fn read_events(app: AppHandle, server: Arc<Server>, tracker: Tracker) {
                 emit_entries(&app, &server.tab_id, vec![entry("error", &format!("q:{id}"), note.into())]);
             }
             Out::Idle => report_cost(&app, &server),
+            Out::Replied(id) => {
+                // Answered in OpenCode's interface: the queue stops asking. When
+                // the answer came from the queue, there is nothing left to withdraw.
+                let perms = app.state::<Permissions>();
+                server.answered_elsewhere.lock().unwrap().insert(id.clone());
+                if !perms.decide(&queue_id(&id), Decision::Ask, "respondido no OpenCode".into()) {
+                    server.answered_elsewhere.lock().unwrap().remove(&id);
+                }
+            }
         }
         true
     });
@@ -477,6 +504,7 @@ fn launch(
     let child = crate::connections::tool("opencode")
         .args(["serve", "--hostname", "127.0.0.1", "--port", &port.to_string()])
         .current_dir(cwd)
+        .env_remove("SHELLHIVE_TAB_ID")
         .env("OPENCODE_SERVER_PASSWORD", &pass)
         .env("OPENCODE_CONFIG_CONTENT", mcp.to_string())
         .stdin(Stdio::null())
@@ -485,6 +513,13 @@ fn launch(
         .spawn()
         .map_err(|e| format!("não foi possível abrir o OpenCode: {e}"))?;
     let http: ureq::Agent = ureq::Agent::config_builder().timeout_global(Some(REQUEST_TIMEOUT)).build().into();
+    let password_file = crate::paths::data_dir().map(|d| d.join("opencode").join(format!("{tab_id}.pw")));
+    if let Some(f) = &password_file {
+        let _ = std::fs::create_dir_all(f.parent().unwrap_or(f));
+        if let Err(e) = crate::hooks::write_private(f, &pass) {
+            crate::errors::record("opencode", &format!("senha não gravada: {e}"));
+        }
+    }
     let server = Arc::new(Server {
         tab_id: tab_id.to_string(),
         base: format!("http://127.0.0.1:{port}"),
@@ -492,6 +527,8 @@ fn launch(
         child: Mutex::new(child),
         session_id: Mutex::default(),
         http,
+        password_file,
+        answered_elsewhere: Mutex::default(),
     });
     let fail = |e: String| {
         server.shut_down();
@@ -600,6 +637,26 @@ pub async fn opencode_stop(app: AppHandle, tab_id: String) {
     if let Some(s) = gone {
         let _ = tauri::async_runtime::spawn_blocking(move || s.shut_down()).await;
     }
+}
+
+/// The line that opens OpenCode's own interface on the tab's server and
+/// session. The password is read from its file, so it stays out of the
+/// command line and the shell history.
+#[tauri::command]
+pub fn opencode_attach_line(app: AppHandle, tab_id: String) -> Result<String, String> {
+    let s = server(&app, &tab_id)?;
+    let id = s.session()?;
+    let file = s.password_file.as_ref().ok_or("sem arquivo de senha")?.to_string_lossy().into_owned();
+    let q = |v: &str| format!("'{}'", v.replace('\'', "'\\''"));
+    if cfg!(windows) {
+        return Ok(format!(
+            "$env:OPENCODE_SERVER_PASSWORD = Get-Content {}; opencode attach {} --session {}\r",
+            q(&file),
+            q(&s.base),
+            q(&id)
+        ));
+    }
+    Ok(format!("OPENCODE_SERVER_PASSWORD=\"$(cat {})\" opencode attach {} --session {}\n", q(&file), q(&s.base), q(&id)))
 }
 
 /// Ends every server; they would outlive the app otherwise.
