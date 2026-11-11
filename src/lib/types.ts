@@ -17,6 +17,8 @@ export interface Tab {
   claudeTitle: string | null;
   /** Opened to create worker bees with Claude; only it gets the bee tools. */
   beeCreator?: boolean;
+  /** Shown as a chat over its terminal; the session keeps running there. */
+  view?: "chat";
 }
 
 export interface Group {

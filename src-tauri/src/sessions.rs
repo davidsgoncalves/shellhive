@@ -66,7 +66,7 @@ fn text_from_message(msg: &serde_json::Value) -> Option<String> {
     }
 }
 
-fn truncate(s: &str, max: usize) -> String {
+pub(crate) fn truncate(s: &str, max: usize) -> String {
     let cleaned = s.split_whitespace().collect::<Vec<_>>().join(" ");
     if cleaned.chars().count() <= max {
         return cleaned;
@@ -149,6 +149,12 @@ pub struct SubagentEntry {
 
 /// The few words that say what a tool call did, from its input.
 fn tool_summary(name: &str, input: &serde_json::Value) -> String {
+    format!("{name}: {}", tool_detail(input, SUBAGENT_SNIPPET))
+}
+
+/// The input field that best says what a tool call works on, such as its
+/// command or file, or the whole input when none is there.
+pub(crate) fn tool_detail(input: &serde_json::Value, max: usize) -> String {
     let field = [
         "command",
         "file_path",
@@ -163,10 +169,10 @@ fn tool_summary(name: &str, input: &serde_json::Value) -> String {
     let detail = field
         .map(str::to_string)
         .unwrap_or_else(|| input.to_string());
-    format!("{name}: {}", truncate(&detail, SUBAGENT_SNIPPET))
+    truncate(&detail, max)
 }
 
-fn result_text(block: &serde_json::Value) -> String {
+pub(crate) fn result_text(block: &serde_json::Value) -> String {
     match block.get("content") {
         Some(serde_json::Value::String(s)) => s.clone(),
         Some(serde_json::Value::Array(parts)) => parts

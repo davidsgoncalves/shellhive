@@ -34,6 +34,7 @@ import { BeeMain, LIVE_RECT, useWatchedBeeTab } from "./components/WorkerBee";
 import { PluginsMain } from "./components/PluginsScreen";
 import { CacheCard } from "./components/CacheCard";
 import { SubagentView } from "./components/SubagentView";
+import { ChatView } from "./components/ChatView";
 import { CACHE_CARD_HEIGHT, cacheCardOf, refreshCache, refreshCacheAfterTurn, useCache } from "./lib/cache";
 import { applyLook, shareLook } from "./lib/theme";
 import { defaultGroupId, duplicateSession, ensureUngrouped, onScreen, openSession, openSessionInGroup, useStore } from "./lib/store";
@@ -919,6 +920,12 @@ function App() {
                 onClose={() => openSearch(null)}
               />
             )}
+            {Array.from({ length: slots }, (_, slot) => {
+              // A tab shown as a chat keeps its terminal running underneath.
+              const tab = tabs.find((t) => t.id === panes[slot]);
+              if (!tab || tab.view !== "chat" || detached.includes(tab.id) || viewIn(slot)) return null;
+              return <ChatView key={`chat-${tab.id}`} tab={tab} rect={paneRect(splitMode, slot)} />;
+            })}
             {Array.from({ length: slots }, (_, slot) => {
               const tabId = panes[slot];
               const asks = permissions.filter((p) => p.tab_id && p.tab_id === tabId);

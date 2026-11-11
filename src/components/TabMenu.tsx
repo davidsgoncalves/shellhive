@@ -20,6 +20,7 @@ export function TabMenu() {
     tabs,
     detached,
     detachTab,
+    setTabView,
     panes,
     pinned,
     togglePinned,
@@ -67,6 +68,17 @@ export function TabMenu() {
           }}
         >
           Copiar como uma linha<span className="muted">{ONE_LINE_COPY_LABEL}</span>
+        </button>
+      )}
+      {!isDetached && tab.state !== "dormant" && (
+        <button
+          className="menu-item"
+          onClick={() => {
+            setTabView(tab.id, tab.view === "chat" ? undefined : "chat");
+            openTabMenu(null);
+          }}
+        >
+          {tab.view === "chat" ? "Ver como terminal" : "Ver como chat"}
         </button>
       )}
       {isDetached ? (

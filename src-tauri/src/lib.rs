@@ -1,4 +1,5 @@
 mod bees;
+mod chat;
 mod connections;
 mod db;
 mod errors;
@@ -68,6 +69,7 @@ pub fn run() {
             sessions::sessions_list,
             sessions::sessions_search,
             sessions::session_titles,
+            chat::chat_read,
             db::state_load,
             db::state_save,
             db::metrics_summary,

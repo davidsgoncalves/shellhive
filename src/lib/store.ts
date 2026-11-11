@@ -292,6 +292,8 @@ interface Store {
   /** The last tab brought up, a new object each time, even for the tab already active. */
   pickedTab: { id: string } | null;
   renameTab: (id: string, title: string) => void;
+  /** Shows a tab as a chat or back as its terminal. */
+  setTabView: (id: string, view: Tab["view"]) => void;
   moveTab: (id: string, groupId: string) => void;
   detachTab: (id: string, at?: { x: number; y: number }) => void;
   reattachTab: (id: string) => void;
@@ -664,6 +666,8 @@ export const useStore = create<Store>()(
           };
         });
       },
+      setTabView: (id, view) =>
+        set((s) => ({ tabs: s.tabs.map((t) => (t.id === id ? { ...t, view } : t)) })),
       renameTab: (id, title) => {
         set((s) => ({ tabs: s.tabs.map((t) => (t.id === id ? { ...t, title, customTitle: true } : t)) }));
         // Mirror the rename into Claude Code, but only with a session sitting
