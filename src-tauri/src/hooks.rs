@@ -71,13 +71,17 @@ pub(crate) fn write_private(path: &PathBuf, content: &str) -> std::io::Result<()
 /// Whether a request may reach the server: it carries the token, and it does
 /// not come from a browser. A page sends Origin on cross-site requests, and a
 /// DNS rebinding attack shows up as a Host other than the loopback address.
-fn request_allowed(origin: Option<&str>, host: Option<&str>, token: Option<&str>, expected: &str) -> bool {
+fn request_allowed(
+    origin: Option<&str>,
+    host: Option<&str>,
+    token: Option<&str>,
+    expected: &str,
+) -> bool {
     if origin.is_some() {
         return false;
     }
-    let host_ok = host.is_some_and(|h| {
-        h == format!("127.0.0.1:{PORT}") || h == format!("localhost:{PORT}")
-    });
+    let host_ok =
+        host.is_some_and(|h| h == format!("127.0.0.1:{PORT}") || h == format!("localhost:{PORT}"));
     host_ok && token.is_some_and(|t| same_secret(t.as_bytes(), expected.as_bytes()))
 }
 
@@ -258,7 +262,13 @@ pub fn raise_permission_as(
 ) -> Option<(crate::permissions::Decision, String)> {
     if let Some(db) = app.try_state::<Db>() {
         let conn = db.0.lock().unwrap();
-        crate::db::record_permission_raised(&conn, &id, tab_id.as_deref(), &payload, received_at as i64);
+        crate::db::record_permission_raised(
+            &conn,
+            &id,
+            tab_id.as_deref(),
+            &payload,
+            received_at as i64,
+        );
     }
     let permissions = app.state::<Permissions>().inner().clone();
     permissions.register(&id);
@@ -275,7 +285,10 @@ pub fn raise_permission_as(
     eprintln!(
         "[permission] tab={} tool={} id={}",
         tab_id.as_deref().unwrap_or("-"),
-        payload.get("tool_name").and_then(|v| v.as_str()).unwrap_or("?"),
+        payload
+            .get("tool_name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("?"),
         id
     );
     let answer = permissions.wait_for(&id, wait);
@@ -284,7 +297,13 @@ pub fn raise_permission_as(
         let conn = db.0.lock().unwrap();
         crate::db::record_permission_decided(&conn, &id, label.as_deref());
     }
-    let _ = app.emit("permission-resolved", PermissionResolvedEvent { id, decision: label });
+    let _ = app.emit(
+        "permission-resolved",
+        PermissionResolvedEvent {
+            id,
+            decision: label,
+        },
+    );
     answer
 }
 
@@ -297,7 +316,14 @@ pub fn emit_hook(app: &AppHandle, tab_id: Option<String>, payload: serde_json::V
         crate::db::record_event(&conn, tab_id.as_deref(), &payload, received_at as i64);
     }
     crate::plugins::events::record(app, tab_id.clone(), received_at as u64, &payload);
-    let _ = app.emit("hook-event", Envelope { received_at, tab_id, payload });
+    let _ = app.emit(
+        "hook-event",
+        Envelope {
+            received_at,
+            tab_id,
+            payload,
+        },
+    );
 }
 
 pub fn now_ms() -> u128 {
@@ -340,7 +366,14 @@ fn handle(app: AppHandle, mut req: tiny_http::Request) {
 
     // Anything else, such as the OAuth discovery Codex tries before using an
     // MCP server, is not for this server; it must not become a hook event.
-    const ROUTES: &[&str] = &["/mcp", "/permission", "/prompt", "/session-start", "/statusline", "/hook"];
+    const ROUTES: &[&str] = &[
+        "/mcp",
+        "/permission",
+        "/prompt",
+        "/session-start",
+        "/statusline",
+        "/hook",
+    ];
     let path = url.split('?').next().unwrap_or("");
     if !ROUTES.contains(&path) {
         let _ = req.respond(Response::empty(404));
@@ -374,7 +407,13 @@ fn handle(app: AppHandle, mut req: tiny_http::Request) {
             let _ = req.respond(json_response(&serde_json::json!({})));
             return;
         }
-        let answer = raise_permission(&app, tab_id.clone(), payload.clone(), received_at, DECISION_TIMEOUT);
+        let answer = raise_permission(
+            &app,
+            tab_id.clone(),
+            payload.clone(),
+            received_at,
+            DECISION_TIMEOUT,
+        );
         let response = match &answer {
             Some((decision, reason)) => decision.to_hook_output(reason),
             // No answer in time: stay silent so Claude Code prompts in the terminal.
@@ -514,7 +553,8 @@ fn write_codex_scripts(
     token_file: &str,
 ) -> Result<(), String> {
     let q = |p: &std::path::Path| shell_single_quote(&p.to_string_lossy());
-    let (forward, permission, prompt, session_start) = (q(forward), q(permission), q(prompt), q(session_start));
+    let (forward, permission, prompt, session_start) =
+        (q(forward), q(permission), q(prompt), q(session_start));
     write_executable(
         &dir.join("codex_hook.sh"),
         format!(
@@ -571,22 +611,37 @@ const CODEX_HOOKS: &[(&str, &str)] = &[
 /// Codex trusts hooks by their place in the file, so the others keep theirs.
 /// Returns whether the file changed.
 fn merge_codex_hooks(file: &mut serde_json::Value, script: &str) -> bool {
-    let Some(root) = file.as_object_mut() else { return false };
+    let Some(root) = file.as_object_mut() else {
+        return false;
+    };
     let hooks = root.entry("hooks").or_insert_with(|| serde_json::json!({}));
-    let Some(hooks) = hooks.as_object_mut() else { return false };
+    let Some(hooks) = hooks.as_object_mut() else {
+        return false;
+    };
     let mut changed = false;
     for (event, kind) in CODEX_HOOKS {
         let command = format!("{} {kind}", shell_single_quote(script));
         let list = hooks.entry(*event).or_insert_with(|| serde_json::json!([]));
-        let Some(list) = list.as_array_mut() else { continue };
+        let Some(list) = list.as_array_mut() else {
+            continue;
+        };
         let present = list.iter().any(|group| {
-            group.get("hooks").and_then(|h| h.as_array()).is_some_and(|hs| {
-                hs.iter().any(|h| h.get("command").and_then(|c| c.as_str()) == Some(command.as_str()))
-            })
+            group
+                .get("hooks")
+                .and_then(|h| h.as_array())
+                .is_some_and(|hs| {
+                    hs.iter().any(|h| {
+                        h.get("command").and_then(|c| c.as_str()) == Some(command.as_str())
+                    })
+                })
         });
         if !present {
             // Long enough for a decision taken in the queue.
-            let timeout = if *kind == "permission" { DECISION_TIMEOUT.as_secs() + 30 } else { 10 };
+            let timeout = if *kind == "permission" {
+                DECISION_TIMEOUT.as_secs() + 30
+            } else {
+                10
+            };
             list.push(serde_json::json!({ "hooks": [{ "type": "command", "command": command, "timeout": timeout }] }));
             changed = true;
         }
@@ -601,9 +656,13 @@ pub fn codex_hooks_install() -> Result<bool, String> {
     #[cfg(unix)]
     {
         let script = config_dir()?.join("codex_hook.sh");
-        let path = dirs::home_dir().ok_or("no home")?.join(".codex").join("hooks.json");
+        let path = dirs::home_dir()
+            .ok_or("no home")?
+            .join(".codex")
+            .join("hooks.json");
         let mut file: serde_json::Value = match fs::read_to_string(&path) {
-            Ok(text) => serde_json::from_str(&text).map_err(|e| format!("~/.codex/hooks.json ilegível: {e}"))?,
+            Ok(text) => serde_json::from_str(&text)
+                .map_err(|e| format!("~/.codex/hooks.json ilegível: {e}"))?,
             Err(_) => serde_json::json!({}),
         };
         if !merge_codex_hooks(&mut file, &script.to_string_lossy()) {
@@ -641,11 +700,7 @@ pub fn hooks_setup() -> Result<HookSetup, String> {
 
 pub fn write_scripts() -> Result<HookSetup, String> {
     let dir = config_dir()?;
-    let token_file = shell_single_quote(
-        &token_path()
-            .ok_or("no config dir")?
-            .to_string_lossy(),
-    );
+    let token_file = shell_single_quote(&token_path().ok_or("no config dir")?.to_string_lossy());
     let forward_sh = dir.join("forward.sh");
     let statusline_sh = dir.join("statusline.sh");
     let permission_sh = dir.join("permission.sh");
@@ -865,7 +920,14 @@ pub fn write_scripts() -> Result<HookSetup, String> {
     }
 
     #[cfg(unix)]
-    write_codex_scripts(&dir, &forward_sh, &permission_sh, &prompt_sh, &session_start_sh, &token_file)?;
+    write_codex_scripts(
+        &dir,
+        &forward_sh,
+        &permission_sh,
+        &prompt_sh,
+        &session_start_sh,
+        &token_file,
+    )?;
 
     Ok(HookSetup {
         hooks_json: hooks_json.to_string_lossy().to_string(),
@@ -922,9 +984,24 @@ mod tests {
     /// A browser sends Origin; a rebound DNS name shows up in Host.
     #[test]
     fn a_browser_is_refused_even_with_the_token() {
-        assert!(!request_allowed(Some("https://evil.example"), Some(&host()), Some("abc"), "abc"));
-        assert!(!request_allowed(Some("null"), Some(&host()), Some("abc"), "abc"));
-        assert!(!request_allowed(None, Some("evil.example:47831"), Some("abc"), "abc"));
+        assert!(!request_allowed(
+            Some("https://evil.example"),
+            Some(&host()),
+            Some("abc"),
+            "abc"
+        ));
+        assert!(!request_allowed(
+            Some("null"),
+            Some(&host()),
+            Some("abc"),
+            "abc"
+        ));
+        assert!(!request_allowed(
+            None,
+            Some("evil.example:47831"),
+            Some("abc"),
+            "abc"
+        ));
         assert!(!request_allowed(None, None, Some("abc"), "abc"));
     }
 
@@ -936,7 +1013,10 @@ mod tests {
         let stop = file["hooks"]["Stop"].as_array().unwrap();
         assert_eq!(stop[0]["hooks"][0]["command"], "other");
         assert_eq!(stop[1]["hooks"][0]["command"], "'/x/codex_hook.sh' forward");
-        assert_eq!(file["hooks"]["PermissionRequest"][0]["hooks"][0]["timeout"], DECISION_TIMEOUT.as_secs() + 30);
+        assert_eq!(
+            file["hooks"]["PermissionRequest"][0]["hooks"][0]["timeout"],
+            DECISION_TIMEOUT.as_secs() + 30
+        );
     }
 
     /// codex_run.sh passes the arguments and the MCP server on to codex, with
@@ -958,26 +1038,54 @@ mod tests {
         )
         .unwrap();
         let fwd = dir.join("forward.sh");
-        write_executable(&fwd, format!("#!/bin/sh\necho \"end provider=$SHELLHIVE_PROVIDER $(cat)\" >> {logq}\n")).unwrap();
+        write_executable(
+            &fwd,
+            format!("#!/bin/sh\necho \"end provider=$SHELLHIVE_PROVIDER $(cat)\" >> {logq}\n"),
+        )
+        .unwrap();
         fs::write(dir.join("token"), "tok123").unwrap();
         let token_file = shell_single_quote(&dir.join("token").to_string_lossy());
         write_codex_scripts(&dir, &fwd, &fwd, &fwd, &fwd, &token_file).unwrap();
 
-        let path = format!("{}:{}", dir.join("bin").to_string_lossy(), std::env::var("PATH").unwrap_or_default());
-        let status = Command::new(dir.join("codex_run.sh")).args(["resume", "abc"]).env("PATH", &path).status().unwrap();
+        let path = format!(
+            "{}:{}",
+            dir.join("bin").to_string_lossy(),
+            std::env::var("PATH").unwrap_or_default()
+        );
+        let status = Command::new(dir.join("codex_run.sh"))
+            .args(["resume", "abc"])
+            .env("PATH", &path)
+            .status()
+            .unwrap();
         assert_eq!(status.code(), Some(3));
         let out = fs::read_to_string(&log).unwrap();
-        assert!(out.contains("mcp_servers.shellhive.url=\"http://127.0.0.1:"), "{out}");
+        assert!(
+            out.contains("mcp_servers.shellhive.url=\"http://127.0.0.1:"),
+            "{out}"
+        );
         assert!(out.contains("\"X-Tab-Id\"=\"SHELLHIVE_TAB_ID\""), "{out}");
         assert!(out.contains("resume\nabc\ntoken=tok123\n"), "{out}");
-        assert!(out.contains("end provider=codex {\"hook_event_name\":\"SessionEnd\"}"), "{out}");
+        assert!(
+            out.contains("end provider=codex {\"hook_event_name\":\"SessionEnd\"}"),
+            "{out}"
+        );
 
         fs::write(&log, "").unwrap();
-        let mut hook = Command::new(dir.join("codex_hook.sh")).arg("forward").env_remove("SHELLHIVE_TAB_ID").stdin(Stdio::piped()).spawn().unwrap();
+        let mut hook = Command::new(dir.join("codex_hook.sh"))
+            .arg("forward")
+            .env_remove("SHELLHIVE_TAB_ID")
+            .stdin(Stdio::piped())
+            .spawn()
+            .unwrap();
         drop(hook.stdin.take());
         hook.wait().unwrap();
         assert_eq!(fs::read_to_string(&log).unwrap(), "");
-        let mut hook = Command::new(dir.join("codex_hook.sh")).arg("forward").env("SHELLHIVE_TAB_ID", "t1").stdin(Stdio::piped()).spawn().unwrap();
+        let mut hook = Command::new(dir.join("codex_hook.sh"))
+            .arg("forward")
+            .env("SHELLHIVE_TAB_ID", "t1")
+            .stdin(Stdio::piped())
+            .spawn()
+            .unwrap();
         {
             use std::io::Write;
             hook.stdin.take().unwrap().write_all(b"{}").unwrap();

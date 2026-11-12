@@ -51,7 +51,8 @@ pub fn chat_read(path: String, offset: u64) -> Result<ChatChunk, String> {
     if clipped {
         start = len - FIRST_READ_BYTES;
     }
-    file.seek(SeekFrom::Start(start)).map_err(|e| e.to_string())?;
+    file.seek(SeekFrom::Start(start))
+        .map_err(|e| e.to_string())?;
     let mut bytes = Vec::new();
     file.read_to_end(&mut bytes).map_err(|e| e.to_string())?;
 
@@ -78,14 +79,22 @@ pub fn chat_read(path: String, offset: u64) -> Result<ChatChunk, String> {
 /// A Claude Code command the user typed, such as `/model`, as recorded in
 /// the transcript: `<command-name>/model</command-name>` plus its arguments.
 fn typed_command(s: &str) -> Option<String> {
-    let name = s.split("<command-name>").nth(1)?.split("</command-name>").next()?;
+    let name = s
+        .split("<command-name>")
+        .nth(1)?
+        .split("</command-name>")
+        .next()?;
     let args = s
         .split("<command-args>")
         .nth(1)
         .and_then(|a| a.split("</command-args>").next())
         .unwrap_or("")
         .trim();
-    Some(if args.is_empty() { name.to_string() } else { format!("{name} {args}") })
+    Some(if args.is_empty() {
+        name.to_string()
+    } else {
+        format!("{name} {args}")
+    })
 }
 
 /// Text the user did not write: command output, reminders and the like.
@@ -143,18 +152,32 @@ fn entries_of_line(line: &str) -> Vec<ChatEntry> {
             }
             Some("image") if role == "user" => out.push(entry("user", id, "[imagem]".to_string())),
             Some("tool_use") => {
-                let tool = block.get("name").and_then(|n| n.as_str()).unwrap_or("ferramenta");
+                let tool = block
+                    .get("name")
+                    .and_then(|n| n.as_str())
+                    .unwrap_or("ferramenta");
                 let input = block.get("input").cloned().unwrap_or_default();
-                let step_id = block.get("id").and_then(|s| s.as_str()).unwrap_or(&id).to_string();
+                let step_id = block
+                    .get("id")
+                    .and_then(|s| s.as_str())
+                    .unwrap_or(&id)
+                    .to_string();
                 out.push(ChatEntry {
                     tool: Some(tool.to_string()),
                     ..entry("step", step_id, tool_detail(&input, STEP_TEXT))
                 });
             }
             Some("tool_result") => {
-                let step_id = block.get("tool_use_id").and_then(|s| s.as_str()).unwrap_or(&id).to_string();
+                let step_id = block
+                    .get("tool_use_id")
+                    .and_then(|s| s.as_str())
+                    .unwrap_or(&id)
+                    .to_string();
                 out.push(ChatEntry {
-                    error: block.get("is_error").and_then(|e| e.as_bool()).unwrap_or(false),
+                    error: block
+                        .get("is_error")
+                        .and_then(|e| e.as_bool())
+                        .unwrap_or(false),
                     ..entry("result", step_id, truncate(&result_text(block), STEP_TEXT))
                 });
             }
@@ -165,7 +188,13 @@ fn entries_of_line(line: &str) -> Vec<ChatEntry> {
 }
 
 fn entry(kind: &'static str, id: String, text: String) -> ChatEntry {
-    ChatEntry { kind, id, text, tool: None, error: false }
+    ChatEntry {
+        kind,
+        id,
+        text,
+        tool: None,
+        error: false,
+    }
 }
 
 /// Saves an image pasted or picked in the chat composer and returns its path.
@@ -174,21 +203,35 @@ fn entry(kind: &'static str, id: String, text: String) -> ChatEntry {
 #[tauri::command]
 pub fn chat_save_image(data: String, ext: String) -> Result<String, String> {
     use base64::Engine;
-    let bytes = base64::engine::general_purpose::STANDARD.decode(data.as_bytes()).map_err(|e| e.to_string())?;
-    let ext: String = ext.chars().filter(|c| c.is_ascii_alphanumeric()).take(5).collect();
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(data.as_bytes())
+        .map_err(|e| e.to_string())?;
+    let ext: String = ext
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .take(5)
+        .collect();
     let dir = std::env::temp_dir().join("shellhive-images");
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let mut name = [0u8; 8];
     let _ = getrandom::fill(&mut name);
     let name: String = name.iter().map(|b| format!("{b:02x}")).collect();
-    let path = dir.join(format!("{name}.{}", if ext.is_empty() { "png" } else { &ext }));
+    let path = dir.join(format!(
+        "{name}.{}",
+        if ext.is_empty() { "png" } else { &ext }
+    ));
     std::fs::write(&path, bytes).map_err(|e| e.to_string())?;
     Ok(path.to_string_lossy().into_owned())
 }
 
 /// Media type of an image file, by its extension.
 pub fn image_mime(path: &str) -> &'static str {
-    match path.rsplit('.').next().map(str::to_ascii_lowercase).as_deref() {
+    match path
+        .rsplit('.')
+        .next()
+        .map(str::to_ascii_lowercase)
+        .as_deref()
+    {
         Some("jpg") | Some("jpeg") => "image/jpeg",
         Some("gif") => "image/gif",
         Some("webp") => "image/webp",
@@ -221,19 +264,43 @@ struct UsageEvent {
 pub fn emit_entries(app: &tauri::AppHandle, tab_id: &str, entries: Vec<ChatEntry>) {
     use tauri::Emitter;
     if !entries.is_empty() {
-        let _ = app.emit("agent-entries", EntriesEvent { tab_id: tab_id.to_string(), entries });
+        let _ = app.emit(
+            "agent-entries",
+            EntriesEvent {
+                tab_id: tab_id.to_string(),
+                entries,
+            },
+        );
     }
 }
 
 /// Usage an agent reports: rate limits for Codex, cost for OpenCode.
-pub fn emit_usage(app: &tauri::AppHandle, tab_id: &str, provider: &'static str, limits: serde_json::Value) {
+pub fn emit_usage(
+    app: &tauri::AppHandle,
+    tab_id: &str,
+    provider: &'static str,
+    limits: serde_json::Value,
+) {
     use tauri::Emitter;
-    let _ = app.emit("agent-usage", UsageEvent { tab_id: tab_id.to_string(), provider, limits });
+    let _ = app.emit(
+        "agent-usage",
+        UsageEvent {
+            tab_id: tab_id.to_string(),
+            provider,
+            limits,
+        },
+    );
 }
 
 /// A hook event made up for an agent without Claude's hooks, so tab state,
 /// the queue and notifications follow it the same way.
-pub fn agent_hook(app: &tauri::AppHandle, tab_id: &str, provider: &str, name: &str, extra: serde_json::Value) {
+pub fn agent_hook(
+    app: &tauri::AppHandle,
+    tab_id: &str,
+    provider: &str,
+    name: &str,
+    extra: serde_json::Value,
+) {
     let mut payload = serde_json::json!({ "hook_event_name": name, "provider": provider });
     if let (Some(p), Some(e)) = (payload.as_object_mut(), extra.as_object()) {
         p.extend(e.clone());
@@ -246,12 +313,16 @@ mod tests {
     use super::*;
 
     fn kinds(line: &str) -> Vec<(&'static str, String)> {
-        entries_of_line(line).into_iter().map(|e| (e.kind, e.text)).collect()
+        entries_of_line(line)
+            .into_iter()
+            .map(|e| (e.kind, e.text))
+            .collect()
     }
 
     #[test]
     fn a_typed_prompt_is_a_user_entry() {
-        let line = r#"{"type":"user","uuid":"u1","message":{"role":"user","content":"corrige o teste"}}"#;
+        let line =
+            r#"{"type":"user","uuid":"u1","message":{"role":"user","content":"corrige o teste"}}"#;
         assert_eq!(kinds(line), vec![("user", "corrige o teste".to_string())]);
     }
 
@@ -276,9 +347,15 @@ mod tests {
         let call = entries_of_line(call);
         let result = entries_of_line(result);
         assert_eq!(call[0].kind, "text");
-        assert_eq!((call[1].kind, call[1].id.as_str(), call[1].tool.as_deref()), ("step", "t1", Some("Bash")));
+        assert_eq!(
+            (call[1].kind, call[1].id.as_str(), call[1].tool.as_deref()),
+            ("step", "t1", Some("Bash"))
+        );
         assert_eq!(call[1].text, "ls");
-        assert_eq!((result[0].kind, result[0].id.as_str(), result[0].error), ("result", "t1", true));
+        assert_eq!(
+            (result[0].kind, result[0].id.as_str(), result[0].error),
+            ("result", "t1", true)
+        );
     }
 
     #[test]
@@ -302,5 +379,3 @@ mod tests {
         std::fs::remove_dir_all(dir).ok();
     }
 }
-
-

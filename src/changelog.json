@@ -8,9 +8,17 @@
       "O + de cada grupo pergunta como abrir a aba: terminal, Claude, Codex ou OpenCode, em chat ou no terminal. Em \"Abas novas do grupo\" dá para escolher o padrão.",
       "Uso de cada agente em anéis no pé da barra da esquerda, mostrando quanto resta da semana e das 5 horas. Passar o mouse abre o detalhe, e um clique deixa aberto. Os medidores da barra de cima saíram.",
       "O histórico também lista e busca as sessões do Codex e do OpenCode, e abrir uma delas retoma a conversa.",
-      "Canal alpha nas configurações, para receber versões ainda mais cedo que o beta.",
       "Segurança: o servidor local de hooks e MCP passa a exigir um token novo a cada abertura do app e recusa chamadas vindas do navegador.",
       "Copiar como uma linha: copia a seleção do terminal sem as quebras de linha."
+    ]
+  },
+  {
+    "version": "2.1.3",
+    "date": "2026-11-11",
+    "items": [
+      "Canal alpha: em Configurações > Versões de teste dá para escolher entre só versões normais, beta ou alpha. O alpha recebe versões ainda mais cedo que o beta, além das beta e das normais. Quem já estava no beta continua nele.",
+      "O medidor de uso do topo não volta mais para um valor antigo quando uma aba parada redesenha a statusline.",
+      "A lista de todos rola quando tem mais itens do que cabem na coluna, com o campo de novo item fixo no topo."
     ]
   },
   {

@@ -49,7 +49,9 @@ struct Session {
 impl Session {
     fn write(&self, msg: &Value) -> Result<(), String> {
         let mut stdin = self.stdin.lock().unwrap();
-        writeln!(stdin, "{msg}").and_then(|_| stdin.flush()).map_err(|e| e.to_string())
+        writeln!(stdin, "{msg}")
+            .and_then(|_| stdin.flush())
+            .map_err(|e| e.to_string())
     }
 
     fn request(&self, method: &str, params: Value) -> Result<Value, String> {
@@ -62,12 +64,22 @@ impl Session {
     }
 
     fn thread(&self) -> Result<String, String> {
-        self.thread_id.lock().unwrap().clone().ok_or_else(|| "sessão do Codex sem thread".into())
+        self.thread_id
+            .lock()
+            .unwrap()
+            .clone()
+            .ok_or_else(|| "sessão do Codex sem thread".into())
     }
 }
 
 fn entry(kind: &'static str, id: &str, text: String) -> ChatEntry {
-    ChatEntry { kind, id: id.to_string(), text, tool: None, error: false }
+    ChatEntry {
+        kind,
+        id: id.to_string(),
+        text,
+        tool: None,
+        error: false,
+    }
 }
 
 fn hook(app: &AppHandle, tab_id: &str, name: &str, extra: Value) {
@@ -82,7 +94,11 @@ fn user_text(item: &Value) -> String {
             parts
                 .iter()
                 .map(|p| match p.get("type").and_then(|t| t.as_str()) {
-                    Some("text") => p.get("text").and_then(|t| t.as_str()).unwrap_or("").to_string(),
+                    Some("text") => p
+                        .get("text")
+                        .and_then(|t| t.as_str())
+                        .unwrap_or("")
+                        .to_string(),
                     Some("localImage") | Some("image") => "[imagem]".to_string(),
                     _ => String::new(),
                 })
@@ -108,21 +124,51 @@ fn step_of(item: &Value) -> Option<(ChatEntry, &'static str, Value)> {
                 .and_then(|a| a.get("command"))
                 .and_then(|c| c.as_str())
                 .unwrap_or_else(|| str_of(item, "command"));
-            ("Bash", "Comando", cmd.to_string(), json!({ "command": cmd }))
+            (
+                "Bash",
+                "Comando",
+                cmd.to_string(),
+                json!({ "command": cmd }),
+            )
         }
         "fileChange" => {
             let paths = changed_paths(item);
-            ("Edit", "Edição", paths.join(", "), json!({ "file_path": paths.first().cloned().unwrap_or_default() }))
+            (
+                "Edit",
+                "Edição",
+                paths.join(", "),
+                json!({ "file_path": paths.first().cloned().unwrap_or_default() }),
+            )
         }
         "mcpToolCall" => {
             let name = format!("{}.{}", str_of(item, "server"), str_of(item, "tool"));
             let args = item.get("arguments").cloned().unwrap_or_default();
-            ("mcp", "MCP", format!("{name} {}", if args.is_null() { String::new() } else { args.to_string() }), args)
+            (
+                "mcp",
+                "MCP",
+                format!(
+                    "{name} {}",
+                    if args.is_null() {
+                        String::new()
+                    } else {
+                        args.to_string()
+                    }
+                ),
+                args,
+            )
         }
-        "webSearch" => ("WebSearch", "Busca", str_of(item, "query").to_string(), json!({ "query": str_of(item, "query") })),
+        "webSearch" => (
+            "WebSearch",
+            "Busca",
+            str_of(item, "query").to_string(),
+            json!({ "query": str_of(item, "query") }),
+        ),
         _ => return None,
     };
-    let step = ChatEntry { tool: Some(label.to_string()), ..entry("step", id, truncate(&text, STEP_TEXT)) };
+    let step = ChatEntry {
+        tool: Some(label.to_string()),
+        ..entry("step", id, truncate(&text, STEP_TEXT))
+    };
     Some((step, tool, input))
 }
 
@@ -153,15 +199,27 @@ fn result_of(item: &Value) -> Option<ChatEntry> {
                 .get("result")
                 .and_then(|r| r.get("content"))
                 .and_then(|c| c.as_array())
-                .map(|parts| parts.iter().map(|p| str_of(p, "text")).collect::<Vec<_>>().join(" "))
+                .map(|parts| {
+                    parts
+                        .iter()
+                        .map(|p| str_of(p, "text"))
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                })
                 .unwrap_or_default();
-            let error = item.get("error").map(|e| e.to_string()).filter(|e| e != "null");
+            let error = item
+                .get("error")
+                .map(|e| e.to_string())
+                .filter(|e| e != "null");
             error.unwrap_or(content)
         }
         "webSearch" => "ok".to_string(),
         _ => return None,
     };
-    Some(ChatEntry { error: failed, ..entry("result", id, truncate(&text, STEP_TEXT)) })
+    Some(ChatEntry {
+        error: failed,
+        ..entry("result", id, truncate(&text, STEP_TEXT))
+    })
 }
 
 /// The message inside an app-server error, which may itself be JSON in a string.
@@ -169,7 +227,11 @@ fn error_message(err: &Value) -> String {
     let raw = str_of(err, "message");
     serde_json::from_str::<Value>(raw)
         .ok()
-        .and_then(|v| v.pointer("/error/message").and_then(|m| m.as_str()).map(str::to_string))
+        .and_then(|v| {
+            v.pointer("/error/message")
+                .and_then(|m| m.as_str())
+                .map(str::to_string)
+        })
         .unwrap_or_else(|| raw.to_string())
 }
 
@@ -177,17 +239,30 @@ fn on_notification(app: &AppHandle, s: &Session, method: &str, params: &Value) {
     let tab = s.tab_id.as_str();
     match method {
         "turn/started" => {
-            *s.turn_id.lock().unwrap() = params.pointer("/turn/id").and_then(|t| t.as_str()).map(str::to_string);
+            *s.turn_id.lock().unwrap() = params
+                .pointer("/turn/id")
+                .and_then(|t| t.as_str())
+                .map(str::to_string);
         }
         "item/started" => {
-            let Some(item) = params.get("item") else { return };
+            let Some(item) = params.get("item") else {
+                return;
+            };
             if str_of(item, "type") == "fileChange" {
-                s.file_changes.lock().unwrap().insert(str_of(item, "id").to_string(), item.clone());
+                s.file_changes
+                    .lock()
+                    .unwrap()
+                    .insert(str_of(item, "id").to_string(), item.clone());
             }
             if let Some((step, tool, input)) = step_of(item) {
                 s.open_steps.lock().unwrap().insert(step.id.clone());
                 emit_entries(app, tab, vec![step]);
-                hook(app, tab, "PreToolUse", json!({ "tool_name": tool, "tool_input": input }));
+                hook(
+                    app,
+                    tab,
+                    "PreToolUse",
+                    json!({ "tool_name": tool, "tool_input": input }),
+                );
             }
         }
         "item/agentMessage/delta" => {
@@ -198,7 +273,9 @@ fn on_notification(app: &AppHandle, s: &Session, method: &str, params: &Value) {
             emit_entries(app, tab, vec![entry("text", &id, text.clone())]);
         }
         "item/completed" => {
-            let Some(item) = params.get("item") else { return };
+            let Some(item) = params.get("item") else {
+                return;
+            };
             let id = str_of(item, "id");
             match str_of(item, "type") {
                 "userMessage" => {
@@ -232,7 +309,10 @@ fn on_notification(app: &AppHandle, s: &Session, method: &str, params: &Value) {
             let open: Vec<String> = s.open_steps.lock().unwrap().drain().collect();
             let mut entries: Vec<ChatEntry> = open
                 .iter()
-                .map(|id| ChatEntry { error: true, ..entry("result", id, "interrompido".into()) })
+                .map(|id| ChatEntry {
+                    error: true,
+                    ..entry("result", id, "interrompido".into())
+                })
                 .collect();
             if status == "failed" {
                 if let Some(err) = turn.get("error").filter(|e| !e.is_null()) {
@@ -244,7 +324,12 @@ fn on_notification(app: &AppHandle, s: &Session, method: &str, params: &Value) {
             hook(app, tab, "Stop", json!({}));
         }
         "account/rateLimits/updated" => {
-            emit_usage(app, tab, "codex", params.get("rateLimits").cloned().unwrap_or_default());
+            emit_usage(
+                app,
+                tab,
+                "codex",
+                params.get("rateLimits").cloned().unwrap_or_default(),
+            );
         }
         _ => {}
     }
@@ -262,21 +347,41 @@ fn on_server_request(app: &AppHandle, s: &Session, id: Value, method: &str, para
                 .and_then(|c| c.as_str())
                 .unwrap_or_else(|| str_of(params, "command"));
             let input = json!({ "command": cmd, "description": str_of(params, "reason") });
-            (json!({ "tool_name": "Bash", "tool_input": input }), "decision")
+            (
+                json!({ "tool_name": "Bash", "tool_input": input }),
+                "decision",
+            )
         }
         "item/fileChange/requestApproval" => {
-            let item = s.file_changes.lock().unwrap().get(str_of(params, "itemId")).cloned().unwrap_or_default();
+            let item = s
+                .file_changes
+                .lock()
+                .unwrap()
+                .get(str_of(params, "itemId"))
+                .cloned()
+                .unwrap_or_default();
             let paths = changed_paths(&item);
             let diff = item
                 .get("changes")
                 .and_then(|c| c.as_array())
-                .map(|list| list.iter().map(|c| str_of(c, "diff")).collect::<Vec<_>>().join("\n"))
+                .map(|list| {
+                    list.iter()
+                        .map(|c| str_of(c, "diff"))
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                })
                 .unwrap_or_default();
             let input = json!({ "file_path": paths.join(", "), "content": diff });
-            (json!({ "tool_name": "Edit", "tool_input": input }), "decision")
+            (
+                json!({ "tool_name": "Edit", "tool_input": input }),
+                "decision",
+            )
         }
         "mcpServer/elicitation/request"
-            if params.pointer("/_meta/codex_approval_kind").and_then(|k| k.as_str()) == Some("mcp_tool_call") =>
+            if params
+                .pointer("/_meta/codex_approval_kind")
+                .and_then(|k| k.as_str())
+                == Some("mcp_tool_call") =>
         {
             let tool = format!("mcp__{}", str_of(params, "serverName"));
             let input = json!({
@@ -306,13 +411,20 @@ fn on_server_request(app: &AppHandle, s: &Session, id: Value, method: &str, para
 fn read_loop(app: AppHandle, s: Arc<Session>, stdout: std::process::ChildStdout) {
     for line in BufReader::new(stdout).lines() {
         let Ok(line) = line else { break };
-        let Ok(msg) = serde_json::from_str::<Value>(&line) else { continue };
+        let Ok(msg) = serde_json::from_str::<Value>(&line) else {
+            continue;
+        };
         let method = msg.get("method").and_then(|m| m.as_str());
         match (method, msg.get("id")) {
             // A request from the server; its ids are its own, so `method` tells it apart.
             (Some(method), Some(id)) => {
-                let (app, s, id, method, params) =
-                    (app.clone(), s.clone(), id.clone(), method.to_string(), msg.get("params").cloned().unwrap_or_default());
+                let (app, s, id, method, params) = (
+                    app.clone(),
+                    s.clone(),
+                    id.clone(),
+                    method.to_string(),
+                    msg.get("params").cloned().unwrap_or_default(),
+                );
                 // Approvals block until someone decides; the reader keeps going.
                 std::thread::spawn(move || on_server_request(&app, &s, id, &method, &params));
             }
@@ -343,15 +455,33 @@ fn read_loop(app: AppHandle, s: Arc<Session>, stdout: std::process::ChildStdout)
 }
 
 fn session(state: &CodexSessions, tab_id: &str) -> Result<Arc<Session>, String> {
-    state.0.lock().unwrap().get(tab_id).cloned().ok_or_else(|| "o Codex não está rodando nesta aba".into())
+    state
+        .0
+        .lock()
+        .unwrap()
+        .get(tab_id)
+        .cloned()
+        .ok_or_else(|| "o Codex não está rodando nesta aba".into())
 }
 
 /// History of a resumed thread as chat entries. Only messages come back; the
 /// app-server leaves the tool calls out of it.
 fn history_entries(thread: &Value) -> Vec<ChatEntry> {
     let mut out = Vec::new();
-    for (t, turn) in thread.get("turns").and_then(|t| t.as_array()).into_iter().flatten().enumerate() {
-        for (i, item) in turn.get("items").and_then(|t| t.as_array()).into_iter().flatten().enumerate() {
+    for (t, turn) in thread
+        .get("turns")
+        .and_then(|t| t.as_array())
+        .into_iter()
+        .flatten()
+        .enumerate()
+    {
+        for (i, item) in turn
+            .get("items")
+            .and_then(|t| t.as_array())
+            .into_iter()
+            .flatten()
+            .enumerate()
+        {
             let id = format!("h{t}:{i}");
             match str_of(item, "type") {
                 "userMessage" => {
@@ -383,7 +513,13 @@ pub async fn codex_start(
         .map_err(|e| e.to_string())?
 }
 
-fn start(app: &AppHandle, tab_id: String, cwd: String, thread_id: Option<String>, model: Option<String>) -> Result<StartInfo, String> {
+fn start(
+    app: &AppHandle,
+    tab_id: String,
+    cwd: String,
+    thread_id: Option<String>,
+    model: Option<String>,
+) -> Result<StartInfo, String> {
     let state = app.state::<CodexSessions>();
     if let Some(old) = state.0.lock().unwrap().remove(&tab_id) {
         let _ = old.child.lock().unwrap().kill();
@@ -439,9 +575,18 @@ fn start(app: &AppHandle, tab_id: String, cwd: String, thread_id: Option<String>
     let models: Vec<Value> = list
         .get("data")
         .and_then(|d| d.as_array())
-        .map(|all| all.iter().filter(|m| m.get("hidden").and_then(|h| h.as_bool()) != Some(true)).cloned().collect())
+        .map(|all| {
+            all.iter()
+                .filter(|m| m.get("hidden").and_then(|h| h.as_bool()) != Some(true))
+                .cloned()
+                .collect()
+        })
         .unwrap_or_default();
-    let names: Vec<String> = models.iter().map(|m| str_of(m, "id").to_string()).filter(|n| !n.is_empty()).collect();
+    let names: Vec<String> = models
+        .iter()
+        .map(|m| str_of(m, "id").to_string())
+        .filter(|n| !n.is_empty())
+        .collect();
     let default = models
         .iter()
         .find(|m| m.get("isDefault").and_then(|d| d.as_bool()) == Some(true))
@@ -490,7 +635,11 @@ fn start(app: &AppHandle, tab_id: String, cwd: String, thread_id: Option<String>
     }
     emit_entries(app, &tab_id, history_entries(&thread));
     hook(app, &tab_id, "SessionStart", json!({ "session_id": id }));
-    Ok(StartInfo { session_id: id, model, models: names })
+    Ok(StartInfo {
+        session_id: id,
+        model,
+        models: names,
+    })
 }
 
 /// Sends a message: a new turn, or into the running turn when there is one.
@@ -506,12 +655,20 @@ pub async fn codex_send(
         let s = session(&app.state::<CodexSessions>(), &tab_id)?;
         let thread = s.thread()?;
         let mut input = vec![json!({ "type": "text", "text": text })];
-        input.extend(images.unwrap_or_default().into_iter().map(|path| json!({ "type": "localImage", "path": path })));
+        input.extend(
+            images
+                .unwrap_or_default()
+                .into_iter()
+                .map(|path| json!({ "type": "localImage", "path": path })),
+        );
         let input = Value::Array(input);
         hook(&app, &tab_id, "UserPromptSubmit", json!({ "prompt": text }));
         let running = s.turn_id.lock().unwrap().clone();
         match running {
-            Some(turn) => s.request("turn/steer", json!({ "threadId": thread, "expectedTurnId": turn, "input": input })),
+            Some(turn) => s.request(
+                "turn/steer",
+                json!({ "threadId": thread, "expectedTurnId": turn, "input": input }),
+            ),
             None => {
                 let mut params = json!({ "threadId": thread, "input": input });
                 if let Some(m) = model {
@@ -530,8 +687,14 @@ pub async fn codex_send(
 pub async fn codex_interrupt(app: AppHandle, tab_id: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         let s = session(&app.state::<CodexSessions>(), &tab_id)?;
-        let Some(turn) = s.turn_id.lock().unwrap().clone() else { return Ok(()) };
-        s.request("turn/interrupt", json!({ "threadId": s.thread()?, "turnId": turn })).map(|_| ())
+        let Some(turn) = s.turn_id.lock().unwrap().clone() else {
+            return Ok(());
+        };
+        s.request(
+            "turn/interrupt",
+            json!({ "threadId": s.thread()?, "turnId": turn }),
+        )
+        .map(|_| ())
     })
     .await
     .map_err(|e| e.to_string())?
@@ -553,7 +716,10 @@ mod tests {
     fn a_command_becomes_a_step_and_its_failure_an_error_result() {
         let started = json!({"type":"commandExecution","id":"e1","command":"/bin/zsh -lc 'ls x'","commandActions":[{"type":"listFiles","command":"ls x"}],"status":"inProgress"});
         let (step, tool, input) = step_of(&started).unwrap();
-        assert_eq!((step.kind, step.id.as_str(), step.text.as_str(), tool), ("step", "e1", "ls x", "Bash"));
+        assert_eq!(
+            (step.kind, step.id.as_str(), step.text.as_str(), tool),
+            ("step", "e1", "ls x", "Bash")
+        );
         assert_eq!(input["command"], "ls x");
         let done = json!({"type":"commandExecution","id":"e1","status":"failed","aggregatedOutput":"ls: x: No such file","exitCode":1});
         let r = result_of(&done).unwrap();
@@ -574,6 +740,11 @@ mod tests {
             {"type":"agentMessage","id":"item-2","text":"olá"}
         ]}]});
         let h = history_entries(&thread);
-        assert_eq!(h.iter().map(|e| (e.kind, e.text.as_str())).collect::<Vec<_>>(), vec![("user", "oi"), ("text", "olá")]);
+        assert_eq!(
+            h.iter()
+                .map(|e| (e.kind, e.text.as_str()))
+                .collect::<Vec<_>>(),
+            vec![("user", "oi"), ("text", "olá")]
+        );
     }
 }

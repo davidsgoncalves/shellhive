@@ -33,7 +33,12 @@ struct Indexed<'a> {
 }
 
 fn known_marker(conn: &Connection, id: &str) -> Option<i64> {
-    conn.query_row("SELECT indexed_size FROM sessions WHERE id = ?1", params![id], |r| r.get(0)).ok()
+    conn.query_row(
+        "SELECT indexed_size FROM sessions WHERE id = ?1",
+        params![id],
+        |r| r.get(0),
+    )
+    .ok()
 }
 
 fn store(conn: &Connection, s: &Indexed) -> Result<(), String> {
@@ -46,11 +51,28 @@ fn store(conn: &Connection, s: &Indexed) -> Result<(), String> {
              custom_title=excluded.custom_title, first_prompt=excluded.first_prompt,
              modified_at=excluded.modified_at, size_bytes=excluded.size_bytes,
              indexed_size=excluded.indexed_size, provider=excluded.provider",
-        params![s.id, s.path, s.cwd.unwrap_or(""), s.cwd, s.title, s.first_prompt, s.modified_at, s.size, s.marker, s.provider],
+        params![
+            s.id,
+            s.path,
+            s.cwd.unwrap_or(""),
+            s.cwd,
+            s.title,
+            s.first_prompt,
+            s.modified_at,
+            s.size,
+            s.marker,
+            s.provider
+        ],
     )
     .map_err(|e| e.to_string())?;
-    let _ = conn.execute("DELETE FROM sessions_fts WHERE session_id = ?1", params![s.id]);
-    let _ = conn.execute("INSERT INTO sessions_fts (session_id, body) VALUES (?1, ?2)", params![s.id, s.body]);
+    let _ = conn.execute(
+        "DELETE FROM sessions_fts WHERE session_id = ?1",
+        params![s.id],
+    );
+    let _ = conn.execute(
+        "INSERT INTO sessions_fts (session_id, body) VALUES (?1, ?2)",
+        params![s.id, s.body],
+    );
     Ok(())
 }
 
@@ -64,10 +86,17 @@ fn codex_home() -> Option<PathBuf> {
 /// Names given to Codex threads, latest last in the file.
 fn codex_thread_names(home: &Path) -> HashMap<String, String> {
     let mut names = HashMap::new();
-    let Ok(file) = File::open(home.join("session_index.jsonl")) else { return names };
+    let Ok(file) = File::open(home.join("session_index.jsonl")) else {
+        return names;
+    };
     for line in BufReader::new(file).lines().map_while(Result::ok) {
-        let Ok(v) = serde_json::from_str::<Value>(&line) else { continue };
-        if let (Some(id), Some(name)) = (v.get("id").and_then(|i| i.as_str()), v.get("thread_name").and_then(|n| n.as_str())) {
+        let Ok(v) = serde_json::from_str::<Value>(&line) else {
+            continue;
+        };
+        if let (Some(id), Some(name)) = (
+            v.get("id").and_then(|i| i.as_str()),
+            v.get("thread_name").and_then(|n| n.as_str()),
+        ) {
             if !name.trim().is_empty() {
                 names.insert(id.to_string(), name.to_string());
             }
@@ -77,7 +106,9 @@ fn codex_thread_names(home: &Path) -> HashMap<String, String> {
 }
 
 fn rollouts(dir: &Path, out: &mut Vec<PathBuf>, depth: usize) {
-    let Ok(entries) = std::fs::read_dir(dir) else { return };
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
     for e in entries.flatten() {
         let path = e.path();
         if path.is_dir() && depth > 0 {
@@ -111,12 +142,17 @@ fn read_codex(path: &Path, size: u64) -> Option<CodexSession> {
     }
     let payload = meta.get("payload")?;
     s.id = payload.get("id").and_then(|i| i.as_str())?.to_string();
-    s.cwd = payload.get("cwd").and_then(|c| c.as_str()).map(str::to_string);
+    s.cwd = payload
+        .get("cwd")
+        .and_then(|c| c.as_str())
+        .map(str::to_string);
     s.spawned = payload.get("source").is_some_and(|src| src.is_object());
     let start = size.saturating_sub(INDEX_MAX_BYTES);
     file.seek(SeekFrom::Start(start)).ok()?;
     for line in BufReader::new(file).lines().map_while(Result::ok) {
-        let Ok(v) = serde_json::from_str::<Value>(&line) else { continue };
+        let Ok(v) = serde_json::from_str::<Value>(&line) else {
+            continue;
+        };
         if v.get("type").and_then(|t| t.as_str()) != Some("event_msg") {
             continue;
         }
@@ -140,7 +176,9 @@ fn read_codex(path: &Path, size: u64) -> Option<CodexSession> {
 
 /// Brings the index up to date with Codex's session files.
 pub fn reindex_codex(conn: &Connection) -> Result<(), String> {
-    let Some(home) = codex_home() else { return Ok(()) };
+    let Some(home) = codex_home() else {
+        return Ok(());
+    };
     let mut files = Vec::new();
     rollouts(&home.join("sessions"), &mut files, 3);
     if files.is_empty() {
@@ -157,12 +195,18 @@ pub fn reindex_codex(conn: &Connection) -> Result<(), String> {
             .map(|d| d.as_secs() as i64)
             .unwrap_or(0);
         // The id ends the file name; a known file of the same size is unchanged.
-        let stem = path.file_stem().unwrap_or_default().to_string_lossy().to_string();
+        let stem = path
+            .file_stem()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
         let guess = stem.get(stem.len().saturating_sub(36)..).unwrap_or("");
         if known_marker(conn, guess) == Some(size) {
             continue;
         }
-        let Some(s) = read_codex(&path, meta.len()) else { continue };
+        let Some(s) = read_codex(&path, meta.len()) else {
+            continue;
+        };
         if s.spawned || s.first_prompt.is_none() {
             continue;
         }
@@ -196,9 +240,14 @@ fn opencode_db() -> Option<PathBuf> {
 
 /// Brings the index up to date with OpenCode's sessions.
 pub fn reindex_opencode(conn: &Connection) -> Result<(), String> {
-    let Some(path) = opencode_db().filter(|p| p.exists()) else { return Ok(()) };
-    let db = Connection::open_with_flags(&path, OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX)
-        .map_err(|e| e.to_string())?;
+    let Some(path) = opencode_db().filter(|p| p.exists()) else {
+        return Ok(());
+    };
+    let db = Connection::open_with_flags(
+        &path,
+        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )
+    .map_err(|e| e.to_string())?;
     let mut list = db
         .prepare(
             "SELECT id, directory, title, time_updated FROM session
@@ -232,14 +281,25 @@ pub fn reindex_opencode(conn: &Connection) -> Result<(), String> {
             .collect();
         let first_prompt = rows
             .iter()
-            .find(|(role, t)| role.as_deref() == Some("user") && t.as_deref().is_some_and(|t| !t.trim().is_empty()))
+            .find(|(role, t)| {
+                role.as_deref() == Some("user")
+                    && t.as_deref().is_some_and(|t| !t.trim().is_empty())
+            })
             .and_then(|(_, t)| t.as_deref())
             .map(|t| truncate(t, PROMPT_MAX_CHARS));
-        let Some(first_prompt) = first_prompt else { continue };
-        let body: String = rows.iter().filter_map(|(_, t)| t.as_deref()).collect::<Vec<_>>().join("\n");
+        let Some(first_prompt) = first_prompt else {
+            continue;
+        };
+        let body: String = rows
+            .iter()
+            .filter_map(|(_, t)| t.as_deref())
+            .collect::<Vec<_>>()
+            .join("\n");
         let body = if body.len() as u64 > INDEX_MAX_BYTES {
             let cut = body.len() - INDEX_MAX_BYTES as usize;
-            let cut = (cut..body.len()).find(|i| body.is_char_boundary(*i)).unwrap_or(body.len());
+            let cut = (cut..body.len())
+                .find(|i| body.is_char_boundary(*i))
+                .unwrap_or(body.len());
             body[cut..].to_string()
         } else {
             body
@@ -251,7 +311,9 @@ pub fn reindex_opencode(conn: &Connection) -> Result<(), String> {
                 provider: "opencode",
                 path: &path_text,
                 cwd: Some(&dir),
-                title: Some(&title).filter(|t| !t.trim().is_empty()).map(String::as_str),
+                title: Some(&title)
+                    .filter(|t| !t.trim().is_empty())
+                    .map(String::as_str),
                 first_prompt: Some(&first_prompt),
                 modified_at: updated / 1000,
                 size: body.len() as i64,
@@ -277,11 +339,15 @@ mod tests {
             r#"{"type":"event_msg","payload":{"type":"user_message","message":"corrige o teste"}}"#,
             r#"{"type":"event_msg","payload":{"type":"agent_message","message":"Corrigido."}}"#,
         ];
-        let path = dir.join("rollout-2026-11-10T16-26-23-01a1c6ed-0204-7e81-8024-efaca0a98596.jsonl");
+        let path =
+            dir.join("rollout-2026-11-10T16-26-23-01a1c6ed-0204-7e81-8024-efaca0a98596.jsonl");
         std::fs::write(&path, lines.join("\n")).unwrap();
         let s = read_codex(&path, 1000).unwrap();
         assert_eq!(s.id, "01a1c6ed-0204-7e81-8024-efaca0a98596");
-        assert_eq!((s.cwd.as_deref(), s.first_prompt.as_deref()), (Some("/p"), Some("corrige o teste")));
+        assert_eq!(
+            (s.cwd.as_deref(), s.first_prompt.as_deref()),
+            (Some("/p"), Some("corrige o teste"))
+        );
         assert_eq!(s.body, "corrige o teste\nCorrigido.\n");
         assert!(!s.spawned);
         let sub = lines[0].replace(r#""source":"cli""#, r#""source":{"subagent":"review"}"#);
@@ -312,9 +378,18 @@ mod tests {
         let mut q = conn
             .prepare("SELECT provider, count(*), sum(first_prompt IS NOT NULL), sum(custom_title IS NOT NULL), sum(cwd IS NOT NULL) FROM sessions GROUP BY provider")
             .unwrap();
-        let rows: Vec<(String, i64, i64, i64, i64)> =
-            q.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?))).unwrap().map(Result::unwrap).collect();
-        let fts: i64 = conn.query_row("SELECT count(*) FROM sessions_fts", [], |r| r.get(0)).unwrap();
-        eprintln!("provider, sessions, with prompt, with title, with cwd: {rows:?}; fts rows {fts}");
+        let rows: Vec<(String, i64, i64, i64, i64)> = q
+            .query_map([], |r| {
+                Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?))
+            })
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+        let fts: i64 = conn
+            .query_row("SELECT count(*) FROM sessions_fts", [], |r| r.get(0))
+            .unwrap();
+        eprintln!(
+            "provider, sessions, with prompt, with title, with cwd: {rows:?}; fts rows {fts}"
+        );
     }
 }

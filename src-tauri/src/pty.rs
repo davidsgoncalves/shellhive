@@ -151,7 +151,8 @@ fn zsh_integration(cmd: &mut CommandBuilder) -> Result<(), String> {
     let shim = quoted_shim().ok_or("no config dir")?;
     let codex_run = crate::hooks::codex_run_path().ok_or("no config dir")?;
     let codex_run = format!("'{}'", codex_run.to_string_lossy().replace('\'', "'\\''"));
-    std::fs::write(dir.join(".zshenv"), zshenv_script(&shim, &codex_run)).map_err(|e| e.to_string())?;
+    std::fs::write(dir.join(".zshenv"), zshenv_script(&shim, &codex_run))
+        .map_err(|e| e.to_string())?;
     if let Some(original) = std::env::var_os("ZDOTDIR") {
         cmd.env("SHELLHIVE_ZDOTDIR", original);
     }
@@ -447,7 +448,13 @@ pub fn pty_spawn(
     let (init, resume, start) = if zsh_ready {
         (None, None, None)
     } else {
-        let start = if prompt.is_some() { start_line() } else if launch { launch_line() } else { None };
+        let start = if prompt.is_some() {
+            start_line()
+        } else if launch {
+            launch_line()
+        } else {
+            None
+        };
         (claude_function(), resume, start)
     };
     let lines = init
@@ -557,7 +564,8 @@ mod tests {
     fn the_first_prompt_is_quoted_by_zsh() {
         let script = zshenv_script("'/shim'", "'/codex_run'");
         assert!(script.contains("BUFFER='claude \"$_shellhive_start\"'"));
-        assert!(script.contains("unset SHELLHIVE_RESUME SHELLHIVE_FORK SHELLHIVE_START SHELLHIVE_LAUNCH"));
+        assert!(script
+            .contains("unset SHELLHIVE_RESUME SHELLHIVE_FORK SHELLHIVE_START SHELLHIVE_LAUNCH"));
     }
 
     /// A tab opened as a Claude session starts `claude` with no prompt.
@@ -567,7 +575,11 @@ mod tests {
         let script = zshenv_script("'/shim'", "'/codex_run'");
         assert!(script.contains("elif [[ -z \"$_shellhive_start\" ]]; then\n    BUFFER=claude\n"));
         assert!(script.contains("$_shellhive_resume$_shellhive_start$_shellhive_launch"));
-        let checked = std::process::Command::new("zsh").arg("-n").arg("-c").arg(&script).status();
+        let checked = std::process::Command::new("zsh")
+            .arg("-n")
+            .arg("-c")
+            .arg(&script)
+            .status();
         assert!(checked.map(|s| s.success()).unwrap_or(true));
     }
 

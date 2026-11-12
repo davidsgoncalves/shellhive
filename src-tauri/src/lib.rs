@@ -1,8 +1,7 @@
+mod agent_sessions;
 mod bees;
 mod chat;
-mod agent_sessions;
 mod codex;
-mod opencode;
 mod connections;
 mod db;
 mod errors;
@@ -12,6 +11,7 @@ mod hookclient;
 mod hooks;
 mod install;
 mod mcp;
+mod opencode;
 mod paths;
 mod perf;
 mod permissions;
