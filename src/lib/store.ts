@@ -170,6 +170,9 @@ interface Store {
   /** Usage ceilings, in percent, above which a scheduled bee run waits; null is off. */
   beeQuota: BeeQuota;
   setBeeQuota: (patch: Partial<BeeQuota>) => void;
+  /** Most bee runs at once; the rest wait their turn. Null is no limit. */
+  beeMaxRunning: number | null;
+  setBeeMaxRunning: (n: number | null) => void;
   /** The plugin shown on the plugins screen; null shows the first. */
   pluginView: string | null;
   setPluginView: (id: string | null) => void;
@@ -412,6 +415,8 @@ export const useStore = create<Store>()(
       setCacheStyle: (cacheStyle) => set({ cacheStyle }),
       beeQuota: { session: null, weekly: null },
       setBeeQuota: (patch) => set((s) => ({ beeQuota: { ...s.beeQuota, ...patch } })),
+      beeMaxRunning: 2,
+      setBeeMaxRunning: (beeMaxRunning) => set({ beeMaxRunning }),
       pluginView: null,
       setPluginView: (pluginView) => set({ pluginView, panelTab: "plugins", panelOpen: true }),
       defaultFolderId: null,
@@ -1062,6 +1067,7 @@ export const useStore = create<Store>()(
         folders: s.folders,
         bees: s.bees,
         beeQuota: s.beeQuota,
+        beeMaxRunning: s.beeMaxRunning,
         cacheStyle: s.cacheStyle,
         archivedGroups: s.archivedGroups,
         defaultFolderId: s.defaultFolderId,

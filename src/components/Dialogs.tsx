@@ -779,7 +779,7 @@ function NewGroupDialog({ onClose }: { onClose: () => void }) {
 }
 
 
-const PERMISSION_MODES: Array<[string, string]> = [
+export const PERMISSION_MODES: Array<[string, string]> = [
   ["manual", "Perguntar tudo"],
   ["acceptEdits", "Aceitar edições"],
   ["auto", "Automático"],

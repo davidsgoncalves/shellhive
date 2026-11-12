@@ -24,6 +24,91 @@ pub fn bee_workdir() -> Result<String, String> {
     Ok(dir)
 }
 
+/// The folder a bee runs in when it has one. With `worktree`, `dir` must be a
+/// git repository: each run gets a fresh worktree of it, detached at the
+/// remote's default branch (or HEAD), in place of the bee's last one. The last
+/// one is kept until then, so its session can still be opened.
+#[tauri::command]
+pub async fn bee_prepare_dir(
+    bee_id: String,
+    dir: String,
+    worktree: bool,
+) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        if !std::path::Path::new(&dir).is_dir() {
+            return Err(format!("a pasta {dir} não existe"));
+        }
+        let path = if worktree {
+            let root = crate::paths::data_dir()
+                .ok_or("no data dir")?
+                .join("worker-bee")
+                .join("worktrees");
+            fresh_worktree(&root, &bee_id, &dir)?
+        } else {
+            dir
+        };
+        let _ = trust_folder(&path);
+        Ok(path)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+fn git(repo: &str, args: &[&str]) -> Result<String, String> {
+    let out = crate::process::background("git")
+        .arg("-C")
+        .arg(repo)
+        .args(args)
+        .output()
+        .map_err(|e| format!("git: {e}"))?;
+    if out.status.success() {
+        Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
+    } else {
+        Err(String::from_utf8_lossy(&out.stderr).trim().to_string())
+    }
+}
+
+fn fresh_worktree(root: &std::path::Path, bee_id: &str, repo: &str) -> Result<String, String> {
+    if bee_id.is_empty()
+        || !bee_id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-')
+    {
+        return Err("id de worker bee inválido".into());
+    }
+    git(repo, &["rev-parse", "--git-dir"])
+        .map_err(|_| format!("{repo} não é um repositório git"))?;
+    let path = root.join(bee_id);
+    let path_str = path.to_string_lossy().into_owned();
+    if path.exists() {
+        // A worktree of another repository, or one git lost track of, goes by hand.
+        if git(repo, &["worktree", "remove", "--force", &path_str]).is_err() {
+            fs::remove_dir_all(&path).map_err(|e| e.to_string())?;
+        }
+    }
+    let _ = git(repo, &["worktree", "prune"]);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let base = if git(
+        repo,
+        &[
+            "rev-parse",
+            "--verify",
+            "--quiet",
+            "refs/remotes/origin/HEAD",
+        ],
+    )
+    .is_ok()
+    {
+        "origin/HEAD"
+    } else {
+        "HEAD"
+    };
+    git(repo, &["worktree", "add", "--detach", &path_str, base])?;
+    Ok(path_str)
+}
+
 /// Longest output a bee command shows in its card.
 const COMMAND_OUTPUT_MAX: usize = 2000;
 
@@ -129,8 +214,52 @@ fn mark_trusted(config: &mut serde_json::Value, key: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::mark_trusted;
+    use super::{fresh_worktree, git, mark_trusted};
     use serde_json::json;
+
+    #[test]
+    fn each_run_gets_a_clean_worktree_of_the_repo() {
+        let tmp = std::env::temp_dir().join(format!("shellhive-wt-{}", std::process::id()));
+        let repo = tmp.join("repo");
+        std::fs::create_dir_all(&repo).unwrap();
+        let r = repo.to_str().unwrap();
+        git(r, &["init", "-q"]).unwrap();
+        std::fs::write(repo.join("a.txt"), "one").unwrap();
+        git(r, &["add", "."]).unwrap();
+        git(
+            r,
+            &[
+                "-c",
+                "user.name=t",
+                "-c",
+                "user.email=t@t",
+                "commit",
+                "-qm",
+                "one",
+            ],
+        )
+        .unwrap();
+
+        let root = tmp.join("worktrees");
+        let first = fresh_worktree(&root, "bee-1", r).unwrap();
+        std::fs::write(
+            std::path::Path::new(&first).join("scratch.txt"),
+            "left over",
+        )
+        .unwrap();
+        let second = fresh_worktree(&root, "bee-1", r).unwrap();
+        assert_eq!(first, second);
+        assert!(std::path::Path::new(&second).join("a.txt").exists());
+        assert!(!std::path::Path::new(&second).join("scratch.txt").exists());
+        // The user's copy is untouched, and git tracks a single bee worktree.
+        assert!(!repo.join("scratch.txt").exists());
+        let list = git(r, &["worktree", "list"]).unwrap();
+        assert_eq!(list.lines().count(), 2);
+
+        assert!(fresh_worktree(&root, "../x", r).is_err());
+        assert!(fresh_worktree(&root, "bee-2", tmp.to_str().unwrap()).is_err());
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
 
     #[test]
     fn trusts_a_new_folder_and_keeps_the_rest() {

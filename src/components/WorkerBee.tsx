@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { useStore } from "../lib/store";
-import { DAY_NAMES, describeEvent, describeTrigger, openBeeRun, runBee, stopBeeRun, useBeeRuns } from "../lib/bees";
+import { DAY_NAMES, describeEvent, describeTrigger, hasUnfilled, openBeeRun, runBee, stopBeeRun, useBeeRuns } from "../lib/bees";
+import { PERMISSION_MODES } from "./Dialogs";
 import { openBeeCreator } from "../lib/beeCreator";
-import { BLANK_PROMPT, PLACEHOLDER, TEMPLATES, type BeeTemplate } from "../lib/beeTemplates";
-import { BEE_GROUP_ID, isBeeTab, type Bee, type BeeEvent, type BeeRun, type BeeTrigger } from "../lib/types";
+import { BLANK_PROMPT, TEMPLATES, type BeeTemplate } from "../lib/beeTemplates";
+import { BEE_GROUP_ID, isBeeTab, type Bee, type BeeEvent, type BeeRun, type BeeTrigger, type PathCheck } from "../lib/types";
 import { PermissionCard, QuestionCard } from "./PermissionQueue";
 
 /** Requests from the bees' hidden tabs: permissions and questions. */
@@ -57,6 +60,7 @@ export function BeePanel() {
   const waiting = useBeeWaiting();
   const runs = useBeeRuns((s) => s.runs);
   const held = useBeeRuns((s) => s.held);
+  const queued = useBeeRuns((s) => s.queued);
   const shown = useShownBee();
   useEffect(() => void load(), [load]);
   // A hidden tab is shown through its run, which keeps it open once revealed.
@@ -86,6 +90,7 @@ export function BeePanel() {
         <ul className="bee-list">
           {bees.map((b) => {
             const running = runs.some((r) => r.beeId === b.id && r.status === "running");
+            const needsYou = runs.find((r) => r.beeId === b.id)?.attention;
             return (
               <li
                 key={b.id}
@@ -104,12 +109,17 @@ export function BeePanel() {
                   <span className="bee-meta">
                     {running
                       ? "rodando agora"
-                      : held[b.id]
+                      : needsYou
+                        ? "precisa de você"
+                        : queued.includes(b.id)
+                        ? "na fila"
+                        : held[b.id]
                         ? `adiada por cota até ${clock(held[b.id])}`
                         : describeTrigger(b.trigger)}
                   </span>
                 </span>
                 {running && <span className="bee-run-dot live" />}
+                {!running && needsYou && <span className="bee-run-dot attention" />}
               </li>
             );
           })}
@@ -126,6 +136,8 @@ const CEILINGS = [50, 60, 70, 80, 90];
 function BeeQuotaSection() {
   const quota = useStore((s) => s.beeQuota);
   const setQuota = useStore((s) => s.setBeeQuota);
+  const maxRunning = useStore((s) => s.beeMaxRunning);
+  const setMaxRunning = useStore((s) => s.setBeeMaxRunning);
   const field = (key: keyof typeof quota, label: string) => (
     <label className="bee-quota-row">
       <span>{label}</span>
@@ -151,6 +163,21 @@ function BeeQuotaSection() {
       </p>
       {field("session", "Sessão (5h)")}
       {field("weekly", "Semanal (7d)")}
+      <label className="bee-quota-row">
+        <span>Ao mesmo tempo</span>
+        <select
+          className="bee-select"
+          value={maxRunning ?? ""}
+          onChange={(e) => setMaxRunning(e.target.value ? Number(e.target.value) : null)}
+        >
+          {[1, 2, 3, 4, 6].map((n) => (
+            <option key={n} value={n}>
+              {n === 1 ? "1 worker bee" : `${n} worker bees`}
+            </option>
+          ))}
+          <option value="">Sem limite</option>
+        </select>
+      </label>
     </section>
   );
 }
@@ -196,6 +223,13 @@ function BeeDetail({ bee, live }: { bee: Bee; live: boolean }) {
   const all = useBeeRuns((s) => s.runs);
   const runs = all.filter((r) => r.beeId === bee.id);
   const running = runs.find((r) => r.status === "running");
+  const queued = useBeeRuns((s) => s.queued.includes(bee.id));
+  const setQueued = useBeeRuns((s) => s.setQueued);
+  const bees = useStore((s) => s.bees);
+  const after = bee.trigger.kind === "event" && bee.trigger.event.on === "beeDone" ? bee.trigger.event.beeId : null;
+  const before = bees.find((b) => b.id === after);
+  const next = bees.filter((b) => b.trigger.kind === "event" && b.trigger.event.on === "beeDone" && b.trigger.event.beeId === bee.id);
+  const mode = PERMISSION_MODES.find(([m]) => m === bee.permissionMode)?.[1];
   const [, tick] = useState(0);
   // Keeps the running time current.
   useEffect(() => {
@@ -225,6 +259,14 @@ function BeeDetail({ bee, live }: { bee: Bee; live: boolean }) {
           <button className="ghost auto" onClick={() => stopBeeRun(running)}>
             Parar
           </button>
+        ) : queued ? (
+          <button
+            className="ghost auto"
+            title="Esperando outras worker bees terminarem"
+            onClick={() => setQueued(useBeeRuns.getState().queued.filter((id) => id !== bee.id))}
+          >
+            Tirar da fila
+          </button>
         ) : (
           <button className="primary" onClick={() => void runBee(bee)}>
             Rodar agora
@@ -236,6 +278,49 @@ function BeeDetail({ bee, live }: { bee: Bee; live: boolean }) {
           <h4>Prompt</h4>
           <p className="bee-instructions">{bee.instructions}</p>
         </section>
+        <section>
+          <h4>Onde roda</h4>
+          <p className="hint">
+            {bee.cwd ? (bee.worktree ? `Numa worktree nova de ${bee.cwd} a cada execução` : bee.cwd) : "Na pasta das worker bees"}
+            {" · "}
+            {mode ? `permissões: ${mode}` : "permissões do app"}
+            {bee.allowedTools?.length ? ` · liberado sem perguntar: ${bee.allowedTools.join(", ")}` : ""}
+          </p>
+        </section>
+        {(before || next.length > 0) && (
+          <section>
+            <h4>Cadeia</h4>
+            <ul className="bee-chain">
+              {before && (
+                <li>
+                  Roda depois de{" "}
+                  <button className="link" onClick={() => setBeeView({ mode: "detail", id: before.id })}>
+                    {before.name}
+                  </button>
+                </li>
+              )}
+              {next.map((b) => (
+                <li key={b.id}>
+                  Ao terminar, dispara{" "}
+                  <button className="link" onClick={() => setBeeView({ mode: "detail", id: b.id })}>
+                    {b.name}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+        {bee.state && bee.state !== "null" && (
+          <section>
+            <h4>
+              Guardado entre execuções
+              <button className="link bee-state-clear" onClick={() => updateBee(bee.id, { state: null })}>
+                limpar
+              </button>
+            </h4>
+            <pre className="bee-state">{prettyState(bee.state)}</pre>
+          </section>
+        )}
         <section>
           <h4>Execuções</h4>
           {runs.length === 0 && <p className="hint">Ainda não rodou. Use "Rodar agora" para ver como ela se sai.</p>}
@@ -255,6 +340,14 @@ function BeeDetail({ bee, live }: { bee: Bee; live: boolean }) {
   );
 }
 
+const prettyState = (text: string) => {
+  try {
+    return JSON.stringify(JSON.parse(text), null, 2);
+  } catch {
+    return text;
+  }
+};
+
 function RunRow({ run }: { run: BeeRun }) {
   const canOpen = run.status !== "running" && !!run.sessionId;
   return (
@@ -272,6 +365,7 @@ function RunRow({ run }: { run: BeeRun }) {
           </button>
         )}
       </div>
+      {run.attention && <p className="bee-run-attention">Precisa de você: {run.attention}</p>}
       {run.summary && <p className="bee-run-summary">{run.summary}</p>}
     </li>
   );
@@ -307,16 +401,38 @@ function BeeEditor({ beeId, onDone }: { beeId?: string; onDone: (id?: string) =>
   const [prompt, setPrompt] = useState(editing?.instructions ?? BLANK_PROMPT);
   const [trigger, setTrigger] = useState<BeeTrigger>(editing?.trigger ?? { kind: "manual" });
   const [missed, setMissed] = useState<Bee["missed"]>(editing?.missed ?? "run");
+  const [cwd, setCwd] = useState(editing?.cwd ?? "");
+  const [worktree, setWorktree] = useState(!!editing?.worktree);
+  const [permissionMode, setPermissionMode] = useState(editing?.permissionMode ?? "");
+  const [allowed, setAllowed] = useState((editing?.allowedTools ?? []).join("\n"));
+  const [cwdError, setCwdError] = useState<string | null>(null);
 
-  const unfilled = PLACEHOLDER.test(prompt);
+  const unfilled = hasUnfilled(prompt, trigger);
+  const follows = trigger.kind === "event" && trigger.event.on === "beeDone";
   const ready =
     name.trim() &&
     prompt.trim() &&
     (trigger.kind !== "schedule" || trigger.days.length > 0) &&
     (trigger.kind !== "event" || trigger.event.on !== "beeDone" || !!trigger.event.beeId);
-  const save = () => {
+  const save = async () => {
     if (!ready) return;
-    const fields = { name: name.trim(), instructions: prompt.trim(), trigger, missed, templateId };
+    let folder: string | null = null;
+    if (cwd.trim()) {
+      const check = await invoke<PathCheck>("path_check", { path: cwd.trim() }).catch(() => null);
+      if (!check?.exists || !check.is_dir) return setCwdError("Pasta não encontrada.");
+      folder = check.expanded;
+    }
+    const fields = {
+      name: name.trim(),
+      instructions: prompt.trim(),
+      trigger,
+      missed,
+      templateId,
+      cwd: folder,
+      worktree: !!folder && worktree,
+      permissionMode: permissionMode || null,
+      allowedTools: allowed.split("\n").map((r) => r.trim()).filter(Boolean),
+    };
     if (editing) return void (updateBee(editing.id, fields), onDone(editing.id));
     const id = crypto.randomUUID();
     addBee({ id, enabled: true, createdAt: Date.now(), lastRunAt: null, ...fields });
@@ -437,7 +553,7 @@ function BeeEditor({ beeId, onDone }: { beeId?: string; onDone: (id?: string) =>
           <button className="ghost auto" onClick={onClose}>
             Cancelar
           </button>
-          <button className="primary" disabled={!ready} onClick={save}>
+          <button className="primary" disabled={!ready} onClick={() => void save()}>
             {editing ? "Salvar" : "Criar e ligar"}
           </button>
         </>
@@ -458,7 +574,62 @@ function BeeEditor({ beeId, onDone }: { beeId?: string; onDone: (id?: string) =>
           onChange={(e) => setPrompt(e.target.value)}
         />
         {unfilled && <span className="hint bee-warn">Ainda há partes {"{{...}}"} para substituir.</span>}
+        {follows && (
+          <span className="hint">
+            Escreva {"{{previous}}"} no prompt para receber o resumo da última execução da worker bee anterior.
+          </span>
+        )}
       </label>
+      <div className="field">
+        <span>Pasta onde roda</span>
+        <span className="hint">Vazio roda na pasta das worker bees, sem acesso aos seus projetos.</span>
+        <div className="row">
+          <input
+            value={cwd}
+            placeholder="~/projects/app"
+            onChange={(e) => {
+              setCwd(e.target.value);
+              setCwdError(null);
+            }}
+          />
+          <button
+            className="ghost auto"
+            onClick={async () => {
+              const picked = await openDialog({ directory: true, multiple: false, title: "Pasta da worker bee" });
+              if (typeof picked === "string") setCwd(picked);
+            }}
+          >
+            Procurar…
+          </button>
+        </div>
+        {cwdError && <span className="hint bee-warn">{cwdError}</span>}
+        <label className="check">
+          <input type="checkbox" checked={worktree} disabled={!cwd.trim()} onChange={(e) => setWorktree(e.target.checked)} />
+          Cada execução numa worktree nova do repositório, sem tocar na sua cópia
+        </label>
+      </div>
+      <div className="field">
+        <span>Permissões</span>
+        <select className="bee-select" value={permissionMode} onChange={(e) => setPermissionMode(e.target.value)}>
+          <option value="">As do app</option>
+          {PERMISSION_MODES.map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+        <span className="hint">
+          Liberado sem perguntar, uma regra por linha, como no Claude Code: Bash(git push:*), Bash(gh pr:*), Edit. O resto
+          cai em Esperando você.
+        </span>
+        <textarea
+          className="bee-textarea"
+          rows={3}
+          spellCheck={false}
+          value={allowed}
+          onChange={(e) => setAllowed(e.target.value)}
+        />
+      </div>
       <div className="field">
         <span>Quando roda</span>
         <div className="chip-row">

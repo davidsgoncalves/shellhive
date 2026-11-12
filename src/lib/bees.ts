@@ -26,6 +26,9 @@ interface RunStore {
   /** Bees due but held back by the usage ceilings, with when the window resets. */
   held: Record<string, number>;
   setHeld: (held: Record<string, number>) => void;
+  /** Bees due while the most runs at once were going, oldest first. */
+  queued: string[];
+  setQueued: (queued: string[]) => void;
 }
 
 const saveRuns = (runs: BeeRun[]) =>
@@ -57,10 +60,58 @@ export const useBeeRuns = create<RunStore>()((set, get) => ({
   },
   held: {},
   setHeld: (held) => set({ held }),
+  queued: [],
+  setQueued: (queued) => set({ queued }),
 }));
 
 export const runningRun = (beeId: string) =>
   useBeeRuns.getState().runs.find((r) => r.beeId === beeId && r.status === "running");
+
+/** The run going on in a bee tab. */
+export const runOfTab = (tabId: string | null | undefined) =>
+  tabId ? useBeeRuns.getState().runs.find((r) => r.tabId === tabId && r.status === "running") : undefined;
+
+/** Stands for the summary of the run that started this one, in a bee started after another. */
+export const PREVIOUS = /\{\{previous\}\}/g;
+
+/** The bee whose finished run starts `trigger`, if it is that kind of trigger. */
+const sourceBeeId = (trigger: BeeTrigger) =>
+  trigger.kind === "event" && trigger.event.on === "beeDone" ? trigger.event.beeId : null;
+
+/** True while the prompt holds {{...}} parts the user still has to fill in. */
+export function hasUnfilled(prompt: string, trigger: BeeTrigger): boolean {
+  return PLACEHOLDER.test(sourceBeeId(trigger) ? prompt.replace(PREVIOUS, "") : prompt);
+}
+
+/** The prompt a run sends: {{previous}} becomes the last summary of the bee it follows. */
+function promptOf(bee: Bee): string {
+  const source = sourceBeeId(bee.trigger);
+  if (!source) return bee.instructions;
+  const last = useBeeRuns.getState().runs.find((r) => r.beeId === source && r.status === "done");
+  return bee.instructions.replace(PREVIOUS, last?.summary?.trim() || "(a worker bee anterior não deixou resumo)");
+}
+
+/** Bees being set up to run, not yet listed as running. */
+const starting = new Set<string>();
+
+function runningCount(): number {
+  return useBeeRuns.getState().runs.filter((r) => r.status === "running").length + starting.size;
+}
+
+/** Starts the bees waiting their turn, as far as the most runs at once allows. */
+function drainQueue(): void {
+  const max = useStore.getState().beeMaxRunning;
+  const { queued, setQueued } = useBeeRuns.getState();
+  if (!queued.length) return;
+  const next = [...queued];
+  while (next.length && (max === null || runningCount() < max)) {
+    const bee = useStore.getState().bees.find((b) => b.id === next[0]);
+    next.shift();
+    setQueued(next);
+    if (bee) void runBee(bee);
+  }
+  setQueued(next);
+}
 
 /** How a trigger reads in the list. */
 export function describeTrigger(t: BeeTrigger): string {
@@ -194,11 +245,31 @@ function fail(run: BeeRun, summary: string): void {
   useBeeRuns.getState().put({ ...run, status: "error", endedAt: Date.now(), summary });
 }
 
-/** Starts a run of a bee: its prompt, in a hidden tab, unless a run of it is still going. */
+/**
+ * Starts a run of a bee: its prompt, in a hidden tab, unless a run of it is
+ * still going. With the most runs at once going, the bee waits its turn.
+ */
 export async function runBee(bee: Bee): Promise<void> {
   const store = useStore.getState();
+  if (runningRun(bee.id) || starting.has(bee.id)) return store.updateBee(bee.id, { lastRunAt: Date.now() });
+  const { queued, setQueued } = useBeeRuns.getState();
+  const max = store.beeMaxRunning;
+  if (max !== null && runningCount() >= max) {
+    if (!queued.includes(bee.id)) setQueued([...queued, bee.id]);
+    return;
+  }
+  if (queued.includes(bee.id)) setQueued(queued.filter((id) => id !== bee.id));
   store.updateBee(bee.id, { lastRunAt: Date.now() });
-  if (runningRun(bee.id)) return;
+  starting.add(bee.id);
+  try {
+    await startRun(bee);
+  } finally {
+    starting.delete(bee.id);
+  }
+}
+
+async function startRun(bee: Bee): Promise<void> {
+  const store = useStore.getState();
   const run: BeeRun = {
     id: crypto.randomUUID(),
     beeId: bee.id,
@@ -211,17 +282,23 @@ export async function runBee(bee: Bee): Promise<void> {
   };
   // A prompt still holding {{...}} parts would send Claude placeholders instead of a task.
   if (!bee.instructions.trim()) return fail(run, "A worker bee não tem prompt. Use Editar para escrever.");
-  if (PLACEHOLDER.test(bee.instructions)) return fail(run, "O prompt ainda tem partes {{...}} para substituir. Use Editar.");
+  if (hasUnfilled(bee.instructions, bee.trigger)) return fail(run, "O prompt ainda tem partes {{...}} para substituir. Use Editar.");
   // Without Claude Code ready there is nothing to run the bee with.
   const checks = await invoke<Check[]>("connections_check").catch(() => []);
   const claude = checks.find((c) => c.id === "claude");
   if (!claude?.ok) {
     return fail(run, `Claude Code não está pronto: ${claude?.detail ?? "não foi possível conferir."} Veja em Configurações › Conexões.`);
   }
-  const cwd = await invoke<string>("bee_workdir").catch(() => null);
-  if (!cwd) return fail(run, "Não consegui criar a pasta onde as worker bees rodam.");
+  let cwd: string;
+  try {
+    cwd = bee.cwd
+      ? await invoke<string>("bee_prepare_dir", { beeId: bee.id, dir: bee.cwd, worktree: !!bee.worktree })
+      : await invoke<string>("bee_workdir");
+  } catch (err) {
+    return fail(run, bee.cwd ? `Não consegui preparar a pasta da worker bee: ${err}` : "Não consegui criar a pasta onde as worker bees rodam.");
+  }
   const tabId = store.addTab(BEE_GROUP_ID, { title: bee.name, customTitle: true, background: true, cwd });
-  markPendingPrompt(tabId, bee.instructions);
+  markPendingPrompt(tabId, promptOf(bee));
   useBeeRuns.getState().put({ ...run, tabId, cwd });
 }
 
@@ -247,8 +324,9 @@ export async function finishBeeRun(tabId: string, reply?: string): Promise<void>
     tabId: run.revealed ? tabId : null,
   });
   if (!run.revealed) s.closeTab(tabId);
-  void notify(`Worker bee ${bee?.name ?? ""} terminou`, summary?.slice(0, 160) ?? "Sem resumo.", true);
+  if (!run.attention) void notify(`Worker bee ${bee?.name ?? ""} terminou`, summary?.slice(0, 160) ?? "Sem resumo.", true);
   fireBeeEvent({ on: "beeDone", beeId: run.beeId });
+  drainQueue();
 }
 
 /** Ends a run by hand, or when its Claude is gone: the tab closes and the run is marked failed. */
@@ -256,6 +334,7 @@ export function stopBeeRun(run: BeeRun, reason = "Parada por você."): void {
   const tabId = run.tabId;
   useBeeRuns.getState().put({ ...run, status: "error", endedAt: Date.now(), tabId: null, summary: reason });
   if (tabId && !run.revealed) useStore.getState().closeTab(tabId);
+  drainQueue();
 }
 
 /** A bee tab that went away before Claude stopped. */
@@ -263,6 +342,7 @@ export function dropBeeRun(tabId: string, reason: string): void {
   const run = useBeeRuns.getState().runs.find((r) => r.tabId === tabId && r.status === "running");
   if (!run) return;
   useBeeRuns.getState().put({ ...run, status: "error", endedAt: Date.now(), tabId: null, summary: reason });
+  drainQueue();
 }
 
 /**
@@ -293,6 +373,14 @@ export function openBeeRun(run: BeeRun): void {
  */
 export function startBeeScheduler(): () => void {
   const launchedAt = Date.now();
+  // Only a running bee's tab sees the tools that read its state and call the user.
+  let tabIds = "";
+  const unsubscribeRuns = useBeeRuns.subscribe(({ runs }) => {
+    const ids = runs.filter((r) => r.status === "running" && r.tabId).map((r) => r.tabId as string);
+    if (ids.join() === tabIds) return;
+    tabIds = ids.join();
+    void invoke("bee_run_tabs", { ids }).catch(console.error);
+  });
   // Usage crossing a line, as each status report updates it.
   const unsubscribe = useStore.subscribe((s, prev) => {
     const at = s.rateLimits;
@@ -337,6 +425,7 @@ export function startBeeScheduler(): () => void {
       else void runBee(bee);
     }
     useBeeRuns.getState().setHeld(held);
+    drainQueue();
   };
   // Runs are loaded first, so a bee still marked running is not started twice.
   void tick().then(() => fireBeeEvent({ on: "appOpen" }));
@@ -344,5 +433,32 @@ export function startBeeScheduler(): () => void {
   return () => {
     clearInterval(timer);
     unsubscribe();
+    unsubscribeRuns();
   };
+}
+
+/** Most a bee keeps between runs. */
+const MAX_STATE = 16_000;
+
+/** The tools a bee uses while it runs, answered for the run in tab `tabId`. */
+export function callBeeRunTool(tool: string, args: Record<string, unknown>, tabId: string | null): { text: string; isError?: boolean } {
+  const run = runOfTab(tabId);
+  const s = useStore.getState();
+  const bee = run && s.bees.find((b) => b.id === run.beeId);
+  if (!run || !bee) return { text: "Esta sessão não é uma execução de worker bee.", isError: true };
+  if (tool === "bee_state_get") return { text: bee.state ?? "null" };
+  if (tool === "bee_state_set") {
+    const text = JSON.stringify(args.state ?? null);
+    if (text.length > MAX_STATE) return { text: `O estado passa de ${MAX_STATE} caracteres; guarde só o essencial.`, isError: true };
+    s.updateBee(bee.id, { state: text });
+    return { text: "Estado salvo. A próxima execução lê com bee_state_get." };
+  }
+  if (tool === "bee_needs_you") {
+    const reason = typeof args.reason === "string" ? args.reason.trim() : "";
+    if (!reason) return { text: "Informe o motivo em reason.", isError: true };
+    useBeeRuns.getState().put({ ...run, attention: reason });
+    void notify(`Worker bee ${bee.name} precisa de você`, reason.slice(0, 160), true);
+    return { text: "O usuário foi avisado. Termine a execução com o que já foi feito." };
+  }
+  return { text: `Ferramenta desconhecida: ${tool}`, isError: true };
 }

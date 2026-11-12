@@ -3,8 +3,10 @@ import { useStore } from "./store";
 import { markPendingPrompt } from "./restored";
 import { describeTrigger, runBee } from "./bees";
 import type { ToolReply } from "./plugins";
-import type { Bee, BeeTrigger } from "./types";
+import type { Bee, BeeTrigger, PathCheck } from "./types";
 import { PLACEHOLDER, TEMPLATES } from "./beeTemplates";
+
+const MODES = ["manual", "acceptEdits", "auto", "plan", "dontAsk", "bypassPermissions"];
 
 /** The first message of a bee-creation session: what bees are and how to make one. */
 const GUIDE = `Esta é a sessão de criação de worker bees do Shellhive. Ajude o usuário a montar uma worker bee e crie com a ferramenta create_bee.
@@ -13,13 +15,17 @@ Uma worker bee é um prompt que o Shellhive roda numa sessão do Claude escondid
 
 Quando roda: manual, a cada intervalo em minutos, ou em dias da semana e horário. Só roda com o app aberto; um horário perdido com o app fechado roda uma vez ao abrir (padrão) ou é pulado.
 
+Onde roda: sem pasta, numa pasta vazia só das worker bees. Com cwd, na pasta do usuário; com worktree, cada execução ganha uma worktree nova do repositório cwd, sem tocar na cópia do usuário. Permissões: permissionMode e allowedTools (regras do Claude Code, como "Bash(gh pr:*)") liberam o que a worker bee faz sem perguntar; o resto espera o usuário aprovar.
+
+Enquanto roda, a worker bee tem três ferramentas, que o prompt pode mandar usar: bee_state_get e bee_state_set guardam um JSON de uma execução para a outra (o que já tentou, o que já viu), e bee_needs_you avisa o usuário quando ela não consegue seguir sem ele.
+
 Há templates prontos que você pode usar de base com list_bees (campo templates): troque cada {{...}} pelo conteúdo do usuário.
 
 Como conduzir:
 1. Chame list_bees para ver as worker bees que já existem e os templates.
-2. Pergunte o que a worker bee deve fazer, onde (pastas, repositórios) e quando, uma coisa por vez e sem se estender.
+2. Pergunte o que a worker bee deve fazer, onde (pastas, repositórios), quando e o que ela pode fazer sem perguntar, uma coisa por vez e sem se estender.
 3. Escreva o prompt completo, autônomo, com as pastas e repositórios escritos nele, sem nenhum {{...}} sobrando.
-4. Antes de criar, mostre o resumo (nome, quando roda, horário perdido) e o prompt inteiro, e peça confirmação.
+4. Antes de criar, mostre o resumo (nome, quando roda, horário perdido, pasta, permissões) e o prompt inteiro, e peça confirmação.
 5. A worker bee nasce desligada. Depois de criar, diga que ela está no painel do Worker bee para conferir e ligar, e ofereça rodar uma vez agora com run_bee.
 
 Comece perguntando o que a worker bee deve fazer.`;
@@ -82,6 +88,14 @@ export async function callBeeTool(tool: string, args: Record<string, unknown>): 
     if (PLACEHOLDER.test(prompt)) return { text: "O prompt ainda tem partes {{...}}; troque pelo conteúdo do usuário.", isError: true };
     if (typeof trigger === "string") return { text: trigger, isError: true };
     const templateId = TEMPLATES.some((t) => t.id === args.template) ? String(args.template) : undefined;
+    let cwd: string | null = null;
+    if (typeof args.cwd === "string" && args.cwd.trim()) {
+      const check = await invoke<PathCheck>("path_check", { path: args.cwd.trim() }).catch(() => null);
+      if (!check?.exists || !check.is_dir) return { text: `Pasta não encontrada: ${args.cwd}`, isError: true };
+      cwd = check.expanded;
+    }
+    const mode = typeof args.permissionMode === "string" && MODES.includes(args.permissionMode) ? args.permissionMode : null;
+    const allowedTools = Array.isArray(args.allowedTools) ? args.allowedTools.filter((r): r is string => typeof r === "string" && !!r.trim()) : [];
     const bee: Bee = {
       id: crypto.randomUUID(),
       name,
@@ -92,6 +106,10 @@ export async function callBeeTool(tool: string, args: Record<string, unknown>): 
       enabled: false,
       createdAt: Date.now(),
       lastRunAt: null,
+      cwd,
+      worktree: !!cwd && args.worktree === true,
+      permissionMode: mode,
+      allowedTools,
     };
     s.addBee(bee);
     return { text: `Worker bee criada, desligada: ${name} (id ${bee.id}). O usuário confere e liga no painel do Worker bee.` };

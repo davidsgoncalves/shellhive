@@ -14,21 +14,36 @@ pub(crate) fn text_result(text: String, is_error: bool) -> serde_json::Value {
 
 /// Tabs opened to create worker bees with Claude; only they see the bee tools.
 static BEE_CREATORS: Mutex<Option<HashSet<String>>> = Mutex::new(None);
+/// Hidden tabs running a bee; only they see the tools of a run.
+static BEE_RUNS: Mutex<Option<HashSet<String>>> = Mutex::new(None);
 
-fn is_bee_creator(tab_id: Option<&str>) -> bool {
+fn listed(set: &Mutex<Option<HashSet<String>>>, tab_id: Option<&str>) -> bool {
     tab_id.is_some_and(|id| {
-        BEE_CREATORS
-            .lock()
+        set.lock()
             .unwrap()
             .as_ref()
             .is_some_and(|tabs| tabs.contains(id))
     })
 }
 
+fn is_bee_creator(tab_id: Option<&str>) -> bool {
+    listed(&BEE_CREATORS, tab_id)
+}
+
+fn is_bee_run(tab_id: Option<&str>) -> bool {
+    listed(&BEE_RUNS, tab_id)
+}
+
 /// The tabs that create bees, as the interface keeps them.
 #[tauri::command]
 pub fn bee_creator_tabs(ids: Vec<String>) {
     *BEE_CREATORS.lock().unwrap() = Some(ids.into_iter().collect());
+}
+
+/// The tabs running a bee, as the interface keeps them.
+#[tauri::command]
+pub fn bee_run_tabs(ids: Vec<String>) {
+    *BEE_RUNS.lock().unwrap() = Some(ids.into_iter().collect());
 }
 
 /// Tools of the core, followed by those of the enabled plugins, and the bee
@@ -38,6 +53,9 @@ fn tool_definitions(tab_id: Option<&str>) -> serde_json::Value {
     tools.extend(crate::plugins::tools());
     if is_bee_creator(tab_id) {
         tools.extend(bee_tools());
+    }
+    if is_bee_run(tab_id) {
+        tools.extend(bee_run_tools());
     }
     serde_json::Value::Array(tools)
 }
@@ -71,7 +89,11 @@ fn bee_tools() -> Vec<serde_json::Value> {
                         },
                         "required": ["kind"]
                     },
-                    "missed": { "type": "string", "enum": ["run", "skip"], "description": "Horário perdido com o app fechado: run roda uma vez ao abrir (padrão), skip pula." }
+                    "missed": { "type": "string", "enum": ["run", "skip"], "description": "Horário perdido com o app fechado: run roda uma vez ao abrir (padrão), skip pula." },
+                    "cwd": { "type": "string", "description": "Pasta onde a worker bee roda. Sem ela, roda numa pasta vazia só das worker bees." },
+                    "worktree": { "type": "boolean", "description": "Com cwd num repositório git, cada execução roda numa worktree nova dele." },
+                    "permissionMode": { "type": "string", "enum": ["manual", "acceptEdits", "auto", "plan", "dontAsk", "bypassPermissions"], "description": "Modo de permissão do Claude nas execuções. Sem ele, vale o do app." },
+                    "allowedTools": { "type": "array", "items": { "type": "string" }, "description": "Regras liberadas sem perguntar, como no Claude Code: \"Bash(gh pr:*)\", \"Edit\"." }
                 },
                 "required": ["name", "prompt", "trigger"],
                 "additionalProperties": false
@@ -84,6 +106,39 @@ fn bee_tools() -> Vec<serde_json::Value> {
                 "type": "object",
                 "properties": { "id": { "type": "string" } },
                 "required": ["id"],
+                "additionalProperties": false
+            }
+        }
+    ]);
+    tools.as_array().cloned().unwrap_or_default()
+}
+
+const BEE_RUN_TOOLS: [&str; 3] = ["bee_state_get", "bee_state_set", "bee_needs_you"];
+
+fn bee_run_tools() -> Vec<serde_json::Value> {
+    let tools = serde_json::json!([
+        {
+            "name": "bee_state_get",
+            "description": "Lê o que esta worker bee guardou com bee_state_set numa execução anterior. Devolve null se nada foi guardado.",
+            "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false }
+        },
+        {
+            "name": "bee_state_set",
+            "description": "Guarda um valor JSON que a próxima execução desta worker bee lê com bee_state_get. Substitui o anterior inteiro. Até 16 mil caracteres.",
+            "inputSchema": {
+                "type": "object",
+                "properties": { "state": { "description": "Qualquer valor JSON: objeto, lista, texto ou número." } },
+                "required": ["state"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "bee_needs_you",
+            "description": "Avisa o usuário que esta execução precisa dele, com o motivo. Use quando não der para seguir sem uma decisão ou ação dele.",
+            "inputSchema": {
+                "type": "object",
+                "properties": { "reason": { "type": "string", "description": "O que o usuário precisa decidir ou fazer, numa ou duas frases." } },
+                "required": ["reason"],
                 "additionalProperties": false
             }
         }
@@ -246,6 +301,9 @@ pub fn handle_rpc(
                 "list_sessions" => call_list_sessions(app, &args),
                 "suggest_command" => call_suggest_command(app, tab_id, &args),
                 bee if BEE_TOOLS.contains(&bee) && is_bee_creator(tab_id.as_deref()) => {
+                    crate::plugins::call_frontend(app, "worker-bee", bee, tab_id, &args)
+                }
+                bee if BEE_RUN_TOOLS.contains(&bee) && is_bee_run(tab_id.as_deref()) => {
                     crate::plugins::call_frontend(app, "worker-bee", bee, tab_id, &args)
                 }
                 other => match crate::plugins::tool_owner(other).as_deref() {

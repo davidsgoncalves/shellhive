@@ -171,12 +171,14 @@ const PERMISSION_MODES: &[&str] = &[
 ];
 
 /// A copy of the app's settings for one tab, with the model and permission
-/// mode its group sets. `claude` reads it through SHELLHIVE_SETTINGS, so a
-/// `--model` typed by hand still wins. None when the group sets neither.
+/// mode its group sets, and the rules a worker bee allows without asking.
+/// `claude` reads it through SHELLHIVE_SETTINGS, so a `--model` typed by hand
+/// still wins. None when nothing is set.
 fn tab_settings(
     id: &str,
     model: Option<&str>,
     mode: Option<&str>,
+    allow: &[String],
 ) -> Result<Option<PathBuf>, String> {
     let model = model.map(str::trim).filter(|m| {
         !m.is_empty()
@@ -184,7 +186,12 @@ fn tab_settings(
                 .all(|c| c.is_ascii_alphanumeric() || "-._[]".contains(c))
     });
     let mode = mode.filter(|m| PERMISSION_MODES.contains(m));
-    if model.is_none() && mode.is_none() {
+    let allow: Vec<&str> = allow
+        .iter()
+        .map(|r| r.trim())
+        .filter(|r| !r.is_empty())
+        .collect();
+    if model.is_none() && mode.is_none() && allow.is_empty() {
         return Ok(None);
     }
     let base = crate::hooks::settings_path().ok_or("no config dir")?;
@@ -196,12 +203,20 @@ fn tab_settings(
     if let Some(m) = model {
         obj.insert("model".into(), m.into());
     }
-    if let Some(m) = mode {
+    if mode.is_some() || !allow.is_empty() {
         let perms = obj
             .entry("permissions")
             .or_insert_with(|| serde_json::json!({}));
         if let Some(p) = perms.as_object_mut() {
-            p.insert("defaultMode".into(), m.into());
+            if let Some(m) = mode {
+                p.insert("defaultMode".into(), m.into());
+            }
+            if !allow.is_empty() {
+                let list = p.entry("allow").or_insert_with(|| serde_json::json!([]));
+                if let Some(list) = list.as_array_mut() {
+                    list.extend(allow.iter().map(|r| serde_json::Value::from(*r)));
+                }
+            }
         }
     }
     let valid_id = id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-');
@@ -325,6 +340,7 @@ pub fn pty_spawn(
     launch: Option<bool>,
     model: Option<String>,
     permission_mode: Option<String>,
+    allowed_tools: Option<Vec<String>>,
 ) -> Result<(), String> {
     if state.0.lock().unwrap().contains_key(&id) {
         return Ok(());
@@ -388,7 +404,12 @@ pub fn pty_spawn(
     // file paths and URLs as OSC 8 links, which the terminal makes clickable.
     cmd.env("FORCE_HYPERLINK", "1");
     cmd.env("SHELLHIVE_TAB_ID", &id);
-    match tab_settings(&id, model.as_deref(), permission_mode.as_deref()) {
+    match tab_settings(
+        &id,
+        model.as_deref(),
+        permission_mode.as_deref(),
+        allowed_tools.as_deref().unwrap_or_default(),
+    ) {
         Ok(Some(path)) => {
             cmd.env("SHELLHIVE_SETTINGS", path);
         }

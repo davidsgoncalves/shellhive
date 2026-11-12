@@ -422,6 +422,13 @@ button.ghost.auto { width: auto; }
 .bee-run-row time { color: var(--muted); font-variant-numeric: tabular-nums; }
 .bee-run-row .bee-run-status { flex: 1; }
 .bee-run-summary { margin: 6px 0 0 15px; font-size: 12px; color: var(--muted); white-space: pre-wrap; user-select: text; }
+.bee-run-dot.attention { background: var(--c-permission); }
+.bee-run-attention { margin: 6px 0 0 15px; font-size: 12px; color: var(--c-permission); white-space: pre-wrap; user-select: text; }
+.bee-chain { list-style: none; margin: 0; padding: 0; font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 3px; }
+.bee-state { margin: 0; font-size: 11px; color: var(--muted); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 8px; max-height: 180px; overflow: auto; user-select: text; }
+.bee-state-clear { margin-left: 8px; font-size: 11px; font-weight: 400; }
+.bee-form .field .row { display: flex; gap: 6px; }
+.bee-form .field .row input { flex: 1; }
 .bee-live-label {
   flex-shrink: 0; padding: 5px 18px; font-size: 11px; color: var(--c-working);
   border-top: 1px solid var(--border); background: var(--panel);

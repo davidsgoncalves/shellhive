@@ -29,7 +29,7 @@ import { startLagTracker } from "./lib/perfDiag";
 import { CommandCard, typeCommand } from "./components/CommandCard";
 import { PermissionCard } from "./components/PermissionQueue";
 import { checkConnections } from "./lib/connections";
-import { finishBeeRun, fireBeeEvent, happeningOf, startBeeScheduler, stopBeeRun, useBeeRuns } from "./lib/bees";
+import { callBeeRunTool, finishBeeRun, fireBeeEvent, happeningOf, startBeeScheduler, stopBeeRun, useBeeRuns } from "./lib/bees";
 import { callBeeTool, syncBeeCreators } from "./lib/beeCreator";
 import { BeeMain, LIVE_RECT, useWatchedBeeTab } from "./components/WorkerBee";
 import { PluginsMain } from "./components/PluginsScreen";
@@ -544,7 +544,9 @@ function usePluginToolCalls() {
           invoke("plugin_tool_result", { callId: payload.call_id, text, isError }).catch(console.error);
         // The bee tools belong to the core, not to a plugin.
         if (payload.plugin === "worker-bee") {
-          const out = await callBeeTool(payload.tool, payload.args ?? {}).catch((err) => ({ text: String(err), isError: true }));
+          const out = payload.tool.startsWith("bee_")
+            ? callBeeRunTool(payload.tool, payload.args ?? {}, payload.tab_id)
+            : await callBeeTool(payload.tool, payload.args ?? {}).catch((err) => ({ text: String(err), isError: true }));
           return void reply(out.text, !!out.isError);
         }
         const on = useStore.getState().enabledPlugins.includes(payload.plugin);

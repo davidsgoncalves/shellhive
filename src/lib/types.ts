@@ -152,6 +152,16 @@ export interface Bee {
   createdAt: number;
   /** Start of the last run, or of the last missed one skipped. */
   lastRunAt: number | null;
+  /** Folder the bee runs in; unset runs it in the bees' own folder. */
+  cwd?: string | null;
+  /** Runs in a worktree of the `cwd` repository, made fresh for each run. */
+  worktree?: boolean;
+  /** Claude's permission mode for the bee's runs; unset keeps the app's. */
+  permissionMode?: string | null;
+  /** Permission rules the bee's runs allow without asking, as Claude Code writes them. */
+  allowedTools?: string[];
+  /** What the bee keeps between runs, as JSON text it reads and writes over MCP. */
+  state?: string | null;
 }
 
 export interface BeeRun {
@@ -169,6 +179,8 @@ export interface BeeRun {
   summary: string | null;
   /** Opened in a normal tab while running, so it stays open at the end. */
   revealed?: boolean;
+  /** Why the bee asked for the user, when it did. */
+  attention?: string | null;
 }
 
 export const UNGROUPED_NAME = "Sem grupo";
