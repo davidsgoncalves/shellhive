@@ -4,7 +4,7 @@ use std::sync::Mutex;
 use rusqlite::{params, Connection};
 
 /// Schema version, bumped whenever `migrate` gains a step.
-const SCHEMA: i32 = 1;
+const SCHEMA: i32 = 2;
 
 pub struct Db(pub Mutex<Connection>);
 
@@ -119,6 +119,15 @@ fn migrate(conn: &Connection) -> Result<(), String> {
         "#,
     )
     .map_err(|e| e.to_string())?;
+    // Version 2: sessions of other agents (Codex, OpenCode) say which one.
+    let has_provider = conn
+        .prepare("SELECT 1 FROM pragma_table_info('sessions') WHERE name = 'provider'")
+        .and_then(|mut s| s.exists([]))
+        .map_err(|e| e.to_string())?;
+    if !has_provider {
+        conn.execute_batch("ALTER TABLE sessions ADD COLUMN provider TEXT")
+            .map_err(|e| e.to_string())?;
+    }
     conn.pragma_update(None, "user_version", SCHEMA)
         .map_err(|e| e.to_string())?;
     Ok(())

@@ -1,9 +1,13 @@
+import { setAgentView } from "../lib/agents";
 import { useEffect, useRef } from "react";
 import { duplicateSession, useStore } from "../lib/store";
 import { closeDetachedWindow } from "../lib/detach";
 import { runPluginTool } from "../lib/pluginEffects";
 import { pluginTab } from "../lib/localPlugins";
 import { notify } from "../lib/notify";
+import { terminals } from "../lib/terminals";
+import { copySelection } from "../lib/copyLine";
+import { ONE_LINE_COPY_LABEL } from "../lib/shortcuts";
 
 /** Right-click menu for a tab or a terminal pane. */
 export function TabMenu() {
@@ -17,6 +21,7 @@ export function TabMenu() {
     tabs,
     detached,
     detachTab,
+    setTabView,
     panes,
     pinned,
     togglePinned,
@@ -46,6 +51,7 @@ export function TabMenu() {
   if (!tab) return null;
   const isDetached = detached.includes(tab.id);
   const inPane = panes.includes(tab.id);
+  const term = isDetached ? undefined : terminals.get(tab.id);
 
   return (
     <div
@@ -54,6 +60,29 @@ export function TabMenu() {
       style={{ left: Math.min(tabMenu.x, window.innerWidth - 230), top: tabMenu.y + 4 }}
     >
       <div className="menu-heading">{tab.title}</div>
+      {term?.hasSelection() && (
+        <button
+          className="menu-item"
+          onClick={() => {
+            copySelection(term, true);
+            openTabMenu(null);
+          }}
+        >
+          Copiar como uma linha<span className="muted">{ONE_LINE_COPY_LABEL}</span>
+        </button>
+      )}
+      {!isDetached && tab.state !== "dormant" && (
+        <button
+          className="menu-item"
+          onClick={() => {
+            if (tab.provider) void setAgentView(tab.id, tab.view === "chat" ? "terminal" : "chat");
+            else setTabView(tab.id, tab.view === "chat" ? undefined : "chat");
+            openTabMenu(null);
+          }}
+        >
+          {tab.view === "chat" ? "Ver como terminal" : "Ver como chat"}
+        </button>
+      )}
       {isDetached ? (
         <button
           className="menu-item"
@@ -116,7 +145,7 @@ export function TabMenu() {
             Abrir painel: {p.panel!.title}
           </button>
         ))}
-      {tab.claudeSessionId && (
+      {tab.claudeSessionId && !tab.provider && (
         <button
           className="menu-item"
           title="Abre uma cópia desta sessão numa aba nova; a original continua aqui"
@@ -128,7 +157,7 @@ export function TabMenu() {
           Duplicar sessão
         </button>
       )}
-      {tab.claudeSessionId && (
+      {tab.claudeSessionId && !tab.provider && (
         <button
           className="menu-item"
           onClick={() => {

@@ -1,4 +1,7 @@
+mod agent_sessions;
 mod bees;
+mod chat;
+mod codex;
 mod connections;
 mod db;
 mod errors;
@@ -8,6 +11,7 @@ mod hookclient;
 mod hooks;
 mod install;
 mod mcp;
+mod opencode;
 mod paths;
 mod perf;
 mod permissions;
@@ -34,6 +38,8 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .manage(pty::PtyState::default())
         .manage(permissions::Permissions::default())
+        .manage(codex::CodexSessions::default())
+        .manage(opencode::OpencodeSessions::default())
         .manage(plugins::editor::Editors::default())
         .setup(|app| {
             // Before anything opens the data folder.
@@ -68,6 +74,18 @@ pub fn run() {
             sessions::sessions_list,
             sessions::sessions_search,
             sessions::session_titles,
+            chat::chat_read,
+            chat::chat_save_image,
+            hooks::codex_hooks_install,
+            codex::codex_start,
+            codex::codex_send,
+            codex::codex_interrupt,
+            codex::codex_stop,
+            opencode::opencode_start,
+            opencode::opencode_send,
+            opencode::opencode_interrupt,
+            opencode::opencode_stop,
+            opencode::opencode_attach_line,
             db::state_load,
             db::state_save,
             db::metrics_summary,
@@ -123,6 +141,9 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                opencode::stop_all(app);
+            }
             // Cmd+Q and the Dock's Quit on macOS end the app here without
             // closing the main window first, so its close listener never
             // asks. While that window is up, hold the exit and let it ask;

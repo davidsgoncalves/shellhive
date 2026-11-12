@@ -16,6 +16,17 @@ export async function typeText(tabId: string, text: string): Promise<void> {
   }
 }
 
+/**
+ * Sends a message to the Claude running in a tab, as if pasted and sent.
+ * Bracketed paste keeps line breaks in the message instead of sending early.
+ */
+export async function sendMessage(tabId: string, text: string): Promise<void> {
+  await invoke("pty_write", { id: tabId, data: "\x1b[200~" });
+  await typeText(tabId, text);
+  await invoke("pty_write", { id: tabId, data: "\x1b[201~" });
+  await submit(tabId);
+}
+
 /** Presses Enter in a tab after a short pause, so the text above lands first. */
 export async function submit(tabId: string): Promise<void> {
   await pause(80);

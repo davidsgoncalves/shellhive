@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { openSession, SESSION_DRAG, useStore, type SessionRef } from "../lib/store";
 import { sessionLabel } from "../lib/titles";
+import { PROVIDER_NAMES } from "../lib/providers";
 import type { SessionInfo, SessionMatch } from "../lib/types";
 
 function relativeDate(epochSeconds: number): string {
@@ -69,7 +70,7 @@ export function SessionsBrowser() {
   }, [query]);
 
   const openSessions = useMemo(
-    () => new Set(tabs.map((t) => t.claudeSessionId).filter(Boolean) as string[]),
+    () => new Set(tabs.flatMap((t) => [t.claudeSessionId, t.agentSessionId]).filter(Boolean) as string[]),
     [tabs],
   );
 
@@ -98,7 +99,7 @@ export function SessionsBrowser() {
     return [...list].sort((a, b) => rank(a) - rank(b));
   }, [sessions, query, snippetById, pinned]);
 
-  const refOf = (s: SessionInfo): SessionRef => ({ id: s.id, cwd: s.cwd, title: label(s) });
+  const refOf = (s: SessionInfo): SessionRef => ({ id: s.id, cwd: s.cwd, title: label(s), provider: s.provider ?? null });
   const open = (s: SessionInfo) => openSession(refOf(s));
 
   return (
@@ -150,6 +151,7 @@ export function SessionsBrowser() {
                 <time>{relativeDate(s.modified_at)}</time>
               </div>
               <div className="meta">
+                {s.provider && <span className={`tag provider-${s.provider}`}>{PROVIDER_NAMES[s.provider]}</span>}
                 <span>{place(s)}</span>
                 {s.git_branch && <span className="branch">{s.git_branch}</span>}
                 {openSessions.has(s.id) && <span className="tag">aberta</span>}

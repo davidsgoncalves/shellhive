@@ -6,11 +6,13 @@ import { SerializeAddon } from "@xterm/addon-serialize";
 import { SearchAddon } from "@xterm/addon-search";
 import { searches, serializers, terminals } from "../lib/terminals";
 import { terminalOptions, trackTerminal } from "../lib/theme";
-import { actionOf, isAppShortcut } from "../lib/shortcuts";
+import { actionOf, copyKeyOf, isAppShortcut } from "../lib/shortcuts";
+import { copySelection } from "../lib/copyLine";
 import { reportError } from "../lib/errors";
 import { sessionFromDrag, useStore, type SessionRef } from "../lib/store";
 import { attachLinks, carriesFiles, carriesSession, carriesTab, fixEmojiWidth, fixLinuxInput, pasteDroppedFiles } from "../lib/termExtras";
-import { takePendingFork, takePendingPrompt, takePendingResume } from "../lib/restored";
+import { openAgentTerminal } from "../lib/agents";
+import { takePendingFork, takePendingLaunch, takePendingPrompt, takePendingResume } from "../lib/restored";
 import type { Tab } from "../lib/types";
 
 interface Props {
@@ -77,6 +79,11 @@ export function TerminalView({
         term.clear();
         return false;
       }
+      const copy = copyKeyOf(e);
+      if (copy) {
+        copySelection(term, copy === "oneLine");
+        return false;
+      }
       // App shortcuts bubble up to the window handler instead of reaching the shell.
       return !isAppShortcut(e);
     });
@@ -90,9 +97,13 @@ export function TerminalView({
     // Resume only when this tab was opened to continue a session, or to start
     // a copy of one; the backend types the command through the shim, which
     // supplies the settings.
-    const fork = takePendingFork(tab.id);
-    const resume = fork ?? (tab.claudeSessionId && takePendingResume(tab.id) ? tab.claudeSessionId : null);
-    const prompt = resume ? null : takePendingPrompt(tab.id);
+    // A Codex tab shown as its terminal reopens Codex there, as a new tab
+    // asked for it or a restored one. OpenCode attaches once its server is up.
+    const agentTab = !!tab.provider;
+    const openCodex = tab.provider === "codex" && tab.view !== "chat" && (takePendingResume(tab.id) || takePendingLaunch(tab.id));
+    const fork = agentTab ? null : takePendingFork(tab.id);
+    const resume = fork ?? (!agentTab && tab.claudeSessionId && takePendingResume(tab.id) ? tab.claudeSessionId : null);
+    const prompt = resume || agentTab ? null : takePendingPrompt(tab.id);
     // The group's model and permission mode apply to every `claude` started in the tab.
     const launch = useStore.getState().groups.find((g) => g.id === tab.groupId)?.launch;
     invoke("pty_spawn", {
@@ -103,9 +114,14 @@ export function TerminalView({
       resume,
       fork: !!fork,
       prompt,
+      launch: !agentTab && takePendingLaunch(tab.id),
       model: launch?.model ?? null,
       permissionMode: launch?.permissionMode ?? null,
     })
+      .then(() => {
+        const now = useStore.getState().tabs.find((t) => t.id === tab.id);
+        if (openCodex && now) void openAgentTerminal(now);
+      })
       .catch((e) => {
         term.writeln(`\x1b[31mpty_spawn failed: ${e}\x1b[0m`);
         reportError("pty", `pty_spawn failed: ${e}`);

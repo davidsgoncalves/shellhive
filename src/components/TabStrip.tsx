@@ -3,7 +3,6 @@ import {
   closeButtonTitle,
   closeWithButton,
   openSession,
-  openSessionInGroup,
   sessionFromDrag,
   useStore,
 } from "../lib/store";
@@ -109,7 +108,7 @@ function GroupSegment({ group, tabs, activeTabId }: { group: Group; tabs: Tab[];
         {tabs.map((t) => (
           <StripTab key={t.id} tab={t} active={t.id === activeTabId} />
         ))}
-        <button className="strip-plus" title="Nova sessão" onClick={() => openSessionInGroup(group.id)}>
+        <button className="strip-plus" title="Nova sessão" onClick={(e) => useStore.getState().openNewSessionMenu({ x: e.clientX, y: e.clientY, groupId: group.id })}>
           +
         </button>
       </div>
@@ -128,7 +127,7 @@ function GroupSegment({ group, tabs, activeTabId }: { group: Group; tabs: Tab[];
           {tabs.map((t) => (
             <StripTab key={t.id} tab={t} active={t.id === activeTabId} />
           ))}
-          <button className="strip-plus in-group" title="Nova sessão neste grupo" onClick={() => openSessionInGroup(group.id)}>
+          <button className="strip-plus in-group" title="Nova sessão neste grupo" onClick={(e) => useStore.getState().openNewSessionMenu({ x: e.clientX, y: e.clientY, groupId: group.id })}>
             +
           </button>
         </>

@@ -30,6 +30,17 @@ export function takePendingPrompt(id: string): string | null {
   return prompt;
 }
 
+/** New tabs whose shell should start Claude with no first prompt. */
+const launches = new Set<string>();
+
+export function markPendingLaunch(id: string): void {
+  launches.add(id);
+}
+
+export function takePendingLaunch(id: string): boolean {
+  return launches.delete(id);
+}
+
 /** Sessions new tabs should start as copies of, sent as `claude --resume <id> --fork-session`. */
 const forks = new Map<string, string>();
 

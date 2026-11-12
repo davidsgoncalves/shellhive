@@ -6,7 +6,8 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { decodeBase64 } from "../lib/terminals";
 import { terminalOptions, trackTerminal } from "../lib/theme";
-import { actionOf, shortcutLabel } from "../lib/shortcuts";
+import { actionOf, copyKeyOf, shortcutLabel } from "../lib/shortcuts";
+import { copySelection } from "../lib/copyLine";
 import { attachLinks, carriesFiles, fixEmojiWidth, fixLinuxInput, pasteDroppedFiles } from "../lib/termExtras";
 import {
   DETACH_CLOSED,
@@ -82,6 +83,11 @@ export function DetachedTerminal({ tabId }: { tabId: string }) {
       }
       if (action === "closeTab") {
         void win.close();
+        return false;
+      }
+      const copy = copyKeyOf(e);
+      if (copy) {
+        copySelection(term, copy === "oneLine");
         return false;
       }
       return true;

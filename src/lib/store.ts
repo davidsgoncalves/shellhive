@@ -2,7 +2,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { fileStorage } from "./persist";
-import { markPendingFork, markPendingPrompt, markPendingResume } from "./restored";
+import { PROVIDER_NAMES } from "./providers";
+import { markPendingFork, markPendingLaunch, markPendingPrompt, markPendingResume } from "./restored";
 import { sameRule } from "./permRules";
 import { mergeRateLimits } from "./rateLimits";
 import type { MiniBounds } from "./mini";
@@ -38,10 +39,16 @@ import {
   type GroupTint,
   type StatusEnvelope,
   type StatusPayload,
+  type SessionKind,
   type Tab,
   type TabState,
   type UpdateChannel,
 } from "./types";
+
+/** A tab whose terminal reopens its session when it wakes: Claude, or Codex in terminal mode. */
+function resumable(t: Tab): boolean {
+  return !!t.claudeSessionId || (t.provider === "codex" && t.view !== "chat");
+}
 
 const newId = () => crypto.randomUUID();
 
@@ -102,7 +109,7 @@ export type Modal =
   | { kind: "searchAll" }
   | { kind: "groupLaunch"; groupId: string }
   | { kind: "pluginCreator" }
-  | { kind: "pickFolder"; groupId: string };
+  | { kind: "pickFolder"; groupId: string; open?: SessionKind };
 
 export type CacheStyle = "expressive" | "minimal";
 
@@ -170,6 +177,8 @@ interface Store {
   modal: Modal;
   /** Open group context menu, with the cursor position that opened it. */
   groupMenu: { x: number; y: number; groupId: string } | null;
+  /** The + menu of a group, to pick what a new tab opens as. */
+  newSessionMenu: { x: number; y: number; groupId: string } | null;
   /** Open tab context menu. */
   tabMenu: { x: number; y: number; tabId: string } | null;
   /** Tab waiting to be dropped into a pane, while the slot overlay is up. */
@@ -283,6 +292,9 @@ interface Store {
       customTitle?: boolean;
       background?: boolean;
       beeCreator?: boolean;
+      provider?: Tab["provider"];
+      /** With a provider: false opens its terminal interface instead of the chat. */
+      chat?: boolean;
     },
   ) => string;
   closeTab: (id: string) => void;
@@ -294,6 +306,8 @@ interface Store {
   /** The last tab brought up, a new object each time, even for the tab already active. */
   pickedTab: { id: string } | null;
   renameTab: (id: string, title: string) => void;
+  /** Shows a tab as a chat or back as its terminal. */
+  setTabView: (id: string, view: Tab["view"]) => void;
   moveTab: (id: string, groupId: string) => void;
   detachTab: (id: string, at?: { x: number; y: number }) => void;
   reattachTab: (id: string) => void;
@@ -328,6 +342,7 @@ interface Store {
   setLayout: (l: Layout) => void;
   setBarPosition: (p: BarPosition) => void;
   openGroupMenu: (m: { x: number; y: number; groupId: string } | null) => void;
+  openNewSessionMenu: (m: { x: number; y: number; groupId: string } | null) => void;
   setGroupColor: (id: string, color: string) => void;
   setGroupEmoji: (id: string, emoji: string | null) => void;
   ungroupTabs: (id: string) => void;
@@ -402,6 +417,7 @@ export const useStore = create<Store>()(
       defaultFolderId: null,
       modal: null,
       groupMenu: null,
+      newSessionMenu: null,
       tabMenu: null,
       paneAssign: null,
       layout: "sidebar",
@@ -568,6 +584,8 @@ export const useStore = create<Store>()(
           transcriptPath: null,
           claudeTitle: null,
           ...(opts.beeCreator ? { beeCreator: true } : {}),
+          // Another agent opens in chat unless asked for its terminal.
+          ...(opts.provider ? { provider: opts.provider, ...(opts.chat === false ? {} : { view: "chat" as const }) } : {}),
         };
         // A background tab runs without taking a pane or the focus.
         if (opts.background) {
@@ -648,7 +666,7 @@ export const useStore = create<Store>()(
         if (get().detached.includes(id)) return focusDetachedWindow(id);
         // Reopening a closed tab continues the session it was running.
         const previous = get().tabs.find((t) => t.id === id);
-        if (previous?.state === "dormant" && previous.claudeSessionId) markPendingResume([id]);
+        if (previous?.state === "dormant" && resumable(previous)) markPendingResume([id]);
         set((s) => {
           const panes = [...s.panes];
           // A tab already on screen keeps its pane and takes focus there;
@@ -666,6 +684,8 @@ export const useStore = create<Store>()(
           };
         });
       },
+      setTabView: (id, view) =>
+        set((s) => ({ tabs: s.tabs.map((t) => (t.id === id ? { ...t, view } : t)) })),
       renameTab: (id, title) => {
         set((s) => ({ tabs: s.tabs.map((t) => (t.id === id ? { ...t, title, customTitle: true } : t)) }));
         // Mirror the rename into Claude Code, but only with a session sitting
@@ -693,7 +713,7 @@ export const useStore = create<Store>()(
       restoreDetached: (ids) => {
         // Woken off the panes, so they do not push out the tabs restored there.
         const dormant = get().tabs.filter((t) => ids.includes(t.id) && t.state === "dormant");
-        markPendingResume(dormant.filter((t) => t.claudeSessionId).map((t) => t.id));
+        markPendingResume(dormant.filter(resumable).map((t) => t.id));
         set((s) => ({ tabs: s.tabs.map((t) => (dormant.includes(t) ? { ...t, state: "shell" as TabState } : t)) }));
         ids.forEach((id) => get().detachTab(id));
       },
@@ -806,6 +826,7 @@ export const useStore = create<Store>()(
       setLayout: (layout) => set({ layout }),
       setBarPosition: (barPosition) => set({ barPosition }),
       openGroupMenu: (groupMenu) => set({ groupMenu }),
+      openNewSessionMenu: (newSessionMenu) => set({ newSessionMenu }),
       setGroupColor: (id, color) =>
         set((s) => ({ groups: s.groups.map((g) => (g.id === id ? { ...g, color } : g)) })),
       setGroupEmoji: (id, emoji) =>
@@ -957,7 +978,7 @@ export const useStore = create<Store>()(
       startPaneAssign: (paneAssign) => set({ paneAssign, tabMenu: null }),
       assignToPane: (tabId, index) => {
         const previous = get().tabs.find((t) => t.id === tabId);
-        if (previous?.state === "dormant" && previous.claudeSessionId) markPendingResume([tabId]);
+        if (previous?.state === "dormant" && resumable(previous)) markPendingResume([tabId]);
         // Placing a tab that lives in its own window brings it back first.
         if (get().detached.includes(tabId)) closeDetachedWindow(tabId);
         set((s) => {
@@ -1119,17 +1140,34 @@ export function ensureUngrouped(): void {
  * Opens a session in a group: straight into the group's base folder when it has
  * one, otherwise through the folder picker.
  */
-export function openSessionInGroup(groupId: string): void {
+export function openSessionInGroup(groupId: string, open?: SessionKind): void {
   const s = useStore.getState();
   const group = s.groups.find((g) => g.id === groupId);
+  const kind = open ?? group?.launch?.open ?? "terminal";
   // The catch-all group has no folder of its own; it always uses the base folder.
   const wanted = group?.fixed ? s.defaultFolderId : group?.folderId;
   const folder = wanted ? s.folders.find((f) => f.id === wanted) : undefined;
   if (folder) {
-    newTabInGroup(groupId, folder.path, folder.name);
+    startSession(groupId, folder.path, folder.name, kind);
     return;
   }
-  s.openModal({ kind: "pickFolder", groupId });
+  s.openModal({ kind: "pickFolder", groupId, open: kind });
+}
+
+/** A new tab in a group and folder, opened as `open` asks. */
+export function startSession(groupId: string, cwd: string, title: string, open: SessionKind = "terminal"): string {
+  const s = useStore.getState();
+  if (open === "codex" || open === "opencode" || open === "codex-terminal" || open === "opencode-terminal") {
+    const provider = open.startsWith("codex") ? "codex" : "opencode";
+    const chat = !open.endsWith("-terminal");
+    const id = s.addTab(groupId, { cwd, title: PROVIDER_NAMES[provider], provider, chat });
+    if (!chat) markPendingLaunch(id);
+    return id;
+  }
+  const id = newTabInGroup(groupId, cwd, title);
+  if (open !== "terminal") markPendingLaunch(id);
+  if (open === "claude-chat") s.setTabView(id, "chat");
+  return id;
 }
 
 /** A new tab in a group, started with the group's first prompt when it has one. */
@@ -1171,6 +1209,8 @@ export interface SessionRef {
   id: string;
   cwd: string | null;
   title: string;
+  /** A Codex or OpenCode session; none for Claude. */
+  provider?: Tab["provider"] | null;
 }
 
 /**
@@ -1181,7 +1221,7 @@ export interface SessionRef {
  */
 export function openSession(ref: SessionRef, opts: { groupId?: string; pane?: number } = {}): void {
   const s = useStore.getState();
-  const existing = s.tabs.find((t) => t.claudeSessionId === ref.id);
+  const existing = s.tabs.find((t) => (ref.provider ? t.agentSessionId : t.claudeSessionId) === ref.id);
   if (existing) {
     if (opts.groupId && opts.groupId !== existing.groupId) s.moveTab(existing.id, opts.groupId);
     if (opts.pane !== undefined) s.assignToPane(existing.id, opts.pane);
@@ -1197,6 +1237,13 @@ export function openSession(ref: SessionRef, opts: { groupId?: string; pane?: nu
   if (!groupId) {
     ensureUngrouped();
     groupId = UNGROUPED_ID;
+  }
+  if (ref.provider) {
+    // Another agent's session opens in its chat, which resumes it.
+    const tabId = s.addTab(groupId, { cwd: ref.cwd, title: ref.title, customTitle: true, provider: ref.provider });
+    useStore.getState().patchTab(tabId, { agentSessionId: ref.id });
+    if (opts.pane !== undefined) useStore.getState().assignToPane(tabId, opts.pane);
+    return;
   }
   const tabId = s.addTab(groupId, { cwd: ref.cwd, claudeSessionId: ref.id, title: ref.title, customTitle: true });
   markPendingResume([tabId]);

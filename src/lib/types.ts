@@ -17,6 +17,22 @@ export interface Tab {
   claudeTitle: string | null;
   /** Opened to create worker bees with Claude; only it gets the bee tools. */
   beeCreator?: boolean;
+  /** Shown as a chat over its terminal; the session keeps running there. */
+  view?: "chat";
+  /** The agent this tab runs when it is not Claude. */
+  provider?: "codex" | "opencode";
+  /** Session of that agent (a Codex thread, an OpenCode session), resumed when the tab wakes. */
+  agentSessionId?: string;
+  agentModel?: string;
+}
+
+/** One line of a session's chat, from Claude's transcript or an agent's own reports. */
+export interface ChatEntry {
+  kind: "user" | "text" | "step" | "result" | "error";
+  id: string;
+  text: string;
+  tool?: string;
+  error?: boolean;
 }
 
 export interface Group {
@@ -41,7 +57,19 @@ export interface Group {
 /** Where updates come from. Each channel also gets every version of the ones after it. */
 export type UpdateChannel = "regular" | "beta" | "alpha";
 
+/** What a new tab opens as: a plain shell, or an agent session in chat or terminal. */
+export type SessionKind =
+  | "terminal"
+  | "claude-chat"
+  | "claude-terminal"
+  | "codex"
+  | "codex-terminal"
+  | "opencode"
+  | "opencode-terminal";
+
 export interface GroupLaunch {
+  /** What the group's new tabs open as when not picked from the + menu. */
+  open?: SessionKind | null;
   model?: string | null;
   permissionMode?: string | null;
   /** Sent as the first prompt when a new tab opens in the group. */
@@ -297,6 +325,8 @@ export interface SessionInfo {
   first_prompt: string | null;
   git_branch: string | null;
   titles: SessionTitles;
+  /** The agent that ran it; none for Claude. */
+  provider?: "codex" | "opencode" | null;
 }
 
 export interface SessionMatch {
