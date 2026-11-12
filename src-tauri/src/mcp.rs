@@ -16,6 +16,10 @@ pub(crate) fn text_result(text: String, is_error: bool) -> serde_json::Value {
 static BEE_CREATORS: Mutex<Option<HashSet<String>>> = Mutex::new(None);
 /// Hidden tabs running a bee; only they see the tools of a run.
 static BEE_RUNS: Mutex<Option<HashSet<String>>> = Mutex::new(None);
+/// Tabs of a colony's drones, Queens included; they see the colony tools.
+static DRONES: Mutex<Option<HashSet<String>>> = Mutex::new(None);
+/// Tabs of a colony's Queen; only they build the colony.
+static QUEENS: Mutex<Option<HashSet<String>>> = Mutex::new(None);
 
 fn listed(set: &Mutex<Option<HashSet<String>>>, tab_id: Option<&str>) -> bool {
     tab_id.is_some_and(|id| {
@@ -32,6 +36,21 @@ fn is_bee_creator(tab_id: Option<&str>) -> bool {
 
 fn is_bee_run(tab_id: Option<&str>) -> bool {
     listed(&BEE_RUNS, tab_id)
+}
+
+fn is_drone(tab_id: Option<&str>) -> bool {
+    listed(&DRONES, tab_id)
+}
+
+fn is_queen(tab_id: Option<&str>) -> bool {
+    listed(&QUEENS, tab_id)
+}
+
+/// The tabs of the colonies' drones and of their Queens, as the interface keeps them.
+#[tauri::command]
+pub fn colony_tabs(drones: Vec<String>, queens: Vec<String>) {
+    *DRONES.lock().unwrap() = Some(drones.into_iter().collect());
+    *QUEENS.lock().unwrap() = Some(queens.into_iter().collect());
 }
 
 /// The tabs that create bees, as the interface keeps them.
@@ -56,6 +75,12 @@ fn tool_definitions(tab_id: Option<&str>) -> serde_json::Value {
     }
     if is_bee_run(tab_id) {
         tools.extend(bee_run_tools());
+    }
+    if is_drone(tab_id) {
+        tools.extend(drone_tools());
+    }
+    if is_queen(tab_id) {
+        tools.extend(queen_tools());
     }
     serde_json::Value::Array(tools)
 }
@@ -141,6 +166,74 @@ fn bee_run_tools() -> Vec<serde_json::Value> {
                 "type": "object",
                 "properties": { "reason": { "type": "string", "description": "O que o usuário precisa decidir ou fazer, numa ou duas frases." } },
                 "required": ["reason"],
+                "additionalProperties": false
+            }
+        }
+    ]);
+    tools.as_array().cloned().unwrap_or_default()
+}
+
+const DRONE_TOOLS: [&str; 2] = ["colony_members", "send_message"];
+const QUEEN_TOOLS: [&str; 3] = ["create_drone", "update_drone", "remove_drone"];
+
+fn drone_tools() -> Vec<serde_json::Value> {
+    let tools = serde_json::json!([
+        {
+            "name": "colony_members",
+            "description": "Lista os membros desta colony: nome, função, descrição, agente, modelo e se está ocupado.",
+            "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false }
+        },
+        {
+            "name": "send_message",
+            "description": "Manda um pedido a outro membro da colony. A mensagem espera na fila dele até ele ficar livre. A resposta final do turno dele chega para você como mensagem nova: termine o seu turno em vez de esperar.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "to": { "type": "string", "description": "Nome do membro, como em colony_members." },
+                    "text": { "type": "string", "description": "O pedido, completo o bastante para ser feito sem perguntas." },
+                    "expectsReply": { "type": "boolean", "description": "false quando não precisa de resposta. Padrão true." }
+                },
+                "required": ["to", "text"],
+                "additionalProperties": false
+            }
+        }
+    ]);
+    tools.as_array().cloned().unwrap_or_default()
+}
+
+fn drone_properties() -> serde_json::Value {
+    serde_json::json!({
+        "name": { "type": "string", "description": "Nome do drone, único na colony." },
+        "role": { "type": "string", "description": "A função, em poucas palavras. Os colegas escolhem por ela." },
+        "description": { "type": "string", "description": "O que o drone sabe fazer e quando pedir a ele." },
+        "instructions": { "type": "string", "description": "Como o drone trabalha. Vai no começo da sessão dele." },
+        "agent": { "type": "string", "enum": ["claude", "codex", "opencode"], "description": "O agente que roda o drone. Padrão claude." },
+        "model": { "type": "string", "description": "Modelo do agente, como claude-sonnet-5-5. Sem ele, vale o padrão do agente." },
+        "permissionMode": { "type": "string", "enum": ["manual", "acceptEdits", "auto", "plan", "dontAsk", "bypassPermissions"], "description": "Modo de permissão do Claude. Sem ele, vale o do app." },
+        "allowedTools": { "type": "array", "items": { "type": "string" }, "description": "Regras do Claude liberadas sem perguntar, como \"Bash(gh pr:*)\"." }
+    })
+}
+
+fn queen_tools() -> Vec<serde_json::Value> {
+    let props = drone_properties();
+    let tools = serde_json::json!([
+        {
+            "name": "create_drone",
+            "description": "Cria um drone nesta colony. Só chame depois de o usuário confirmar a proposta.",
+            "inputSchema": { "type": "object", "properties": props, "required": ["name", "role"], "additionalProperties": false }
+        },
+        {
+            "name": "update_drone",
+            "description": "Muda os campos dados de um drone, pelo nome. Trocar agente ou modelo reabre a sessão dele.",
+            "inputSchema": { "type": "object", "properties": props, "required": ["name"], "additionalProperties": false }
+        },
+        {
+            "name": "remove_drone",
+            "description": "Remove um drone, pelo nome. Só chame depois de o usuário confirmar.",
+            "inputSchema": {
+                "type": "object",
+                "properties": { "name": { "type": "string" } },
+                "required": ["name"],
                 "additionalProperties": false
             }
         }
@@ -307,6 +400,12 @@ pub fn handle_rpc(
                 }
                 bee if BEE_RUN_TOOLS.contains(&bee) && is_bee_run(tab_id.as_deref()) => {
                     crate::plugins::call_frontend(app, "worker-bee", bee, tab_id, &args)
+                }
+                tool if DRONE_TOOLS.contains(&tool) && is_drone(tab_id.as_deref()) => {
+                    crate::plugins::call_frontend(app, "colony", tool, tab_id, &args)
+                }
+                tool if QUEEN_TOOLS.contains(&tool) && is_queen(tab_id.as_deref()) => {
+                    crate::plugins::call_frontend(app, "colony", tool, tab_id, &args)
                 }
                 other => match crate::plugins::tool_owner(other).as_deref() {
                     Some("editor") => crate::plugins::editor::call(app, tab_id, &args),

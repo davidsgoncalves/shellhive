@@ -98,6 +98,7 @@ pub fn run() {
             bees::bee_command_run,
             mcp::bee_creator_tabs,
             mcp::bee_run_tabs,
+            mcp::colony_tabs,
             sessions::session_last_reply,
             sessions::session_cache,
             sessions::subagent_transcript,

@@ -29,6 +29,7 @@ import { startLagTracker } from "./lib/perfDiag";
 import { CommandCard, typeCommand } from "./components/CommandCard";
 import { PermissionCard } from "./components/PermissionQueue";
 import { checkConnections } from "./lib/connections";
+import { callColonyTool, droneTurnEnded, startColony } from "./lib/colony";
 import { callBeeRunTool, finishBeeRun, fireBeeEvent, happeningOf, startBeeScheduler, stopBeeRun, useBeeRuns } from "./lib/bees";
 import { callBeeTool, syncBeeCreators } from "./lib/beeCreator";
 import { BeeMain, LIVE_RECT, useWatchedBeeTab } from "./components/WorkerBee";
@@ -36,6 +37,7 @@ import { PluginsMain } from "./components/PluginsScreen";
 import { CacheCard } from "./components/CacheCard";
 import { SubagentView } from "./components/SubagentView";
 import { ChatView } from "./components/ChatView";
+import { COLONY_RECT, ColonyMain, useWatchedDroneTab } from "./components/Colony";
 import { watchAgentTabs } from "./lib/agents";
 import { CACHE_CARD_HEIGHT, cacheCardOf, refreshCache, refreshCacheAfterTurn, useCache } from "./lib/cache";
 import { applyLook, shareLook } from "./lib/theme";
@@ -75,6 +77,8 @@ import { syncTabTitle } from "./lib/titles";
 import {
   WATCHDOG_MINUTES,
   isBeeTab,
+  isColonyTab,
+  isHiddenTab,
   paneCount,
   paneRect,
   type HookEvent,
@@ -153,7 +157,7 @@ function useBackendBridge() {
       store().setSubagents(tab.id, nextSubagents(store().subagentsByTab[tab.id] ?? [], e));
       // A bee's own run never starts event bees, or one could start itself over and over.
       const runningBee = useBeeRuns.getState().runs.some((r) => r.tabId === tab.id && r.status === "running");
-      const happening = isBeeTab(tab) || runningBee ? null : happeningOf(e, tab.groupId);
+      const happening = isHiddenTab(tab) || runningBee ? null : happeningOf(e, tab.groupId);
       if (happening) fireBeeEvent(happening);
       const patch = tabPatchFor(tab, e);
       if (!patch) return;
@@ -169,6 +173,9 @@ function useBackendBridge() {
         if (isBeeTab(tab) || useBeeRuns.getState().runs.some((r) => r.tabId === tab.id && r.status === "running")) {
           const reply = e.payload.last_assistant_message;
           void finishBeeRun(tab.id, typeof reply === "string" ? reply : undefined);
+        } else if (isColonyTab(tab)) {
+          const reply = e.payload.last_assistant_message;
+          droneTurnEnded(tab.id, typeof reply === "string" ? reply : undefined);
         } else {
           void notify("Sessão terminou", patch.title ?? tab.title);
         }
@@ -292,7 +299,7 @@ function useShortcuts() {
       const number = tabNumberOf(e);
       if (!action && number === null) return;
       const s = useStore.getState();
-      const live = s.tabs.filter((t) => t.state !== "dormant" && !isBeeTab(t));
+      const live = s.tabs.filter((t) => t.state !== "dormant" && !isHiddenTab(t));
       const idx = live.findIndex((t) => t.id === s.activeTabId);
       e.preventDefault();
 
@@ -543,6 +550,10 @@ function usePluginToolCalls() {
         const reply = (text: string, isError: boolean) =>
           invoke("plugin_tool_result", { callId: payload.call_id, text, isError }).catch(console.error);
         // The bee tools belong to the core, not to a plugin.
+        if (payload.plugin === "colony") {
+          const out = callColonyTool(payload.tool, payload.args ?? {}, payload.tab_id);
+          return void reply(out.text, !!out.isError);
+        }
         if (payload.plugin === "worker-bee") {
           const out = payload.tool.startsWith("bee_")
             ? callBeeRunTool(payload.tool, payload.args ?? {}, payload.tab_id)
@@ -708,7 +719,12 @@ function useWorkSetup() {
   useEffect(() => {
     void checkConnections();
     syncBeeCreators();
-    return startBeeScheduler();
+    const stopBees = startBeeScheduler();
+    const stopColony = startColony();
+    return () => {
+      stopBees();
+      stopColony();
+    };
   }, []);
 }
 
@@ -771,7 +787,12 @@ function App() {
   const beeMode = useStore((s) => s.panelOpen && s.panelTab === "bees");
   // The plugins screen takes the center the same way.
   const pluginsMode = useStore((s) => s.panelOpen && s.panelTab === "plugins");
-  const watched = useWatchedBeeTab();
+  const watchedBee = useWatchedBeeTab();
+  // The Colony takes the center the same way, with the shown drone's chat or terminal.
+  const colonyMode = useStore((s) => s.panelOpen && s.panelTab === "colony");
+  const watchedDrone = useWatchedDroneTab();
+  const droneTabNow = tabs.find((t) => t.id === watchedDrone);
+  const watched = watchedBee ?? (droneTabNow && droneTabNow.view !== "chat" ? droneTabNow.id : null);
   const barPosition = useStore((s) => s.barPosition);
   const groups = useStore((s) => s.groups);
   const borderWidth = useStore((s) => s.terminalBorder);
@@ -861,11 +882,13 @@ function App() {
                   key={t.id}
                   tab={t}
                   visible={visible}
-                  focused={watching || (!beeMode && !pluginsMode && slot === focusedPane)}
+                  focused={watching || (!beeMode && !pluginsMode && !colonyMode && slot === focusedPane)}
                   raised={watching}
                   rect={
                     watching
-                      ? LIVE_RECT
+                      ? t.id === watchedBee
+                        ? LIVE_RECT
+                        : COLONY_RECT
                       : above || below
                         ? { ...rect, top: `calc(${rect.top} + ${above}px)`, height: `calc(${rect.height} - ${above + below}px)` }
                         : rect
@@ -952,6 +975,8 @@ function App() {
             )}
             <PaneOverlay />
             {beeMode && <BeeMain />}
+            {colonyMode && <ColonyMain />}
+            {colonyMode && droneTabNow?.view === "chat" && <ChatView key={`drone-${droneTabNow.id}`} tab={droneTabNow} rect={COLONY_RECT} />}
             {pluginsMode && <PluginsMain />}
           </div>
         </main>

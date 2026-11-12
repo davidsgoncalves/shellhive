@@ -6,7 +6,7 @@ import { sendMessage } from "../lib/typing";
 import { pushEntries, setAgentView, switchAgent, useAgentEntries, useAgentModels } from "../lib/agents";
 import { agentCommand, CLAUDE_MODELS, PROVIDER_NAMES, type Provider } from "../lib/providers";
 import { Markdown } from "../lib/markdown";
-import type { ChatEntry as Entry, Tab } from "../lib/types";
+import { isColonyTab, type ChatEntry as Entry, type Tab } from "../lib/types";
 
 /** How often a session's transcript is read for new entries. */
 const READ_MS = 700;
@@ -260,7 +260,7 @@ export function ChatView({ tab, rect }: Props) {
     <div className="chat-view" style={rect}>
       <header className="chat-head">
         <h2>{tab.title}</h2>
-        {items.length === 0 && (
+        {items.length === 0 && !isColonyTab(tab) && (
           <select
             className="chat-pick"
             value={provider ?? "claude"}
@@ -295,13 +295,16 @@ export function ChatView({ tab, rect }: Props) {
             ))}
           </select>
         )}
-        <button
-          className="chat-head-btn"
-          onClick={() => (provider ? void setAgentView(tab.id, "terminal") : toTerminal())}
-          title={provider ? `Abrir esta sessão na interface do ${agent}` : "Mostrar o terminal desta aba"}
-        >
-          Terminal
-        </button>
+        {/* A drone lives on the Colony screen, which has no way back from its terminal. */}
+        {!isColonyTab(tab) && (
+          <button
+            className="chat-head-btn"
+            onClick={() => (provider ? void setAgentView(tab.id, "terminal") : toTerminal())}
+            title={provider ? `Abrir esta sessão na interface do ${agent}` : "Mostrar o terminal desta aba"}
+          >
+            Terminal
+          </button>
+        )}
       </header>
       <ol className="chat-list" ref={listRef}>
         {clipped && <li className="chat-note">O começo desta sessão ficou de fora. Ele continua no terminal.</li>}

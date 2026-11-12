@@ -13,6 +13,7 @@ import { sessionFromDrag, useStore, type SessionRef } from "../lib/store";
 import { attachLinks, carriesFiles, carriesSession, carriesTab, fixEmojiWidth, fixLinuxInput, pasteDroppedFiles } from "../lib/termExtras";
 import { openAgentTerminal } from "../lib/agents";
 import { runOfTab } from "../lib/bees";
+import { droneOfTab } from "../lib/colony";
 import { takePendingFork, takePendingLaunch, takePendingPrompt, takePendingResume } from "../lib/restored";
 import type { Tab } from "../lib/types";
 
@@ -110,6 +111,9 @@ export function TerminalView({
     const launch = useStore.getState().groups.find((g) => g.id === tab.groupId)?.launch;
     const beeRun = runOfTab(tab.id);
     const bee = beeRun && useStore.getState().bees.find((b) => b.id === beeRun.beeId);
+    // A colony's drone on Claude runs with its own model and permissions.
+    const drone = droneOfTab(tab.id);
+    const own = bee ?? (drone?.agent === "claude" ? drone : undefined);
     invoke("pty_spawn", {
       id: tab.id,
       cols: term.cols,
@@ -119,9 +123,9 @@ export function TerminalView({
       fork: !!fork,
       prompt,
       launch: !agentTab && takePendingLaunch(tab.id),
-      model: launch?.model ?? null,
-      permissionMode: bee?.permissionMode ?? launch?.permissionMode ?? null,
-      allowedTools: bee?.allowedTools ?? null,
+      model: (drone?.agent === "claude" ? drone.model : null) ?? launch?.model ?? null,
+      permissionMode: own?.permissionMode ?? launch?.permissionMode ?? null,
+      allowedTools: own?.allowedTools ?? null,
     })
       .then(() => {
         const now = useStore.getState().tabs.find((t) => t.id === tab.id);

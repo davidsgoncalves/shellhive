@@ -3,7 +3,7 @@ import { Announcements } from "./Announcements";
 import { openSurface } from "../lib/pluginEffects";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useStore } from "../lib/store";
-import { SPLIT_MODES, isBeeTab, type TabState } from "../lib/types";
+import { SPLIT_MODES, isHiddenTab, type TabState } from "../lib/types";
 import { shortcutLabel } from "../lib/shortcuts";
 import logo from "../assets/logo.png";
 import { ProcessesButton } from "./ProcessesPopup";
@@ -29,7 +29,7 @@ export function TopBar() {
 
   const totalCost = Object.values(statusByTab).reduce((sum, s) => sum + (s.cost?.total_cost_usd ?? 0), 0);
   const liveSessions = tabs.filter(
-    (t) => t.claudeSessionId && t.state !== "dormant" && t.state !== "shell" && !isBeeTab(t),
+    (t) => t.claudeSessionId && t.state !== "dormant" && t.state !== "shell" && !isHiddenTab(t),
   ).length;
 
   return (
@@ -44,7 +44,7 @@ export function TopBar() {
 
       <div className="counts">
         {COUNTED.map(({ state, label }) => {
-          const n = tabs.filter((t) => t.state === state && !isBeeTab(t)).length;
+          const n = tabs.filter((t) => t.state === state && !isHiddenTab(t)).length;
           return (
             <span key={state} className={`count-chip ${n ? "" : "zero"}`} title={label}>
               <span className={`dot state-${state}`} />

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../lib/store";
 import { terminals } from "../lib/terminals";
-import { isBeeTab } from "../lib/types";
+import { isHiddenTab } from "../lib/types";
 
 /** Matches shown per tab, and in all. */
 const PER_TAB = 5;
@@ -47,7 +47,7 @@ export function SearchAll({ onClose }: { onClose: () => void }) {
     if (needle.length < 2) return [];
     const out: Hit[] = [];
     for (const tab of tabs) {
-      if (tab.state === "dormant" || isBeeTab(tab)) continue;
+      if (tab.state === "dormant" || isHiddenTab(tab)) continue;
       const color = groups.find((g) => g.id === tab.groupId)?.color ?? "transparent";
       const found = linesOf(tab.id).filter((l) => l.toLowerCase().includes(needle));
       found.slice(0, PER_TAB).forEach((line, i) => {

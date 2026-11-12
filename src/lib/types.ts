@@ -106,6 +106,65 @@ export const BEE_GROUP_ID = "worker-bee";
 /** True for a tab a worker bee runs in, kept out of sight. */
 export const isBeeTab = (t: { groupId: string }) => t.groupId === BEE_GROUP_ID;
 
+export const COLONY_GROUP_ID = "colony";
+
+/** True for a tab a drone of a colony runs in, shown only on the Colony screen. */
+export const isColonyTab = (t: { groupId: string }) => t.groupId === COLONY_GROUP_ID;
+
+/** Tabs that live out of the tab list: a worker bee's run or a colony's drone. */
+export const isHiddenTab = (t: { groupId: string }) => isBeeTab(t) || isColonyTab(t);
+
+export type DroneAgent = "claude" | "codex" | "opencode";
+
+/** A team of agents that keep their conversations: a Queen and her drones. */
+export interface Colony {
+  id: string;
+  name: string;
+  goal: string;
+  /** Where the drones work; unset is an empty folder of the app. */
+  cwd: string | null;
+  createdAt: number;
+}
+
+/** An agent of a colony; the Queen is the one that builds the colony and hands out work. */
+export interface Drone {
+  id: string;
+  colonyId: string;
+  queen: boolean;
+  name: string;
+  /** What the drone does, in a few words; its colleagues pick by it. */
+  role: string;
+  description: string;
+  /** How the drone works, sent when its session starts. */
+  instructions: string;
+  agent: DroneAgent;
+  model: string | null;
+  permissionMode: string | null;
+  allowedTools: string[];
+  /** The agent's session, resumed when the drone is woken again. */
+  sessionId: string | null;
+  createdAt: number;
+}
+
+/** A request from one drone to another, or the reply that comes back. */
+export interface ColonyMessage {
+  id: string;
+  colonyId: string;
+  /** A drone's id, or "user". */
+  from: string;
+  to: string;
+  text: string;
+  expectsReply: boolean;
+  status: "queued" | "delivered" | "answered" | "failed";
+  /** What the receiver answered at the end of the turn the message started. */
+  reply: string | null;
+  /** The message this one answers. */
+  replyTo: string | null;
+  createdAt: number;
+  deliveredAt: number | null;
+  answeredAt: number | null;
+}
+
 export type BeeTrigger =
   | { kind: "manual" }
   | { kind: "interval"; minutes: number }

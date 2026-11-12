@@ -1806,3 +1806,45 @@ button.link.danger { color: var(--danger); }
 }
 .chat-composer textarea:focus { outline: none; border-color: var(--accent); }
 .chat-error { align-self: flex-start; max-width: min(720px, 85%); padding: 8px 12px; border-radius: 8px; font-size: 12px; white-space: pre-wrap; color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, var(--panel-2)); user-select: text; }
+
+/* ---------- Colony ---------- */
+.colony-main + .chat-view { z-index: 60; border: none; border-top: 1px solid var(--border); border-radius: 0 0 6px 6px; }
+.colony-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.colony-name {
+  display: flex; align-items: center; gap: 6px; width: 100%; background: none; border: none; color: var(--fg);
+  font: inherit; font-size: 13px; font-weight: 600; padding: 6px 4px; cursor: pointer; text-align: left; border-radius: 6px;
+}
+.colony-name:hover { background: rgba(255,255,255,.05); }
+.colony-caret { color: var(--muted); width: 10px; font-size: 11px; }
+.drone-list { list-style: none; margin: 2px 0 6px 10px; padding: 0 0 0 6px; border-left: 1px solid var(--border); display: flex; flex-direction: column; gap: 1px; }
+.drone-row {
+  display: flex; align-items: center; gap: 8px; width: 100%; background: none; border: none; color: var(--fg);
+  font: inherit; padding: 6px 8px; cursor: pointer; text-align: left; border-radius: 6px;
+}
+.drone-row:hover { background: rgba(255,255,255,.05); }
+.drone-row.on { background: rgba(255,255,255,.09); }
+.drone-row .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.drone-row .dot.state-dormant { background: transparent; border: 1px solid var(--muted); box-sizing: border-box; }
+.drone-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.drone-name { font-size: 12.5px; display: flex; align-items: center; gap: 6px; }
+.drone-role { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.drone-queen {
+  font-size: 9.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--c-permission);
+  border: 1px solid color-mix(in srgb, var(--c-permission) 50%, transparent); border-radius: 4px; padding: 0 4px;
+}
+.drone-head { height: 48px; box-sizing: border-box; display: flex; align-items: center; gap: 10px; padding: 0 14px; flex: none; }
+.drone-head > div { flex: 1; min-width: 0; }
+.drone-head h2 { margin: 0; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+.drone-head .hint { margin: 0; font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.drone-head .danger { color: var(--danger); border-color: var(--danger); }
+.colony-messages { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.colony-message { padding: 9px 10px; border-radius: 6px; cursor: pointer; font-size: 12.5px; }
+.colony-message:hover { background: rgba(255,255,255,.04); }
+.colony-message .row { display: flex; gap: 8px; align-items: baseline; }
+.colony-message .row strong { font-weight: 500; }
+.colony-message .muted { color: var(--muted); font-size: 11px; }
+.colony-message p { margin: 4px 0 0; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.colony-message p.full { white-space: pre-wrap; color: var(--fg); user-select: text; }
+.colony-message.failed .row strong { color: var(--danger); }
+.colony-message.delivered .row strong::after { content: " ●"; color: var(--c-working); }
+.colony-reply { border-left: 2px solid var(--border); padding-left: 8px; }

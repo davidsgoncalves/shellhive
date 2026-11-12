@@ -18,6 +18,10 @@ import {
   type Folder,
   type Bee,
   BEE_GROUP_ID,
+  COLONY_GROUP_ID,
+  type Colony,
+  type ColonyMessage,
+  type Drone,
   type GitInfo,
   type Subagent,
   type CommandSuggestion,
@@ -121,6 +125,12 @@ export interface BeeQuota {
 }
 
 /** What the Worker bee shows in place of the terminals: a bee, its editor, or a new one. */
+/** What the Colony screen shows: a colony's drone, its messages, or the form for a new colony. */
+/** Messages between drones kept across restarts, newest last. */
+const MAX_COLONY_MESSAGES = 1000;
+
+export type ColonyView = { colonyId: string; show: string | "messages" } | { mode: "new" } | null;
+
 /** What the Worker bee shows in the center: a bee, its editor, every run, or one run. */
 export type BeeView =
   | { mode: "detail" | "edit"; id: string }
@@ -176,6 +186,18 @@ interface Store {
   /** Usage ceilings, in percent, above which a scheduled bee run waits; null is off. */
   beeQuota: BeeQuota;
   setBeeQuota: (patch: Partial<BeeQuota>) => void;
+  colonies: Colony[];
+  drones: Drone[];
+  colonyMessages: ColonyMessage[];
+  colonyView: ColonyView;
+  setColonyView: (view: ColonyView) => void;
+  addColony: (colony: Colony, queen: Drone) => void;
+  removeColony: (id: string) => void;
+  addDrone: (drone: Drone) => void;
+  updateDrone: (id: string, patch: Partial<Drone>) => void;
+  removeDrone: (id: string) => void;
+  /** Adds a message or replaces the one with its id. */
+  putColonyMessage: (message: ColonyMessage) => void;
   /** Most bee runs at once; the rest wait their turn. Null is no limit. */
   beeMaxRunning: number | null;
   setBeeMaxRunning: (n: number | null) => void;
@@ -421,6 +443,33 @@ export const useStore = create<Store>()(
       setCacheStyle: (cacheStyle) => set({ cacheStyle }),
       beeQuota: { session: null, weekly: null },
       setBeeQuota: (patch) => set((s) => ({ beeQuota: { ...s.beeQuota, ...patch } })),
+      colonies: [],
+      drones: [],
+      colonyMessages: [],
+      colonyView: null,
+      setColonyView: (colonyView) => set({ colonyView, panelTab: "colony", panelOpen: true }),
+      addColony: (colony, queen) =>
+        set((s) => ({
+          colonies: [...s.colonies, colony],
+          drones: [...s.drones, queen],
+          colonyView: { colonyId: colony.id, show: queen.id },
+        })),
+      removeColony: (id) =>
+        set((s) => ({
+          colonies: s.colonies.filter((c) => c.id !== id),
+          drones: s.drones.filter((d) => d.colonyId !== id),
+          colonyMessages: s.colonyMessages.filter((m) => m.colonyId !== id),
+          colonyView: s.colonyView && "colonyId" in s.colonyView && s.colonyView.colonyId === id ? null : s.colonyView,
+        })),
+      addDrone: (drone) => set((s) => ({ drones: [...s.drones, drone] })),
+      updateDrone: (id, patch) => set((s) => ({ drones: s.drones.map((d) => (d.id === id ? { ...d, ...patch } : d)) })),
+      removeDrone: (id) => set((s) => ({ drones: s.drones.filter((d) => d.id !== id) })),
+      putColonyMessage: (message) =>
+        set((s) => {
+          const others = s.colonyMessages.filter((m) => m.id !== message.id);
+          // The newest messages are kept; the rest of a long colony's history goes.
+          return { colonyMessages: [...others, message].sort((a, b) => a.createdAt - b.createdAt).slice(-MAX_COLONY_MESSAGES) };
+        }),
       beeMaxRunning: 2,
       setBeeMaxRunning: (beeMaxRunning) => set({ beeMaxRunning }),
       pluginView: null,
@@ -1062,7 +1111,7 @@ export const useStore = create<Store>()(
         groups: s.groups,
         // A bee's run ends with the app; its tab is not brought back.
         tabs: s.tabs
-          .filter((t) => t.groupId !== BEE_GROUP_ID)
+          .filter((t) => t.groupId !== BEE_GROUP_ID && t.groupId !== COLONY_GROUP_ID)
           .map((t) => ({ ...t, state: "dormant" as TabState, pendingMessage: null })),
         activeTabId: s.activeTabId,
         panelOpen: s.panelOpen,
@@ -1074,6 +1123,9 @@ export const useStore = create<Store>()(
         bees: s.bees,
         beeQuota: s.beeQuota,
         beeMaxRunning: s.beeMaxRunning,
+        colonies: s.colonies,
+        drones: s.drones,
+        colonyMessages: s.colonyMessages,
         cacheStyle: s.cacheStyle,
         archivedGroups: s.archivedGroups,
         defaultFolderId: s.defaultFolderId,
