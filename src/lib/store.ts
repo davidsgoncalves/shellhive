@@ -7,7 +7,7 @@ import { markPendingFork, markPendingLaunch, markPendingPrompt, markPendingResum
 import { sameRule } from "./permRules";
 import { mergeRateLimits } from "./rateLimits";
 import type { MiniBounds } from "./mini";
-import { THEME_FONT, THEMES, type TerminalFont, type ThemeId } from "./theme";
+import { THEME_FONT, THEMES, themeOr, type TerminalFont, type ThemeId } from "./theme";
 import { isView, viewOf, type LocalPlugin, type PluginPanel } from "./localPlugins";
 import { closeDetachedWindow, focusDetachedWindow, openDetachedWindow } from "./detach";
 import {
@@ -191,6 +191,10 @@ interface Store {
   colonyMessages: ColonyMessage[];
   colonyView: ColonyView;
   setColonyView: (view: ColonyView) => void;
+  /** Colonies expanded in the side panel. */
+  openColonies: string[];
+  toggleColony: (id: string, open?: boolean) => void;
+  updateColony: (id: string, patch: Partial<Colony>) => void;
   addColony: (colony: Colony, queen: Drone) => void;
   removeColony: (id: string) => void;
   addDrone: (drone: Drone) => void;
@@ -447,10 +451,18 @@ export const useStore = create<Store>()(
       drones: [],
       colonyMessages: [],
       colonyView: null,
+      openColonies: [],
+      toggleColony: (id, open) =>
+        set((s) => {
+          const now = open ?? !s.openColonies.includes(id);
+          return { openColonies: now ? [...new Set([...s.openColonies, id])] : s.openColonies.filter((c) => c !== id) };
+        }),
+      updateColony: (id, patch) => set((s) => ({ colonies: s.colonies.map((c) => (c.id === id ? { ...c, ...patch } : c)) })),
       setColonyView: (colonyView) => set({ colonyView, panelTab: "colony", panelOpen: true }),
       addColony: (colony, queen) =>
         set((s) => ({
           colonies: [...s.colonies, colony],
+          openColonies: [...s.openColonies, colony.id],
           drones: [...s.drones, queen],
           colonyView: { colonyId: colony.id, show: queen.id },
         })),
@@ -486,7 +498,7 @@ export const useStore = create<Store>()(
       tabTitleWrap: "wrap",
       closeAction: "archive",
       groupTint: "subtle",
-      theme: "classic",
+      theme: "glow",
       terminalFont: THEME_FONT,
       seenAnnouncements: [],
       tourSeen: false,
@@ -1082,7 +1094,7 @@ export const useStore = create<Store>()(
     }),
     {
       name: "claude-terminal-layout",
-      version: 3,
+      version: 4,
       storage: createJSONStorage(() => fileStorage),
       // main.tsx rehydrates before the first render; see persist.ts.
       skipHydration: true,
@@ -1093,6 +1105,8 @@ export const useStore = create<Store>()(
         const { betaChannel, ...rest } = prev;
         return {
           ...rest,
+          // Clássico, Glass and Glow Âmbar were removed.
+          theme: themeOr(prev.theme),
           updateChannel: ["regular", "beta", "alpha"].includes(prev.updateChannel as string)
             ? prev.updateChannel
             : betaChannel === true
@@ -1126,6 +1140,7 @@ export const useStore = create<Store>()(
         colonies: s.colonies,
         drones: s.drones,
         colonyMessages: s.colonyMessages,
+        openColonies: s.openColonies,
         cacheStyle: s.cacheStyle,
         archivedGroups: s.archivedGroups,
         defaultFolderId: s.defaultFolderId,

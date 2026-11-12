@@ -6,7 +6,8 @@ import { sendMessage } from "../lib/typing";
 import { pushEntries, setAgentView, switchAgent, useAgentEntries, useAgentModels } from "../lib/agents";
 import { agentCommand, CLAUDE_MODELS, PROVIDER_NAMES, type Provider } from "../lib/providers";
 import { Markdown } from "../lib/markdown";
-import { parseLetter } from "../lib/colony";
+import { droneOfTab, parseLetter } from "../lib/colony";
+import { BeeAvatar } from "./BeeAvatar";
 import { isColonyTab, type ChatEntry as Entry, type Tab } from "../lib/types";
 
 /** How often a session's transcript is read for new entries. */
@@ -148,19 +149,44 @@ function IntroNote({ text }: { text: string }) {
   );
 }
 
+/** The drones of a colony by name, to put each colleague's avatar on their letters. */
+type Members = Map<string, { id: string; queen: boolean }>;
+
+function Colleague({ from, kind, body, members }: { from: string; kind: string; body: string; members: Members }) {
+  // A Queen Bee is named "Nome (Queen Bee)" in letters; the avatar goes by the bare name.
+  const who = members.get(from.replace(/\s*\(.*\)$/, ""));
+  return (
+    <li className="chat-msg from-colleague">
+      <span className="chat-from">
+        <BeeAvatar seed={who?.id ?? from} queen={who?.queen} size={18} />
+        {from} · {kind}
+      </span>
+      <Markdown text={body} />
+    </li>
+  );
+}
+
 /** One message of a chat; in a drone's chat, what the colony typed shows as such, not as the user's. */
-function MessageRow({ kind, text, colony }: { kind: "user" | "text" | "error"; text: string; colony: boolean }) {
-  const letter = colony && kind === "user" ? parseLetter(text) : null;
-  if (letter?.kind === "intro") return <IntroNote text={text} />;
-  if (letter)
+function MessageRow({ kind, text, members }: { kind: "user" | "text" | "error"; text: string; members: Members | null }) {
+  const letter = members && kind === "user" ? parseLetter(text) : null;
+  if (letter?.kind === "intro") {
+    const carried = letter.rest ? parseLetter(letter.rest) : null;
     return (
-      <li className="chat-msg from-colleague">
-        <span className="chat-from">
-          {letter.from} · {letter.kind === "reply" ? "resposta" : "pedido"}
-        </span>
-        <Markdown text={letter.body} />
-      </li>
+      <>
+        <IntroNote text={text} />
+        {carried && carried.kind !== "intro" && <MessageRow kind="user" text={letter.rest} members={members} />}
+      </>
     );
+  }
+  if (letter?.kind === "replies")
+    return (
+      <>
+        {letter.parts.map((p) => (
+          <Colleague key={p.from} from={p.from} kind="resposta" body={p.body} members={members!} />
+        ))}
+      </>
+    );
+  if (letter) return <Colleague from={letter.from} kind={letter.kind === "reply" ? "resposta" : "pedido"} body={letter.body} members={members!} />;
   return (
     <li className={kind === "error" ? "chat-error" : `chat-msg ${kind === "user" ? "from-user" : "from-agent"}`}>
       {kind === "text" ? <Markdown text={text} /> : text}
@@ -213,6 +239,12 @@ export function ChatView({ tab, rect }: Props) {
   const clipped = !provider && transcript.clipped;
   const agent = provider ? PROVIDER_NAMES[provider] : "Claude";
   const items = useMemo(() => itemsOf(entries), [entries]);
+  const drone = isColonyTab(tab) ? droneOfTab(tab.id) : undefined;
+  const allDrones = useStore((s) => s.drones);
+  const members = useMemo<Members | null>(
+    () => (drone ? new Map(allDrones.filter((d) => d.colonyId === drone.colonyId).map((d) => [d.name, { id: d.id, queen: d.queen }])) : null),
+    [drone, allDrones],
+  );
   const [draft, setDraft] = useState("");
   const [images, setImages] = useState<Attached[]>([]);
   const [switching, setSwitching] = useState(false);
@@ -294,7 +326,12 @@ export function ChatView({ tab, rect }: Props) {
   return (
     <div className="chat-view" style={rect}>
       <header className="chat-head">
-        <h2>{tab.title}</h2>
+        {drone && <BeeAvatar seed={drone.id} queen={drone.queen} size={26} />}
+        <h2 className={drone ? "drone-title" : undefined}>
+          {drone ? drone.name : tab.title}
+          {drone?.queen && <span className="drone-queen">Queen Bee</span>}
+          {drone && !drone.queen && drone.role && <span className="drone-head-role">{drone.role}</span>}
+        </h2>
         {items.length === 0 && !isColonyTab(tab) && (
           <select
             className="chat-pick"
@@ -358,7 +395,7 @@ export function ChatView({ tab, rect }: Props) {
           it.kind === "steps" ? (
             <StepsRow key={it.id} steps={it.steps} running={working && i === items.length - 1} />
           ) : (
-            <MessageRow key={`${it.kind}:${it.id}`} kind={it.kind} text={it.text} colony={isColonyTab(tab)} />
+            <MessageRow key={`${it.kind}:${it.id}`} kind={it.kind} text={it.text} members={members} />
           ),
         )}
         {working && (

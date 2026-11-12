@@ -24,6 +24,8 @@ export function TopBar() {
   useEffect(() => {
     void getCurrentWindow().setTitle(APP_NAME);
   }, []);
+  // The Colony takes the center: the sessions' counts and the split do not apply there.
+  const colony = useStore((s) => s.panelOpen && s.panelTab === "colony");
   const active = tabs.find((t) => t.id === activeTabId);
   const activeStatus = active ? statusByTab[active.id] : undefined;
 
@@ -42,42 +44,47 @@ export function TopBar() {
         </span>
       </div>
 
-      <div className="counts">
-        {COUNTED.map(({ state, label }) => {
-          const n = tabs.filter((t) => t.state === state && !isHiddenTab(t)).length;
-          return (
-            <span key={state} className={`count-chip ${n ? "" : "zero"}`} title={label}>
-              <span className={`dot state-${state}`} />
-              {n}
-            </span>
-          );
-        })}
-        <span className="muted">{liveSessions} sessões · ${totalCost.toFixed(2)}</span>
-      </div>
+      {!colony && (
+        <>
+          <div className="counts">
+            {COUNTED.map(({ state, label }) => {
+              const n = tabs.filter((t) => t.state === state && !isHiddenTab(t)).length;
+              return (
+                <span key={state} className={`count-chip ${n ? "" : "zero"}`} title={label}>
+                  <span className={`dot state-${state}`} />
+                  {n}
+                </span>
+              );
+            })}
+            <span className="muted">{liveSessions} sessões · ${totalCost.toFixed(2)}</span>
+          </div>
 
-      <div className="split-picker">
-        {SPLIT_MODES.map((s) => (
-          <button
-            key={s.mode}
-            className={splitMode === s.mode ? "on" : ""}
-            title={s.label}
-            onClick={() => setSplitMode(s.mode)}
-          >
-            {s.glyph}
-          </button>
-        ))}
-      </div>
+          <div className="split-picker">
+            {SPLIT_MODES.map((s) => (
+              <button
+                key={s.mode}
+                className={splitMode === s.mode ? "on" : ""}
+                title={s.label}
+                onClick={() => setSplitMode(s.mode)}
+              >
+                {s.glyph}
+              </button>
+            ))}
+          </div>
 
-      <div className="active-info">
-        {active && activeStatus ? (
-          <>
-            <span className="muted">{activeStatus.model?.display_name ?? "modelo ?"}</span>
-            <span className="muted">${(activeStatus.cost?.total_cost_usd ?? 0).toFixed(2)}</span>
-          </>
-        ) : (
-          active?.pendingMessage && <span className="muted">{active.pendingMessage}</span>
-        )}
-      </div>
+          <div className="active-info">
+            {active && activeStatus ? (
+              <>
+                <span className="muted">{activeStatus.model?.display_name ?? "modelo ?"}</span>
+                <span className="muted">${(activeStatus.cost?.total_cost_usd ?? 0).toFixed(2)}</span>
+              </>
+            ) : (
+              active?.pendingMessage && <span className="muted">{active.pendingMessage}</span>
+            )}
+          </div>
+        </>
+      )}
+      {colony && <div className="counts" />}
 
       <PluginStatus />
       <ProcessesButton />
