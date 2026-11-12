@@ -6,6 +6,7 @@ import { sendMessage } from "../lib/typing";
 import { pushEntries, setAgentView, switchAgent, useAgentEntries, useAgentModels } from "../lib/agents";
 import { agentCommand, CLAUDE_MODELS, PROVIDER_NAMES, type Provider } from "../lib/providers";
 import { Markdown } from "../lib/markdown";
+import { parseLetter } from "../lib/colony";
 import { isColonyTab, type ChatEntry as Entry, type Tab } from "../lib/types";
 
 /** How often a session's transcript is read for new entries. */
@@ -129,6 +130,40 @@ function StepsRow({ steps, running }: { steps: Step[]; running: boolean }) {
           ))}
         </ol>
       )}
+    </li>
+  );
+}
+
+/** The note that stands for the colony's introduction in a drone's chat, opened on click. */
+function IntroNote({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <li className="chat-steps">
+      <button className="chat-steps-head" onClick={() => setOpen(!open)} aria-expanded={open}>
+        <span className="chat-caret">{open ? "▾" : "▸"}</span>
+        Instruções da colony
+      </button>
+      {open && <pre className="chat-intro">{text}</pre>}
+    </li>
+  );
+}
+
+/** One message of a chat; in a drone's chat, what the colony typed shows as such, not as the user's. */
+function MessageRow({ kind, text, colony }: { kind: "user" | "text" | "error"; text: string; colony: boolean }) {
+  const letter = colony && kind === "user" ? parseLetter(text) : null;
+  if (letter?.kind === "intro") return <IntroNote text={text} />;
+  if (letter)
+    return (
+      <li className="chat-msg from-colleague">
+        <span className="chat-from">
+          {letter.from} · {letter.kind === "reply" ? "resposta" : "pedido"}
+        </span>
+        <Markdown text={letter.body} />
+      </li>
+    );
+  return (
+    <li className={kind === "error" ? "chat-error" : `chat-msg ${kind === "user" ? "from-user" : "from-agent"}`}>
+      {kind === "text" ? <Markdown text={text} /> : text}
     </li>
   );
 }
@@ -323,12 +358,7 @@ export function ChatView({ tab, rect }: Props) {
           it.kind === "steps" ? (
             <StepsRow key={it.id} steps={it.steps} running={working && i === items.length - 1} />
           ) : (
-            <li
-              key={`${it.kind}:${it.id}`}
-              className={it.kind === "error" ? "chat-error" : `chat-msg ${it.kind === "user" ? "from-user" : "from-agent"}`}
-            >
-              {it.kind === "text" ? <Markdown text={it.text} /> : it.text}
-            </li>
+            <MessageRow key={`${it.kind}:${it.id}`} kind={it.kind} text={it.text} colony={isColonyTab(tab)} />
           ),
         )}
         {working && (

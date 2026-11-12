@@ -42,6 +42,10 @@ function membersText(colony: Colony): string {
 
 /** The first message of a drone's session: who it is, its colony, and how the colony works. */
 function introOf(drone: Drone): string {
+  return `[Colony · Instruções]\n\n${introText(drone)}`;
+}
+
+function introText(drone: Drone): string {
   const colony = colonyOf(drone)!;
   const common = `Colony: ${colony.name}
 Objetivo: ${colony.goal || "não definido"}
@@ -147,9 +151,23 @@ async function send(drone: Drone, tab: Tab, text: string): Promise<void> {
 /** How a message reads to the drone that gets it. */
 function letterOf(m: ColonyMessage): string {
   const from = useStore.getState().drones.find((d) => d.id === m.from);
-  if (m.replyTo) return `Resposta de ${nameOf(m.from)}:\n\n${m.text}`;
+  if (m.replyTo) return `[Colony · Resposta de ${nameOf(m.from)}]\n\n${m.text}`;
   const who = from ? `${from.name}${from.queen ? " (Queen)" : ` (${from.role})`}` : "o usuário";
-  return `Mensagem de ${who}:\n\n${m.text}${m.expectsReply ? "" : "\n\n(Não precisa responder.)"}`;
+  return `[Colony · Mensagem de ${who}]\n\n${m.text}${m.expectsReply ? "" : "\n\n(Não precisa responder.)"}`;
+}
+
+/** What the app typed into a drone's session, told apart from what the user wrote. */
+export type Letter = { kind: "intro" } | { kind: "message" | "reply"; from: string; body: string };
+
+/** Reads a drone's user turn back as the colony's introduction or a colleague's letter. */
+export function parseLetter(text: string): Letter | null {
+  if (text.startsWith("[Colony · Instruções]")) return { kind: "intro" };
+  // Sessions from before the tag started with the introduction itself.
+  if (/^Você é (a Queen|.+, um drone) desta colony do Shellhive/.test(text)) return { kind: "intro" };
+  const m = /^(?:\[Colony · (Mensagem|Resposta) de ([^\]\n]+)\]|(Mensagem|Resposta) de ([^:\n]+):)\n\n/.exec(text);
+  if (!m) return null;
+  const kind = (m[1] ?? m[3]) === "Resposta" ? "reply" : "message";
+  return { kind, from: (m[2] ?? m[4]).trim(), body: text.slice(m[0].length) };
 }
 
 /** Hands each drone its oldest waiting message once it is free, opening its session first. */
