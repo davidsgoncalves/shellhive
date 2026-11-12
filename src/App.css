@@ -637,6 +637,28 @@ button.star.on { color: var(--accent); }
 .menu-item.danger { color: var(--danger); }
 .menu-item.danger:hover { background: color-mix(in srgb, var(--danger) 14%, transparent); }
 .menu-item.danger.confirming { background: var(--danger-strong); color: #fff; font-weight: 600; }
+/* + menu: what to open, then chat or terminal, sliding sideways */
+.new-session-menu { width: 210px; overflow: hidden; }
+.ns-track {
+  display: flex; align-items: flex-start; width: 200%;
+  transition: transform .2s cubic-bezier(.22,.9,.3,1), height .2s cubic-bezier(.22,.9,.3,1);
+}
+.ns-track.second { transform: translateX(-50%); }
+.ns-step { width: 50%; display: flex; flex-direction: column; gap: 2px; }
+.ns-item { display: flex; align-items: center; gap: 9px; }
+.ns-item.active { background: rgba(255,255,255,.08); }
+.ns-item svg { flex: none; opacity: .85; }
+.ns-label { flex: 1; }
+.ns-item .muted { margin-left: 0; }
+.ns-chevron { color: var(--muted); font-size: 14px; line-height: 1; }
+.ns-back {
+  display: flex; align-items: center; gap: 7px; background: none; border: none; cursor: pointer;
+  color: var(--muted); font-size: 11px; padding: 4px 8px 7px; margin-bottom: 2px;
+  border-bottom: 1px solid var(--border); text-align: left;
+}
+.ns-back:hover { color: var(--fg); }
+.ns-back svg { width: 13px; height: 13px; }
+@media (prefers-reduced-motion: reduce) { .ns-track { transition: none; } }
 .menu-sep { height: 1px; background: var(--border); margin: 4px 2px; }
 .menu-rename {
   background: var(--bg); border: 1px solid var(--accent); color: var(--fg); border-radius: 5px;
