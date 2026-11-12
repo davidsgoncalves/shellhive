@@ -152,9 +152,7 @@ export interface Bee {
   createdAt: number;
   /** Start of the last run, or of the last missed one skipped. */
   lastRunAt: number | null;
-  /** Folder the bee runs in; unset runs it in the bees' own folder. */
-  cwd?: string | null;
-  /** Runs in a worktree of the `cwd` repository, made fresh for each run. */
+  /** A run given a repository works in a fresh worktree of it, not in the repository itself. */
   worktree?: boolean;
   /** Claude's permission mode for the bee's runs; unset keeps the app's. */
   permissionMode?: string | null;
@@ -172,6 +170,8 @@ export interface BeeRun {
   sessionId: string | null;
   /** Where it ran; runs from before the bees' own folder have none and ran in the home folder. */
   cwd?: string;
+  /** The folder the run was asked to work on, if any; `cwd` is its worktree when the bee uses one. */
+  dir?: string | null;
   startedAt: number;
   endedAt: number | null;
   status: "running" | "done" | "error";

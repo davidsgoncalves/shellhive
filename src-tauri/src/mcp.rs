@@ -90,8 +90,7 @@ fn bee_tools() -> Vec<serde_json::Value> {
                         "required": ["kind"]
                     },
                     "missed": { "type": "string", "enum": ["run", "skip"], "description": "Horário perdido com o app fechado: run roda uma vez ao abrir (padrão), skip pula." },
-                    "cwd": { "type": "string", "description": "Pasta onde a worker bee roda. Sem ela, roda numa pasta vazia só das worker bees." },
-                    "worktree": { "type": "boolean", "description": "Com cwd num repositório git, cada execução roda numa worktree nova dele." },
+                    "worktree": { "type": "boolean", "description": "Uma execução que recebe um repositório trabalha numa worktree nova dele." },
                     "permissionMode": { "type": "string", "enum": ["manual", "acceptEdits", "auto", "plan", "dontAsk", "bypassPermissions"], "description": "Modo de permissão do Claude nas execuções. Sem ele, vale o do app." },
                     "allowedTools": { "type": "array", "items": { "type": "string" }, "description": "Regras liberadas sem perguntar, como no Claude Code: \"Bash(gh pr:*)\", \"Edit\"." }
                 },
@@ -104,7 +103,10 @@ fn bee_tools() -> Vec<serde_json::Value> {
             "description": "Roda agora uma worker bee, pelo id de list_bees.",
             "inputSchema": {
                 "type": "object",
-                "properties": { "id": { "type": "string" } },
+                "properties": {
+                    "id": { "type": "string" },
+                    "cwd": { "type": "string", "description": "Pasta em que esta execução trabalha. Sem ela, roda na pasta vazia das worker bees." }
+                },
                 "required": ["id"],
                 "additionalProperties": false
             }

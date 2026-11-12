@@ -111,7 +111,7 @@ export function BeePanel() {
                       ? "rodando agora"
                       : needsYou
                         ? "precisa de você"
-                        : queued.includes(b.id)
+                        : queued.some((q) => q.beeId === b.id)
                         ? "na fila"
                         : held[b.id]
                         ? `adiada por cota até ${clock(held[b.id])}`
@@ -163,6 +163,7 @@ function BeeQuotaSection() {
       </p>
       {field("session", "Sessão (5h)")}
       {field("weekly", "Semanal (7d)")}
+      <h4 className="bee-quota-sub">Execução</h4>
       <label className="bee-quota-row">
         <span>Ao mesmo tempo</span>
         <select
@@ -223,7 +224,8 @@ function BeeDetail({ bee, live }: { bee: Bee; live: boolean }) {
   const all = useBeeRuns((s) => s.runs);
   const runs = all.filter((r) => r.beeId === bee.id);
   const running = runs.find((r) => r.status === "running");
-  const queued = useBeeRuns((s) => s.queued.includes(bee.id));
+  const queued = useBeeRuns((s) => s.queued.some((q) => q.beeId === bee.id));
+  const [asking, setAsking] = useState(false);
   const setQueued = useBeeRuns((s) => s.setQueued);
   const bees = useStore((s) => s.bees);
   const after = bee.trigger.kind === "event" && bee.trigger.event.on === "beeDone" ? bee.trigger.event.beeId : null;
@@ -263,25 +265,36 @@ function BeeDetail({ bee, live }: { bee: Bee; live: boolean }) {
           <button
             className="ghost auto"
             title="Esperando outras worker bees terminarem"
-            onClick={() => setQueued(useBeeRuns.getState().queued.filter((id) => id !== bee.id))}
+            onClick={() => setQueued(useBeeRuns.getState().queued.filter((q) => q.beeId !== bee.id))}
           >
             Tirar da fila
           </button>
         ) : (
-          <button className="primary" onClick={() => void runBee(bee)}>
+          <button className="primary" onClick={() => setAsking((v) => !v)}>
             Rodar agora
           </button>
         )}
       </header>
+      {asking && !running && !queued && (
+        <RunNow
+          lastDir={runs.find((r) => r.dir)?.dir ?? ""}
+          worktree={!!bee.worktree}
+          onRun={(dir) => {
+            setAsking(false);
+            void runBee(bee, dir);
+          }}
+          onCancel={() => setAsking(false)}
+        />
+      )}
       <div className="bee-detail-body">
         <section>
           <h4>Prompt</h4>
           <p className="bee-instructions">{bee.instructions}</p>
         </section>
         <section>
-          <h4>Onde roda</h4>
+          <h4>Como roda</h4>
           <p className="hint">
-            {bee.cwd ? (bee.worktree ? `Numa worktree nova de ${bee.cwd} a cada execução` : bee.cwd) : "Na pasta das worker bees"}
+            {bee.worktree ? "Numa worktree nova do repositório que receber" : "Direto na pasta que receber"}
             {" · "}
             {mode ? `permissões: ${mode}` : "permissões do app"}
             {bee.allowedTools?.length ? ` · liberado sem perguntar: ${bee.allowedTools.join(", ")}` : ""}
@@ -336,6 +349,66 @@ function BeeDetail({ bee, live }: { bee: Bee; live: boolean }) {
           Ao vivo · rodando há {duration(running.startedAt, Date.now())}
         </div>
       )}
+    </div>
+  );
+}
+
+/** Asks which folder a run started by hand works on; empty runs it in the bees' folder. */
+function RunNow({
+  lastDir,
+  worktree,
+  onRun,
+  onCancel,
+}: {
+  lastDir: string;
+  worktree: boolean;
+  onRun: (dir: string | null) => void;
+  onCancel: () => void;
+}) {
+  const [dir, setDir] = useState(lastDir);
+  const [error, setError] = useState<string | null>(null);
+  const go = async () => {
+    if (!dir.trim()) return onRun(null);
+    const check = await invoke<PathCheck>("path_check", { path: dir.trim() }).catch(() => null);
+    if (!check?.exists || !check.is_dir) return setError("Pasta não encontrada.");
+    onRun(check.expanded);
+  };
+  return (
+    <div className="bee-run-now">
+      <span className="hint">
+        Pasta desta execução{worktree ? ", numa worktree nova se for um repositório" : ""}. Vazio roda na pasta das worker bees.
+      </span>
+      <div className="row">
+        <input
+          autoFocus
+          value={dir}
+          placeholder="~/projects/app"
+          onChange={(e) => {
+            setDir(e.target.value);
+            setError(null);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") void go();
+            if (e.key === "Escape") onCancel();
+          }}
+        />
+        <button
+          className="ghost auto"
+          onClick={async () => {
+            const picked = await openDialog({ directory: true, multiple: false, title: "Pasta desta execução" });
+            if (typeof picked === "string") setDir(picked);
+          }}
+        >
+          Procurar…
+        </button>
+        <button className="ghost auto" onClick={onCancel}>
+          Cancelar
+        </button>
+        <button className="primary" onClick={() => void go()}>
+          Rodar
+        </button>
+      </div>
+      {error && <span className="hint bee-warn">{error}</span>}
     </div>
   );
 }
@@ -401,11 +474,9 @@ function BeeEditor({ beeId, onDone }: { beeId?: string; onDone: (id?: string) =>
   const [prompt, setPrompt] = useState(editing?.instructions ?? BLANK_PROMPT);
   const [trigger, setTrigger] = useState<BeeTrigger>(editing?.trigger ?? { kind: "manual" });
   const [missed, setMissed] = useState<Bee["missed"]>(editing?.missed ?? "run");
-  const [cwd, setCwd] = useState(editing?.cwd ?? "");
   const [worktree, setWorktree] = useState(!!editing?.worktree);
   const [permissionMode, setPermissionMode] = useState(editing?.permissionMode ?? "");
-  const [allowed, setAllowed] = useState((editing?.allowedTools ?? []).join("\n"));
-  const [cwdError, setCwdError] = useState<string | null>(null);
+  const [allowed, setAllowed] = useState<string[]>(editing?.allowedTools ?? []);
 
   const unfilled = hasUnfilled(prompt, trigger);
   const follows = trigger.kind === "event" && trigger.event.on === "beeDone";
@@ -414,24 +485,17 @@ function BeeEditor({ beeId, onDone }: { beeId?: string; onDone: (id?: string) =>
     prompt.trim() &&
     (trigger.kind !== "schedule" || trigger.days.length > 0) &&
     (trigger.kind !== "event" || trigger.event.on !== "beeDone" || !!trigger.event.beeId);
-  const save = async () => {
+  const save = () => {
     if (!ready) return;
-    let folder: string | null = null;
-    if (cwd.trim()) {
-      const check = await invoke<PathCheck>("path_check", { path: cwd.trim() }).catch(() => null);
-      if (!check?.exists || !check.is_dir) return setCwdError("Pasta não encontrada.");
-      folder = check.expanded;
-    }
     const fields = {
       name: name.trim(),
       instructions: prompt.trim(),
       trigger,
       missed,
       templateId,
-      cwd: folder,
-      worktree: !!folder && worktree,
+      worktree,
       permissionMode: permissionMode || null,
-      allowedTools: allowed.split("\n").map((r) => r.trim()).filter(Boolean),
+      allowedTools: allowed,
     };
     if (editing) return void (updateBee(editing.id, fields), onDone(editing.id));
     const id = crypto.randomUUID();
@@ -553,152 +617,160 @@ function BeeEditor({ beeId, onDone }: { beeId?: string; onDone: (id?: string) =>
           <button className="ghost auto" onClick={onClose}>
             Cancelar
           </button>
-          <button className="primary" disabled={!ready} onClick={() => void save()}>
+          <button className="primary" disabled={!ready} onClick={save}>
             {editing ? "Salvar" : "Criar e ligar"}
           </button>
         </>
       }
     >
-      <label className="field">
-        <span>Nome</span>
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Limpar worktrees" autoFocus />
-      </label>
-      <label className="field">
-        <span>Prompt da worker bee</span>
-        <span className="hint">Substitua os {"{{...}}"} pelo seu próprio conteúdo. A worker bee roda exatamente este texto.</span>
-        <textarea
-          className="bee-textarea bee-prompt"
-          rows={20}
-          spellCheck={false}
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-        />
-        {unfilled && <span className="hint bee-warn">Ainda há partes {"{{...}}"} para substituir.</span>}
-        {follows && (
-          <span className="hint">
-            Escreva {"{{previous}}"} no prompt para receber o resumo da última execução da worker bee anterior.
-          </span>
-        )}
-      </label>
-      <div className="field">
-        <span>Pasta onde roda</span>
-        <span className="hint">Vazio roda na pasta das worker bees, sem acesso aos seus projetos.</span>
-        <div className="row">
-          <input
-            value={cwd}
-            placeholder="~/projects/app"
-            onChange={(e) => {
-              setCwd(e.target.value);
-              setCwdError(null);
-            }}
-          />
-          <button
-            className="ghost auto"
-            onClick={async () => {
-              const picked = await openDialog({ directory: true, multiple: false, title: "Pasta da worker bee" });
-              if (typeof picked === "string") setCwd(picked);
-            }}
-          >
-            Procurar…
-          </button>
+      <div className="bee-config">
+        <div className="bee-config-main">
+          <label className="field">
+            <span>Nome</span>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Revisar PRs" autoFocus />
+          </label>
+          <label className="field bee-config-prompt">
+            <span>Prompt da worker bee</span>
+            <span className="hint">Substitua os {"{{...}}"} pelo seu próprio conteúdo. A worker bee roda exatamente este texto.</span>
+            <textarea className="bee-textarea bee-prompt" spellCheck={false} value={prompt} onChange={(e) => setPrompt(e.target.value)} />
+            {unfilled && <span className="hint bee-warn">Ainda há partes {"{{...}}"} para substituir.</span>}
+            {follows && (
+              <span className="hint">
+                Escreva {"{{previous}}"} no prompt para receber o resumo da última execução da worker bee anterior.
+              </span>
+            )}
+          </label>
         </div>
-        {cwdError && <span className="hint bee-warn">{cwdError}</span>}
-        <label className="check">
-          <input type="checkbox" checked={worktree} disabled={!cwd.trim()} onChange={(e) => setWorktree(e.target.checked)} />
-          Cada execução numa worktree nova do repositório, sem tocar na sua cópia
-        </label>
-      </div>
-      <div className="field">
-        <span>Permissões</span>
-        <select className="bee-select" value={permissionMode} onChange={(e) => setPermissionMode(e.target.value)}>
-          <option value="">As do app</option>
-          {PERMISSION_MODES.map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-        <span className="hint">
-          Liberado sem perguntar, uma regra por linha, como no Claude Code: Bash(git push:*), Bash(gh pr:*), Edit. O resto
-          cai em Esperando você.
-        </span>
-        <textarea
-          className="bee-textarea"
-          rows={3}
-          spellCheck={false}
-          value={allowed}
-          onChange={(e) => setAllowed(e.target.value)}
-        />
-      </div>
-      <div className="field">
-        <span>Quando roda</span>
-        <div className="chip-row">
-          <button className={`chip ${trigger.kind === "manual" ? "on" : ""}`} onClick={() => setTrigger({ kind: "manual" })}>
-            Só manual
-          </button>
-          <button
-            className={`chip ${trigger.kind === "interval" ? "on" : ""}`}
-            onClick={() => setTrigger({ kind: "interval", minutes: 60 })}
-          >
-            A cada intervalo
-          </button>
-          <button
-            className={`chip ${trigger.kind === "schedule" ? "on" : ""}`}
-            onClick={() => setTrigger({ kind: "schedule", days: WORKDAYS, time: "09:00" })}
-          >
-            Dias e horário
-          </button>
-          <button
-            className={`chip ${trigger.kind === "event" ? "on" : ""}`}
-            onClick={() => setTrigger({ kind: "event", event: { on: "stop" }, groupId: null, cooldown: 10 })}
-          >
-            Por evento
-          </button>
-        </div>
-        {trigger.kind === "event" && <EventFields trigger={trigger} selfId={editing?.id} onChange={setTrigger} />}
-        {trigger.kind === "interval" && (
-          <select
-            className="bee-select"
-            value={trigger.minutes}
-            onChange={(e) => setTrigger({ kind: "interval", minutes: Number(e.target.value) })}
-          >
-            {INTERVALS.map((m) => (
-              <option key={m} value={m}>
-                {describeTrigger({ kind: "interval", minutes: m })}
-              </option>
-            ))}
-          </select>
-        )}
-        {trigger.kind === "schedule" && (
-          <div className="chip-row">
-            {DAY_NAMES.map((d, i) => (
-              <button key={d} className={`chip ${trigger.days.includes(i) ? "on" : ""}`} onClick={() => toggleDay(i)}>
-                {d}
+        <aside className="bee-config-side">
+          <section className="bee-card">
+            <h4>Quando roda</h4>
+            <div className="chip-row">
+              <button className={`chip ${trigger.kind === "manual" ? "on" : ""}`} onClick={() => setTrigger({ kind: "manual" })}>
+                Só manual
               </button>
-            ))}
-            <input
-              type="time"
-              className="bee-time"
-              value={trigger.time}
-              onChange={(e) => e.target.value && setTrigger({ ...trigger, time: e.target.value })}
-            />
-          </div>
-        )}
+              <button
+                className={`chip ${trigger.kind === "interval" ? "on" : ""}`}
+                onClick={() => setTrigger({ kind: "interval", minutes: 60 })}
+              >
+                Intervalo
+              </button>
+              <button
+                className={`chip ${trigger.kind === "schedule" ? "on" : ""}`}
+                onClick={() => setTrigger({ kind: "schedule", days: WORKDAYS, time: "09:00" })}
+              >
+                Dias e horário
+              </button>
+              <button
+                className={`chip ${trigger.kind === "event" ? "on" : ""}`}
+                onClick={() => setTrigger({ kind: "event", event: { on: "stop" }, groupId: null, cooldown: 10 })}
+              >
+                Evento
+              </button>
+            </div>
+            {trigger.kind === "manual" && <p className="hint">Roda só quando você pedir.</p>}
+            {trigger.kind === "event" && <EventFields trigger={trigger} selfId={editing?.id} onChange={setTrigger} />}
+            {trigger.kind === "interval" && (
+              <select
+                className="bee-select"
+                value={trigger.minutes}
+                onChange={(e) => setTrigger({ kind: "interval", minutes: Number(e.target.value) })}
+              >
+                {INTERVALS.map((m) => (
+                  <option key={m} value={m}>
+                    {describeTrigger({ kind: "interval", minutes: m })}
+                  </option>
+                ))}
+              </select>
+            )}
+            {trigger.kind === "schedule" && (
+              <div className="chip-row">
+                {DAY_NAMES.map((d, i) => (
+                  <button key={d} className={`chip ${trigger.days.includes(i) ? "on" : ""}`} onClick={() => toggleDay(i)}>
+                    {d}
+                  </button>
+                ))}
+                <input
+                  type="time"
+                  className="bee-time"
+                  value={trigger.time}
+                  onChange={(e) => e.target.value && setTrigger({ ...trigger, time: e.target.value })}
+                />
+              </div>
+            )}
+            {(trigger.kind === "interval" || trigger.kind === "schedule") && (
+              <label className="bee-quota-row">
+                <span>Horário perdido com o app fechado</span>
+                <select className="bee-select" value={missed} onChange={(e) => setMissed(e.target.value as Bee["missed"])}>
+                  <option value="run">Roda ao abrir</option>
+                  <option value="skip">Pula</option>
+                </select>
+              </label>
+            )}
+          </section>
+          <section className="bee-card">
+            <h4>Pasta</h4>
+            <p className="hint">
+              A pasta vem de quem pede: você ao rodar, a sessão que disparou o evento ou a worker bee anterior. Por agenda ou
+              intervalo, roda numa pasta vazia, e o prompt diz onde trabalhar.
+            </p>
+            <label className="check">
+              <input type="checkbox" checked={worktree} onChange={(e) => setWorktree(e.target.checked)} />
+              Num repositório, trabalhar numa worktree nova, sem tocar na cópia de quem pediu
+            </label>
+          </section>
+          <section className="bee-card">
+            <h4>Permissões</h4>
+            <label className="bee-quota-row">
+              <span>Modo</span>
+              <select className="bee-select" value={permissionMode} onChange={(e) => setPermissionMode(e.target.value)}>
+                <option value="">O do app</option>
+                {PERMISSION_MODES.map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <span className="hint">Liberado sem perguntar. O resto espera você em Esperando você.</span>
+            <RuleChips rules={allowed} onChange={setAllowed} />
+          </section>
+        </aside>
       </div>
-      {(trigger.kind === "interval" || trigger.kind === "schedule") && (
-        <div className="field">
-          <span>Horário perdido com o app fechado</span>
-          <div className="chip-row">
-            <button className={`chip ${missed === "run" ? "on" : ""}`} onClick={() => setMissed("run")}>
-              Rodar uma vez ao abrir
-            </button>
-            <button className={`chip ${missed === "skip" ? "on" : ""}`} onClick={() => setMissed("skip")}>
-              Pular
-            </button>
-          </div>
-        </div>
-      )}
     </Frame>
+  );
+}
+
+/** The permission rules a bee runs with, as removable chips plus a field to add one. */
+function RuleChips({ rules, onChange }: { rules: string[]; onChange: (rules: string[]) => void }) {
+  const [draft, setDraft] = useState("");
+  const add = () => {
+    const rule = draft.trim();
+    if (rule && !rules.includes(rule)) onChange([...rules, rule]);
+    setDraft("");
+  };
+  return (
+    <div className="bee-rules">
+      {rules.map((r) => (
+        <span key={r} className="bee-rule">
+          {r}
+          <button title="Remover" onClick={() => onChange(rules.filter((x) => x !== r))}>
+            ×
+          </button>
+        </span>
+      ))}
+      <input
+        value={draft}
+        placeholder="+ regra, ex.: Bash(gh pr:*)"
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            add();
+          }
+        }}
+        onBlur={add}
+      />
+    </div>
   );
 }
 
