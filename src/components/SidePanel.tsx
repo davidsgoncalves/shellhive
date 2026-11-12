@@ -11,6 +11,7 @@ import { ColumnResizer } from "./ColumnResizer";
 import { RailIcon } from "./RailIcon";
 import { UsageRings } from "./UsageRings";
 import { BeePanel, NewBeeButton, useBeeWaiting } from "./WorkerBee";
+import { useUnreadRuns } from "../lib/bees";
 import { PluginsPanel } from "./PluginsScreen";
 
 type PanelTab = "tabs" | "queue" | "sessions" | "bees" | "plugins" | "events" | `plugin:${string}` | `official:${string}`;
@@ -61,6 +62,7 @@ export function SidePanel() {
   const queued = useQueued();
   const pending = queued.permissions.length + queued.questions.length + queued.commands.length + queued.approvals;
   const beeWaiting = useBeeWaiting();
+  const unreadRuns = useUnreadRuns();
   const localPlugins = useStore((s) => s.localPlugins);
   const enabledPlugins = useStore((s) => s.enabledPlugins);
   const sidePlugins = localPlugins.filter(
@@ -87,7 +89,7 @@ export function SidePanel() {
       key: "bees",
       label: "Worker bee",
       icon: ICONS.bees,
-      badge: beeWaiting.permissions.length + beeWaiting.questions.length,
+      badge: beeWaiting.permissions.length + beeWaiting.questions.length + unreadRuns,
     },
     { key: "plugins", label: "Plugins", icon: ICONS.plugins },
     // Raw hook traffic, only for diagnosing the app; switched on under Sobre.

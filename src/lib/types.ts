@@ -181,6 +181,10 @@ export interface BeeRun {
   revealed?: boolean;
   /** Why the bee asked for the user, when it did. */
   attention?: string | null;
+  /** False for a run that ended and the user has not opened yet; unset counts as seen. */
+  read?: boolean;
+  /** The session's transcript, to show the run as a chat once it ended. */
+  transcriptPath?: string | null;
 }
 
 export const UNGROUPED_NAME = "Sem grupo";

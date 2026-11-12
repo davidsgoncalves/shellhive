@@ -89,12 +89,35 @@ export function hasUnfilled(prompt: string, trigger: BeeTrigger): boolean {
   return PLACEHOLDER.test(sourceBeeId(trigger) ? prompt.replace(PREVIOUS, "") : prompt);
 }
 
+/** Asked of every run, so the summaries of different bees read the same way. */
+const REPLY_FORMAT = `
+
+Ao terminar, responda só com estas três linhas:
+Resultado: o que mudou ou o que você concluiu, numa frase.
+O que fiz: as ações principais, em poucas palavras.
+Pendências: o que ficou para depois ou para o usuário, ou "nenhuma".`;
+
 /** The prompt a run sends: {{previous}} becomes the last summary of the bee it follows. */
 function promptOf(bee: Bee): string {
   const source = sourceBeeId(bee.trigger);
-  if (!source) return bee.instructions;
-  const last = useBeeRuns.getState().runs.find((r) => r.beeId === source && r.status === "done");
-  return bee.instructions.replace(PREVIOUS, last?.summary?.trim() || "(a worker bee anterior não deixou resumo)");
+  const last = source && useBeeRuns.getState().runs.find((r) => r.beeId === source && r.status === "done");
+  const text = source
+    ? bee.instructions.replace(PREVIOUS, (last && last.summary?.trim()) || "(a worker bee anterior não deixou resumo)")
+    : bee.instructions;
+  return text + REPLY_FORMAT;
+}
+
+/** How many ended runs the user has not opened. */
+export const useUnreadRuns = () => useBeeRuns((s) => s.runs.filter((r) => r.read === false).length);
+
+export function markRunRead(run: BeeRun): void {
+  if (run.read === false) useBeeRuns.getState().put({ ...run, read: true });
+}
+
+/** The ended fields of a run whose tab is `tabId`: unread, with its transcript. */
+function ended(tabId: string | null) {
+  const tab = tabId ? useStore.getState().tabs.find((t) => t.id === tabId) : undefined;
+  return { read: false, endedAt: Date.now(), transcriptPath: tab?.transcriptPath ?? null };
 }
 
 /** Bees being set up to run, not yet listed as running. */
@@ -250,7 +273,7 @@ function quotaResetAt(now: number): number | null {
 function fail(run: BeeRun, summary: string): void {
   const last = useBeeRuns.getState().runs.find((r) => r.beeId === run.beeId);
   if (last?.status === "error" && last.summary === summary) return;
-  useBeeRuns.getState().put({ ...run, status: "error", endedAt: Date.now(), summary });
+  useBeeRuns.getState().put({ ...run, status: "error", endedAt: Date.now(), summary, read: false });
 }
 
 /**
@@ -327,8 +350,8 @@ export async function finishBeeRun(tabId: string, reply?: string): Promise<void>
     : null;
   useBeeRuns.getState().put({
     ...run,
+    ...ended(tabId),
     status: "done",
-    endedAt: Date.now(),
     sessionId: tab?.claudeSessionId ?? run.sessionId,
     summary,
     tabId: run.revealed ? tabId : null,
@@ -342,7 +365,7 @@ export async function finishBeeRun(tabId: string, reply?: string): Promise<void>
 /** Ends a run by hand, or when its Claude is gone: the tab closes and the run is marked failed. */
 export function stopBeeRun(run: BeeRun, reason = "Parada por você."): void {
   const tabId = run.tabId;
-  useBeeRuns.getState().put({ ...run, status: "error", endedAt: Date.now(), tabId: null, summary: reason });
+  useBeeRuns.getState().put({ ...run, ...ended(tabId), status: "error", tabId: null, summary: reason });
   if (tabId && !run.revealed) useStore.getState().closeTab(tabId);
   drainQueue();
 }
@@ -351,7 +374,7 @@ export function stopBeeRun(run: BeeRun, reason = "Parada por você."): void {
 export function dropBeeRun(tabId: string, reason: string): void {
   const run = useBeeRuns.getState().runs.find((r) => r.tabId === tabId && r.status === "running");
   if (!run) return;
-  useBeeRuns.getState().put({ ...run, status: "error", endedAt: Date.now(), tabId: null, summary: reason });
+  useBeeRuns.getState().put({ ...run, ...ended(tabId), status: "error", tabId: null, summary: reason });
   drainQueue();
 }
 

@@ -2,7 +2,19 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { useStore } from "../lib/store";
-import { DAY_NAMES, describeEvent, describeTrigger, hasUnfilled, openBeeRun, runBee, stopBeeRun, useBeeRuns } from "../lib/bees";
+import {
+  DAY_NAMES,
+  describeEvent,
+  describeTrigger,
+  hasUnfilled,
+  markRunRead,
+  openBeeRun,
+  runBee,
+  stopBeeRun,
+  useBeeRuns,
+  useUnreadRuns,
+} from "../lib/bees";
+import { TranscriptView } from "./ChatView";
 import { PERMISSION_MODES } from "./Dialogs";
 import { openBeeCreator } from "../lib/beeCreator";
 import { BLANK_PROMPT, TEMPLATES, type BeeTemplate } from "../lib/beeTemplates";
@@ -35,7 +47,7 @@ const duration = (from: number, to: number) => {
 function useShownBee() {
   const bees = useStore((s) => s.bees);
   const view = useStore((s) => s.beeView);
-  if (view?.mode === "new") return null;
+  if (view?.mode === "new" || view?.mode === "activity" || view?.mode === "run") return null;
   return bees.find((b) => b.id === view?.id) ?? bees[0] ?? null;
 }
 
@@ -62,6 +74,8 @@ export function BeePanel() {
   const held = useBeeRuns((s) => s.held);
   const queued = useBeeRuns((s) => s.queued);
   const shown = useShownBee();
+  const view = useStore((s) => s.beeView);
+  const unread = useUnreadRuns();
   useEffect(() => void load(), [load]);
   // A hidden tab is shown through its run, which keeps it open once revealed.
   const openTab = (tabId: string | null) => {
@@ -84,6 +98,13 @@ export function BeePanel() {
           </ul>
         </section>
       )}
+      <button
+        className={`bee-activity-row ${view?.mode === "activity" || view?.mode === "run" ? "on" : ""}`}
+        onClick={() => setBeeView({ mode: "activity" })}
+      >
+        <span>Atividade</span>
+        {unread > 0 && <span className="badge">{unread}</span>}
+      </button>
       {bees.length === 0 ? (
         <p className="hint">Nenhuma worker bee ainda. Uma worker bee roda uma tarefa do Claude em segundo plano, na hora que você escolher.</p>
       ) : (
@@ -202,6 +223,8 @@ export function BeeMain() {
   const done = (id?: string) => setBeeView(id ? { mode: "detail", id } : null);
   let body: React.ReactNode;
   if (view?.mode === "new") body = <BeeEditor onDone={done} />;
+  else if (view?.mode === "activity") body = <Activity />;
+  else if (view?.mode === "run") body = <RunView runId={view.runId} />;
   else if (bee && view?.mode === "edit") body = <BeeEditor key={bee.id} beeId={bee.id} onDone={done} />;
   else if (bee) body = <BeeDetail bee={bee} live={!!watched} />;
   else
@@ -413,6 +436,125 @@ function RunNow({
   );
 }
 
+/** The first line of a run's reply that says what came of it. */
+function headline(run: BeeRun): string {
+  if (run.attention) return `Precisa de você: ${run.attention}`;
+  const text = run.summary?.trim() ?? "";
+  const line = text.split("\n").find((l) => /^resultado\s*:/i.test(l.trim())) ?? text.split("\n")[0] ?? "";
+  return line.replace(/^resultado\s*:\s*/i, "") || (run.status === "running" ? "Rodando…" : "Sem resumo.");
+}
+
+/** Every bee's runs in one list, newest first. */
+function Activity() {
+  const runs = useBeeRuns((s) => s.runs);
+  const bees = useStore((s) => s.bees);
+  const setBeeView = useStore((s) => s.setBeeView);
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => tick((n) => n + 1), 30_000);
+    return () => clearInterval(timer);
+  }, []);
+  const sorted = [...runs].sort((a, b) => b.startedAt - a.startedAt);
+  return (
+    <div className="bee-detail">
+      <header className="bee-detail-head">
+        <div>
+          <h2>Atividade</h2>
+          <p className="hint">O que as worker bees fizeram, da execução mais nova para a mais antiga.</p>
+        </div>
+        {sorted.some((r) => r.read === false) && (
+          <button className="ghost auto" onClick={() => sorted.forEach(markRunRead)}>
+            Marcar tudo como lido
+          </button>
+        )}
+      </header>
+      <div className="bee-detail-body">
+        {sorted.length === 0 && <p className="hint">Nenhuma execução ainda.</p>}
+        <ul className="bee-activity">
+          {sorted.map((r) => {
+            const bee = bees.find((b) => b.id === r.beeId);
+            return (
+              <li
+                key={r.id}
+                className={`bee-activity-item ${r.status} ${r.read === false ? "unread" : ""} ${r.attention ? "attention" : ""}`}
+                onClick={() =>
+                  setBeeView(r.status === "running" ? { mode: "detail", id: r.beeId } : { mode: "run", runId: r.id })
+                }
+              >
+                <span className="bee-run-dot" />
+                <div className="bee-activity-main">
+                  <div className="row">
+                    <strong>{bee?.name ?? "Worker bee removida"}</strong>
+                    <span className="muted">
+                      {when(r.startedAt)}
+                      {r.endedAt ? ` · ${duration(r.startedAt, r.endedAt)}` : ` · rodando há ${duration(r.startedAt, Date.now())}`}
+                      {r.status === "error" && " · com erro"}
+                    </span>
+                  </div>
+                  <span className="bee-activity-line">{headline(r)}</span>
+                  {r.dir && <span className="muted bee-activity-dir">{r.dir}</span>}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+/** One ended run: what came of it, and its conversation read only. */
+function RunView({ runId }: { runId: string }) {
+  const run = useBeeRuns((s) => s.runs.find((r) => r.id === runId));
+  const bee = useStore((s) => s.bees.find((b) => b.id === run?.beeId));
+  const setBeeView = useStore((s) => s.setBeeView);
+  useEffect(() => {
+    if (run) markRunRead(run);
+  }, [run]);
+  if (!run) return <p className="hint bee-blank">Esta execução não está mais no histórico.</p>;
+  return (
+    <div className="bee-detail bee-run-view">
+      <header className="bee-detail-head">
+        <button className="ghost auto" onClick={() => setBeeView({ mode: "activity" })} title="Voltar para a atividade">
+          ‹
+        </button>
+        <div>
+          <h2>
+            {bee ? (
+              <button className="link bee-run-title" onClick={() => setBeeView({ mode: "detail", id: bee.id })}>
+                {bee.name}
+              </button>
+            ) : (
+              "Worker bee removida"
+            )}
+          </h2>
+          <p className="hint">
+            {when(run.startedAt)}
+            {run.endedAt && ` · ${duration(run.startedAt, run.endedAt)}`} · {STATUS_LABEL[run.status]}
+            {run.dir ? ` · ${run.dir}` : " · pasta das worker bees"}
+          </p>
+        </div>
+        {run.sessionId && (
+          <button className="ghost auto" onClick={() => openBeeRun(run)} title="Retoma a sessão numa aba">
+            Abrir sessão
+          </button>
+        )}
+      </header>
+      {(run.attention || run.summary) && (
+        <div className="bee-run-result">
+          {run.attention && <p className="bee-run-attention">Precisa de você: {run.attention}</p>}
+          {run.summary && <p className="bee-run-summary">{run.summary}</p>}
+        </div>
+      )}
+      {run.transcriptPath ? (
+        <TranscriptView path={run.transcriptPath} />
+      ) : (
+        <p className="hint bee-blank">A conversa desta execução não foi guardada. Use Abrir sessão para ver no terminal.</p>
+      )}
+    </div>
+  );
+}
+
 const prettyState = (text: string) => {
   try {
     return JSON.stringify(JSON.parse(text), null, 2);
@@ -422,9 +564,13 @@ const prettyState = (text: string) => {
 };
 
 function RunRow({ run }: { run: BeeRun }) {
+  const setBeeView = useStore((s) => s.setBeeView);
   const canOpen = run.status !== "running" && !!run.sessionId;
   return (
-    <li className={`bee-run-row ${run.status}`}>
+    <li
+      className={`bee-run-row ${run.status} clickable ${run.read === false ? "unread" : ""}`}
+      onClick={() => run.status !== "running" && setBeeView({ mode: "run", runId: run.id })}
+    >
       <div className="row">
         <span className="bee-run-dot" />
         <time>{when(run.startedAt)}</time>
@@ -433,7 +579,14 @@ function RunRow({ run }: { run: BeeRun }) {
           {run.endedAt && ` · ${duration(run.startedAt, run.endedAt)}`}
         </span>
         {canOpen && (
-          <button className="link" onClick={() => openBeeRun(run)} title="Retoma a sessão numa aba">
+          <button
+            className="link"
+            onClick={(e) => {
+              e.stopPropagation();
+              openBeeRun(run);
+            }}
+            title="Retoma a sessão numa aba"
+          >
             abrir sessão
           </button>
         )}

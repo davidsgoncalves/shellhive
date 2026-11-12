@@ -121,7 +121,13 @@ export interface BeeQuota {
 }
 
 /** What the Worker bee shows in place of the terminals: a bee, its editor, or a new one. */
-export type BeeView = { mode: "detail" | "edit"; id: string } | { mode: "new" } | null;
+/** What the Worker bee shows in the center: a bee, its editor, every run, or one run. */
+export type BeeView =
+  | { mode: "detail" | "edit"; id: string }
+  | { mode: "new" }
+  | { mode: "activity" }
+  | { mode: "run"; runId: string }
+  | null;
 
 /** A plugin's band on one terminal. */
 export interface PluginBand {

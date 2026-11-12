@@ -133,6 +133,30 @@ function StepsRow({ steps, running }: { steps: Step[]; running: boolean }) {
   );
 }
 
+/** A finished session's conversation, read only: a bee run looked at after it ended. */
+export function TranscriptView({ path }: { path: string }) {
+  const { entries, clipped } = useTranscript(path);
+  const items = useMemo(() => itemsOf(entries), [entries]);
+  return (
+    <ol className="chat-list">
+      {clipped && <li className="chat-note">O começo desta sessão ficou de fora.</li>}
+      {items.length === 0 && <li className="chat-note chat-empty">Lendo a conversa…</li>}
+      {items.map((it) =>
+        it.kind === "steps" ? (
+          <StepsRow key={it.id} steps={it.steps} running={false} />
+        ) : (
+          <li
+            key={`${it.kind}:${it.id}`}
+            className={it.kind === "error" ? "chat-error" : `chat-msg ${it.kind === "user" ? "from-user" : "from-agent"}`}
+          >
+            {it.kind === "text" ? <Markdown text={it.text} /> : it.text}
+          </li>
+        ),
+      )}
+    </ol>
+  );
+}
+
 interface Props {
   tab: Tab;
   rect: { left: string; top: string; width: string; height: string };
