@@ -237,6 +237,11 @@ function syncColonyTabs(): void {
 
 /** Keeps drones' sessions recorded, their messages moving, and forgets tabs that went away. */
 export function startColony(): () => void {
+  // A message a drone was working on when the app closed would hold it busy for good.
+  const s0 = useStore.getState();
+  for (const m of s0.colonyMessages) {
+    if (m.status === "delivered") s0.putColonyMessage({ ...m, status: "failed", reply: "O app fechou durante o trabalho.", answeredAt: Date.now() });
+  }
   let scheduled = false;
   const unsub = useStore.subscribe(() => {
     if (scheduled) return;
