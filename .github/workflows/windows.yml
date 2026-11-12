@@ -52,7 +52,9 @@ jobs:
           for ($i = 0; $i -lt 60 -and -not $tools; $i++) {
             Start-Sleep -Seconds 1
             try {
-              $tools = Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:47831/mcp" -Body $body -ContentType "application/json"
+              # The app writes a fresh token on every launch and refuses calls without it.
+              $token = Get-Content -Raw "$env:APPDATA\shellhive\token"
+              $tools = Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:47831/mcp" -Body $body -ContentType "application/json" -Headers @{ "X-Shellhive-Token" = $token.Trim() }
             } catch {}
           }
           if (-not $tools) { throw "the app never answered on port 47831" }
