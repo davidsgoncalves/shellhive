@@ -722,8 +722,9 @@ const PERCENTS = [50, 60, 70, 80, 90, 95];
 
 /** Which event starts the bee, its filters, and the least time between runs. */
 function EventFields({ trigger, selfId, onChange }: { trigger: EventTrigger; selfId?: string; onChange: (t: BeeTrigger) => void }) {
-  const groups = useStore((s) => s.groups.filter((g) => g.id !== BEE_GROUP_ID));
-  const bees = useStore((s) => s.bees.filter((b) => b.id !== selfId));
+  // Selectors return the stored arrays; a filtered copy per render would loop.
+  const groups = useStore((s) => s.groups).filter((g) => g.id !== BEE_GROUP_ID);
+  const bees = useStore((s) => s.bees).filter((b) => b.id !== selfId);
   const e = trigger.event;
   const set = (event: BeeEvent) => onChange({ ...trigger, event });
   const fromSession = ["stop", "sessionEnd", "tool", "notification", "subagentStop"].includes(e.on);
