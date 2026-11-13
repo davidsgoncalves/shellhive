@@ -21,6 +21,7 @@
     "opener:default",
     "notification:default",
     "dialog:default",
+    "dialog:allow-confirm",
     "updater:default",
     "process:default",
     "process:allow-restart"

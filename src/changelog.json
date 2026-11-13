@@ -1,5 +1,19 @@
 [
   {
+    "version": "3.0.0-alpha.4",
+    "date": "2026-11-13",
+    "items": [
+      "Gatilhos do GitHub para os fluxos: PR aberto (por você ou por qualquer pessoa), revisão pedida para você, CI que falhou ou passou, comentário novo e issue atribuída. O repositório sai de uma lista com os seus.",
+      "Gatilho do Jira: dispara quando uma issue entra numa busca. Há buscas prontas, como atribuídas a mim ou prioridade alta, com filtro por projeto, ou a sua própria JQL.",
+      "Gatilho do Slack: menção a você, mensagem num canal escolhido da lista ou mensagem direta, de qualquer pessoa ou de alguém da lista.",
+      "Webhook local: um fluxo pode ser disparado por um POST desta máquina, com o comando curl pronto para copiar.",
+      "Configurações › Integrações guarda os tokens do GitHub, do Jira e do Slack no cofre do sistema, com um botão para testar cada um. No GitHub, sem token, vale o login do gh.",
+      "Opção para não deixar o computador dormir enquanto um fluxo ativo espera um horário ou um serviço, no macOS, no Windows e no Linux.",
+      "Os nós de IA e de abelha mostram o que recebem de cada ligação, e {{entrada}} no prompt coloca esse texto onde você quiser.",
+      "Excluir um fluxo voltou a pedir confirmação, em vez de não fazer nada."
+    ]
+  },
+  {
     "version": "3.0.0-alpha.3",
     "date": "2026-11-13",
     "items": [

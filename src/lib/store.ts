@@ -106,7 +106,13 @@ function rememberClosed(list: ClosedTab[], tabs: Tab[]): ClosedTab[] {
   return [...list, ...added].slice(-CLOSED_TABS_MAX);
 }
 
-export type SettingsTab = "aparencia" | "sessoes" | "avisos" | "conexoes" | "sobre";
+export type SettingsTab = "aparencia" | "sessoes" | "avisos" | "conexoes" | "integracoes" | "sobre";
+
+/** What the integrations need besides their tokens, which live in the system's credential store. */
+export interface IntegrationSettings {
+  jiraSite: string;
+  jiraEmail: string;
+}
 
 export type Modal =
   | null
@@ -183,6 +189,14 @@ interface Store {
   folders: Folder[];
   bees: Bee[];
   flows: Flow[];
+  integrations: IntegrationSettings;
+  setIntegrations: (patch: Partial<IntegrationSettings>) => void;
+  /** Keeps the computer from sleeping while a flow waits on a schedule or a service. */
+  keepAwake: boolean;
+  setKeepAwake: (on: boolean) => void;
+  /** What each flow's service trigger already saw, so only new items start it. */
+  triggerSeen: Record<string, string[]>;
+  setTriggerSeen: (flowId: string, seen: string[] | null) => void;
   /** Null shows the first flow. */
   flowView: FlowView;
   setFlowView: (view: FlowView) => void;
@@ -451,6 +465,18 @@ export const useStore = create<Store>()(
       folders: [],
       bees: [],
       flows: [],
+      integrations: { jiraSite: "", jiraEmail: "" },
+      setIntegrations: (patch) => set((s) => ({ integrations: { ...s.integrations, ...patch } })),
+      keepAwake: false,
+      setKeepAwake: (keepAwake) => set({ keepAwake }),
+      triggerSeen: {},
+      setTriggerSeen: (flowId, seen) =>
+        set((s) => {
+          const next = { ...s.triggerSeen };
+          if (seen) next[flowId] = seen;
+          else delete next[flowId];
+          return { triggerSeen: next };
+        }),
       flowView: null,
       setFlowView: (flowView) => set({ flowView, panelTab: "flows", panelOpen: true }),
       addFlow: (flow) => set((s) => ({ flows: [...s.flows, flow] })),
@@ -1161,6 +1187,9 @@ export const useStore = create<Store>()(
         folders: s.folders,
         bees: s.bees,
         flows: s.flows,
+        integrations: s.integrations,
+        keepAwake: s.keepAwake,
+        triggerSeen: s.triggerSeen,
         beeQuota: s.beeQuota,
         beeMaxRunning: s.beeMaxRunning,
         colonies: s.colonies,

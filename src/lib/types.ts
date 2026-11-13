@@ -263,8 +263,27 @@ export interface BeeRun {
   transcriptPath?: string | null;
 }
 
-/** What a flow's trigger starts on: a bee trigger, with a session filter for open waits. */
-export type FlowTrigger = BeeTrigger;
+export type GithubEvent = "pr_opened" | "review_requested" | "ci_failed" | "ci_passed" | "comment" | "issue_assigned";
+export type SlackEvent = "mention" | "channel" | "dm";
+
+/**
+ * What a flow's trigger starts on: a bee trigger (with a session filter for
+ * open waits), something new on GitHub, Jira or Slack, looked up every few
+ * minutes, or a post to the flow's local webhook.
+ */
+export type FlowTrigger =
+  | BeeTrigger
+  /** `repo` is "owner/name"; null watches every repository the user sees, where the event allows. */
+  | { kind: "github"; event: GithubEvent; repo: string | null; author?: "me" | "anyone" }
+  /**
+   * An issue entering the results of a search: a ready one (`preset`, limited
+   * to `project` when given) or the user's own JQL in `jql`.
+   */
+  | { kind: "jira"; jql: string; preset?: string; project?: string | null }
+  /** `channel` is a channel name, for "channel"; `person` a user id, to keep only DMs from them. */
+  | { kind: "slack"; event: SlackEvent; channel: string | null; person?: string | null; personName?: string | null }
+  /** A POST to http://127.0.0.1:<port>/flow/<id> carrying `key`. */
+  | { kind: "webhook"; key: string };
 
 /** Where a node's result goes when the flow ends there. */
 export type FlowOutput =

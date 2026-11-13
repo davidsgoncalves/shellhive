@@ -473,6 +473,7 @@ const SETTINGS_PAGES: Array<[SettingsTab, string]> = [
   ["sessoes", "Sessões"],
   ["avisos", "Avisos"],
   ["conexoes", "Conexões"],
+  ["integracoes", "Integrações"],
   ["sobre", "Sobre"],
 ];
 
@@ -613,8 +614,139 @@ function SettingsDialog({ initialTab, onClose }: { initialTab?: SettingsTab; onC
 
       {tab === "conexoes" && <ConnectionsTab />}
 
+      {tab === "integracoes" && <IntegrationsTab />}
+
       {tab === "sobre" && <AboutPage />}
     </Modal>
+  );
+}
+
+interface SecretStatus {
+  github: "stored" | "gh" | "none";
+  jira: boolean;
+  slack: boolean;
+}
+
+/** One token field: saved straight to the system's credential store, never shown back. */
+function TokenField({ service, saved, placeholder, onSaved }: { service: string; saved: boolean; placeholder: string; onSaved: () => void }) {
+  const [value, setValue] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const save = async (v: string) => {
+    try {
+      await invoke("integration_secret_set", { service, value: v });
+      setValue("");
+      setError(null);
+      onSaved();
+    } catch (err) {
+      setError(String(err));
+    }
+  };
+  return (
+    <div className="token-field">
+      <input
+        type="password"
+        autoComplete="off"
+        placeholder={saved ? "Salvo. Cole outro para trocar" : placeholder}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && value.trim() && void save(value)}
+      />
+      <button className="ghost auto" disabled={!value.trim()} onClick={() => void save(value)}>
+        Salvar
+      </button>
+      {saved && (
+        <button className="ghost auto bee-delete" onClick={() => void save("")}>
+          Apagar
+        </button>
+      )}
+      {error && <span className="hint bee-warn">{error}</span>}
+    </div>
+  );
+}
+
+/** Tests a service with the saved token: who it answers as. */
+function TestButton({ service, path, read }: { service: "github" | "jira" | "slack"; path: string; read: (json: Record<string, unknown>) => string }) {
+  const { jiraSite, jiraEmail } = useStore((s) => s.integrations);
+  const [result, setResult] = useState<string | null>(null);
+  return (
+    <>
+      <button
+        className="ghost auto"
+        onClick={async () => {
+          setResult("Testando…");
+          try {
+            const json = await invoke<Record<string, unknown>>("integration_get", { service, path, jiraSite, jiraEmail });
+            setResult(`Conectado como ${read(json)}`);
+          } catch (err) {
+            setResult(String(err));
+          }
+        }}
+      >
+        Testar
+      </button>
+      {result && <span className="hint">{result}</span>}
+    </>
+  );
+}
+
+/** Tokens for the services flows watch, kept in the system's credential store. */
+function IntegrationsTab() {
+  const { integrations, setIntegrations, keepAwake, setKeepAwake } = useStore();
+  const [status, setStatus] = useState<SecretStatus | null>(null);
+  const refresh = () => void invoke<SecretStatus>("integration_secret_status").then(setStatus).catch(() => {});
+  useEffect(refresh, []);
+  return (
+    <>
+      <p className="hint">
+        Os tokens ficam no cofre do sistema (Keychain, Gerenciador de Credenciais do Windows ou Secret Service no Linux) e só são
+        usados para ler o serviço quando um fluxo olha se há algo novo.
+      </p>
+      <Block title="GitHub">
+        <Row
+          label="Token"
+          hint={
+            status?.github === "gh"
+              ? "Usando o login do gh desta máquina. Cole um token para usar outro."
+              : "Token pessoal com acesso de leitura aos repositórios, ou faça login no gh."
+          }
+        >
+          <TokenField service="github" saved={status?.github === "stored"} placeholder="ghp_… ou github_pat_…" onSaved={refresh} />
+        </Row>
+        <Row label="Conexão">
+          <TestButton service="github" path="/user" read={(j) => String(j.login ?? "?")} />
+        </Row>
+      </Block>
+      <Block title="Jira">
+        <Row label="Site">
+          <input placeholder="empresa.atlassian.net" value={integrations.jiraSite} onChange={(e) => setIntegrations({ jiraSite: e.target.value.trim() })} />
+        </Row>
+        <Row label="E-mail">
+          <input placeholder="voce@empresa.com" value={integrations.jiraEmail} onChange={(e) => setIntegrations({ jiraEmail: e.target.value.trim() })} />
+        </Row>
+        <Row label="Token" hint="Crie em id.atlassian.com › Segurança › Tokens de API.">
+          <TokenField service="jira" saved={!!status?.jira} placeholder="Token de API" onSaved={refresh} />
+        </Row>
+        <Row label="Conexão">
+          <TestButton service="jira" path="/rest/api/3/myself" read={(j) => String(j.displayName ?? j.emailAddress ?? "?")} />
+        </Row>
+      </Block>
+      <Block title="Slack">
+        <Row
+          label="Token"
+          hint="Token de usuário (xoxp-) de um app do Slack seu, com search:read, channels:read, groups:read, channels:history, groups:history, im:read, im:history e users:read."
+        >
+          <TokenField service="slack" saved={!!status?.slack} placeholder="xoxp-…" onSaved={refresh} />
+        </Row>
+        <Row label="Conexão">
+          <TestButton service="slack" path="/auth.test" read={(j) => `${String(j.user ?? "?")} em ${String(j.team ?? "?")}`} />
+        </Row>
+      </Block>
+      <Block title="Computador acordado">
+        <Row label="Não deixar dormir" hint="Enquanto algum fluxo ativo espera um horário ou um serviço. A tela pode apagar.">
+          <Toggle on={keepAwake} onChange={setKeepAwake} />
+        </Row>
+      </Block>
+    </>
   );
 }
 

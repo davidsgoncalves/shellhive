@@ -337,6 +337,33 @@ fn handle(app: AppHandle, mut req: tiny_http::Request) {
             .find(|h| h.field.equiv(name))
             .map(|h| h.value.to_string())
     };
+    // A flow's webhook: scripts on this machine post to it with the flow's own
+    // key instead of the app's token. A browser page is refused, as everywhere.
+    if req.url().starts_with("/flow/") {
+        let host_ok = header("Host")
+            .is_some_and(|h| h == format!("127.0.0.1:{PORT}") || h == format!("localhost:{PORT}"));
+        if header("Origin").is_some() || !host_ok || *req.method() != tiny_http::Method::Post {
+            let _ = req.respond(Response::empty(403));
+            return;
+        }
+        let url = req.url().to_string();
+        let (path, query) = url.split_once('?').unwrap_or((&url, ""));
+        let flow_id = path.trim_start_matches("/flow/").to_string();
+        let key = header("X-Shellhive-Key").or_else(|| {
+            query
+                .split('&')
+                .find_map(|kv| kv.strip_prefix("key=").map(str::to_string))
+        });
+        let mut body = String::new();
+        use std::io::Read;
+        let _ = req.as_reader().take(64 * 1024).read_to_string(&mut body);
+        let _ = app.emit(
+            "flow-webhook",
+            serde_json::json!({ "flowId": flow_id, "key": key.unwrap_or_default(), "body": body }),
+        );
+        let _ = req.respond(Response::empty(202));
+        return;
+    }
     if !request_allowed(
         header("Origin").as_deref(),
         header("Host").as_deref(),
