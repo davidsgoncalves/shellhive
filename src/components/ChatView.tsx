@@ -8,6 +8,7 @@ import { agentCommand, CLAUDE_MODELS, PROVIDER_NAMES, type Provider } from "../l
 import { Markdown } from "../lib/markdown";
 import { droneOfTab, parseLetter } from "../lib/colony";
 import { BeeAvatar } from "./BeeAvatar";
+import { ChatMedia, ColonyEvent, ErrorBubble, mediaIn, PermissionBubble, QuestionBubble, StepsLine, type Step } from "./ChatBits";
 import { isColonyTab, type ChatEntry as Entry, type Tab } from "../lib/types";
 
 /** How often a session's transcript is read for new entries. */
@@ -20,17 +21,17 @@ interface Chunk {
   clipped: boolean;
 }
 
-interface Step {
-  id: string;
-  tool: string;
-  text: string;
-  result: string | null;
-  error: boolean;
-}
-
 type Item =
   | { kind: "user" | "text" | "error"; id: string; text: string }
   | { kind: "steps"; id: string; steps: Step[] };
+
+const QUESTION_TOOL = "AskUserQuestion";
+
+/** The choices in Claude's record of an answered question, or the record itself. */
+function answersOf(result: string): string {
+  const pairs = [...result.matchAll(/"([^"]*)"="([^"]*)"/g)].map((m) => m[2]);
+  return pairs.length ? pairs.join(" · ") : result;
+}
 
 /** Groups the steps between two messages into one row, with each result under its step. */
 function itemsOf(entries: Entry[]): Item[] {
@@ -40,6 +41,11 @@ function itemsOf(entries: Entry[]): Item[] {
     if (e.kind === "result") continue;
     if (e.kind === "step") {
       const r = results.get(e.id);
+      // An answered question reads as the user's reply; an open one shows from the queue.
+      if (e.tool === QUESTION_TOOL) {
+        if (r) items.push({ kind: "user", id: e.id, text: answersOf(r.text) });
+        continue;
+      }
       const step = { id: e.id, tool: e.tool ?? "", text: e.text, result: r?.text ?? null, error: !!r?.error };
       const last = items[items.length - 1];
       if (last?.kind === "steps") last.steps.push(step);
@@ -106,45 +112,16 @@ function useTranscript(path: string | null) {
   return { entries, clipped };
 }
 
-function StepsRow({ steps, running }: { steps: Step[]; running: boolean }) {
-  const [open, setOpen] = useState(false);
-  const failed = steps.filter((s) => s.error).length;
-  const pending = running && steps.some((s) => s.result === null);
-  const tools = [...new Set(steps.map((s) => s.tool))].join(", ");
-  return (
-    <li className="chat-steps">
-      <button className="chat-steps-head" onClick={() => setOpen(!open)} aria-expanded={open}>
-        <span className="chat-caret">{open ? "▾" : "▸"}</span>
-        {steps.length === 1 ? "1 passo" : `${steps.length} passos`}
-        <span className="muted"> · {tools}</span>
-        {failed > 0 && <span className="chat-failed"> · {failed} com erro</span>}
-        {pending && <span className="muted"> · rodando…</span>}
-      </button>
-      {open && (
-        <ol className="chat-step-list">
-          {steps.map((s) => (
-            <li key={s.id} className={s.error ? "error" : s.result === null ? "pending" : undefined}>
-              <span className="chat-tool">{s.tool}</span>
-              <code>{s.text}</code>
-              {s.result && <pre>{s.result}</pre>}
-            </li>
-          ))}
-        </ol>
-      )}
-    </li>
-  );
-}
-
 /** The note that stands for the colony's introduction in a drone's chat, opened on click. */
 function IntroNote({ text }: { text: string }) {
   const [open, setOpen] = useState(false);
   return (
-    <li className="chat-steps">
-      <button className="chat-steps-head" onClick={() => setOpen(!open)} aria-expanded={open}>
-        <span className="chat-caret">{open ? "▾" : "▸"}</span>
-        Instruções da colony
+    <li className="chat-event-wrap">
+      <button className="chat-event" onClick={() => setOpen(!open)} aria-expanded={open}>
+        <b>Instruções da colony</b>
+        <span className="chat-event-caret">{open ? "▴" : "▾"}</span>
       </button>
-      {open && <pre className="chat-intro">{text}</pre>}
+      {open && <pre className="chat-event-detail chat-intro">{text}</pre>}
     </li>
   );
 }
@@ -152,22 +129,35 @@ function IntroNote({ text }: { text: string }) {
 /** The drones of a colony by name, to put each colleague's avatar on their letters. */
 type Members = Map<string, { id: string; queen: boolean }>;
 
-function Colleague({ from, kind, body, members }: { from: string; kind: string; body: string; members: Members }) {
-  // A Queen Bee is named "Nome (Queen Bee)" in letters; the avatar goes by the bare name.
-  const who = members.get(from.replace(/\s*\(.*\)$/, ""));
+/** An agent's message: a bubble, with the images and files it names under it. */
+function AgentText({ text }: { text: string }) {
+  const media = useMemo(() => mediaIn(text), [text]);
   return (
-    <li className="chat-msg from-colleague">
-      <span className="chat-from">
-        <BeeAvatar seed={who?.id ?? from} queen={who?.queen} size={18} />
-        {from} · {kind}
-      </span>
-      <Markdown text={body} />
-    </li>
+    <>
+      <li className="chat-msg from-agent">
+        <Markdown text={text} />
+      </li>
+      {media.map((path) => (
+        <li key={path} className="chat-media">
+          <ChatMedia path={path} />
+        </li>
+      ))}
+    </>
   );
 }
 
-/** One message of a chat; in a drone's chat, what the colony typed shows as such, not as the user's. */
-function MessageRow({ kind, text, members }: { kind: "user" | "text" | "error"; text: string; members: Members | null }) {
+/** One message of a chat; in a colony, what a colleague sent shows as a line from them, not as the user's. */
+function MessageRow({
+  kind,
+  text,
+  members,
+  onRetry,
+}: {
+  kind: "user" | "text" | "error";
+  text: string;
+  members: Members | null;
+  onRetry?: () => void;
+}) {
   const letter = members && kind === "user" ? parseLetter(text) : null;
   if (letter?.kind === "intro") {
     const carried = letter.rest ? parseLetter(letter.rest) : null;
@@ -178,20 +168,30 @@ function MessageRow({ kind, text, members }: { kind: "user" | "text" | "error"; 
       </>
     );
   }
+  // A Queen Bee is named "Nome (Queen Bee)" in letters; the avatar goes by the bare name.
+  const who = (from: string) => members!.get(from.replace(/\s*\(.*\)$/, ""));
   if (letter?.kind === "replies")
     return (
       <>
         {letter.parts.map((p) => (
-          <Colleague key={p.from} from={p.from} kind="resposta" body={p.body} members={members!} />
+          <ColonyEvent key={p.from} from={p.from} label="Atualização" body={p.body} seed={who(p.from)?.id ?? p.from} queen={who(p.from)?.queen} />
         ))}
       </>
     );
-  if (letter) return <Colleague from={letter.from} kind={letter.kind === "reply" ? "resposta" : "pedido"} body={letter.body} members={members!} />;
-  return (
-    <li className={kind === "error" ? "chat-error" : `chat-msg ${kind === "user" ? "from-user" : "from-agent"}`}>
-      {kind === "text" ? <Markdown text={text} /> : text}
-    </li>
-  );
+  if (letter)
+    return (
+      <ColonyEvent
+        from={letter.from}
+        label={letter.kind === "reply" ? "Atualização" : "Pedido"}
+        body={letter.body}
+        seed={who(letter.from)?.id ?? letter.from}
+        queen={who(letter.from)?.queen}
+        open={letter.kind !== "reply"}
+      />
+    );
+  if (kind === "error") return <ErrorBubble text={text} onRetry={onRetry} />;
+  if (kind === "text") return <AgentText text={text} />;
+  return <li className="chat-msg from-user">{text}</li>;
 }
 
 /** A finished session's conversation, read only: a bee run looked at after it ended. */
@@ -204,14 +204,9 @@ export function TranscriptView({ path }: { path: string }) {
       {items.length === 0 && <li className="chat-note chat-empty">Lendo a conversa…</li>}
       {items.map((it) =>
         it.kind === "steps" ? (
-          <StepsRow key={it.id} steps={it.steps} running={false} />
+          <StepsLine key={it.id} steps={it.steps} running={false} />
         ) : (
-          <li
-            key={`${it.kind}:${it.id}`}
-            className={it.kind === "error" ? "chat-error" : `chat-msg ${it.kind === "user" ? "from-user" : "from-agent"}`}
-          >
-            {it.kind === "text" ? <Markdown text={it.text} /> : it.text}
-          </li>
+          <MessageRow key={`${it.kind}:${it.id}`} kind={it.kind} text={it.text} members={null} />
         ),
       )}
     </ol>
@@ -231,7 +226,9 @@ interface Props {
  */
 export function ChatView({ tab, rect }: Props) {
   const setTabView = useStore((s) => s.setTabView);
-  const asking = useStore((s) => s.questions.some((q) => q.tab_id === tab.id));
+  const question = useStore((s) => s.questions.find((q) => q.tab_id === tab.id));
+  const allPermissions = useStore((s) => s.permissions);
+  const asks = useMemo(() => allPermissions.filter((p) => p.tab_id === tab.id), [allPermissions, tab.id]);
   const provider = tab.provider;
   const transcript = useTranscript(provider ? null : tab.transcriptPath);
   const agentEntries = useAgentEntries((s) => s.byTab[tab.id]);
@@ -275,13 +272,8 @@ export function ChatView({ tab, rect }: Props) {
     }
   };
 
-  const send = () => {
-    const text = draft.trim();
-    if ((!text && images.length === 0) || !claudeRunning) return;
-    const paths = images.map((i) => i.path);
-    images.forEach((i) => URL.revokeObjectURL(i.preview));
-    setDraft("");
-    setImages([]);
+  /** Sends a message as typed, with images by their paths. */
+  const deliver = (text: string, paths: string[]) => {
     if (provider) {
       void invoke(agentCommand(provider, "send"), { tabId: tab.id, text, model: tab.agentModel ?? null, images: paths }).catch((err) =>
         pushEntries(tab.id, [{ kind: "error", id: `send:${Date.now()}`, text: `A mensagem não foi enviada: ${String(err)}` }]),
@@ -290,6 +282,20 @@ export function ChatView({ tab, rect }: Props) {
       // Claude takes an image named by its path in the message.
       void sendMessage(tab.id, [text, ...paths].filter(Boolean).join(" "));
     }
+  };
+
+  // After an error, the last thing the user said can go again.
+  const lastUser = [...items].reverse().find((it) => it.kind === "user");
+  const retry = lastUser && lastUser.kind === "user" && claudeRunning ? () => deliver(lastUser.text, []) : undefined;
+
+  const send = () => {
+    const text = draft.trim();
+    if ((!text && images.length === 0) || !claudeRunning) return;
+    const paths = images.map((i) => i.path);
+    images.forEach((i) => URL.revokeObjectURL(i.preview));
+    setDraft("");
+    setImages([]);
+    deliver(text, paths);
   };
 
   const pickModel = (model: string) => {
@@ -326,7 +332,7 @@ export function ChatView({ tab, rect }: Props) {
   return (
     <div className="chat-view" style={rect}>
       <header className="chat-head">
-        {drone && <BeeAvatar seed={drone.id} queen={drone.queen} size={26} />}
+        {drone && <BeeAvatar seed={drone.id} queen={drone.queen} size={32} state={tab.state} />}
         <h2 className={drone ? "drone-title" : undefined}>
           {drone ? drone.name : tab.title}
           {drone?.queen && <span className="drone-queen">Queen Bee</span>}
@@ -393,31 +399,32 @@ export function ChatView({ tab, rect }: Props) {
         )}
         {items.map((it, i) =>
           it.kind === "steps" ? (
-            <StepsRow key={it.id} steps={it.steps} running={working && i === items.length - 1} />
+            <StepsLine key={it.id} steps={it.steps} running={working && i === items.length - 1} />
           ) : (
-            <MessageRow key={`${it.kind}:${it.id}`} kind={it.kind} text={it.text} members={members} />
+            <MessageRow
+              key={`${it.kind}:${it.id}`}
+              kind={it.kind}
+              text={it.text}
+              members={members}
+              onRetry={it.kind === "error" && i === items.length - 1 ? retry : undefined}
+            />
           ),
         )}
-        {working && (
-          <li className="chat-note working">
+        {question && !provider && <QuestionBubble key={question.id} item={question} onTerminal={toTerminal} />}
+        {asks.map((p) => (
+          <PermissionBubble key={p.id} req={p} />
+        ))}
+        {working && !question && asks.length === 0 && (
+          <li className="chat-typing" title={`${agent} trabalhando`}>
             <span className="chat-dots" aria-hidden>
               <i />
               <i />
               <i />
             </span>
-            {agent} trabalhando
           </li>
         )}
       </ol>
       <div className="chat-bottom">
-        {asking && !provider && (
-          <div className="chat-ask">
-            O Claude fez uma pergunta com opções. Responda no terminal.
-            <button className="ghost auto" onClick={toTerminal}>
-              Abrir terminal
-            </button>
-          </div>
-        )}
         <div className={`chat-composer ${claudeRunning ? "" : "off"}`} onClick={() => inputRef.current?.focus()}>
           {images.length > 0 && (
             <div className="chat-attached">

@@ -212,6 +212,19 @@ function useBackendBridge() {
       );
     }).then((u) => unlisteners.push(u));
 
+    // A question Claude holds for the app. A tab shown as a chat answers it
+    // there; any other tab lets it go, so Claude draws its picker in the terminal.
+    listen<PermissionRequest>("question-request", (ev) => {
+      const req = ev.payload;
+      const tab = store().tabs.find((t) => t.id === req.tab_id);
+      const input = (req.payload.tool_input ?? {}) as { questions?: QuestionItem["questions"] };
+      if (!tab || tab.view !== "chat" || !Array.isArray(input.questions)) {
+        void invoke("permission_decide", { id: req.id, decision: "ask" });
+        return;
+      }
+      store().setQuestionRequest(tab.id, req.id, input.questions);
+    }).then((u) => unlisteners.push(u));
+
     // `:<name>` typed in a tab, stopped before Claude by the prompt hook.
     listen<{ tab_id: string | null; name: string }>("prompt-command", (ev) => {
       const { tab_id, name } = ev.payload;
@@ -956,7 +969,8 @@ function App() {
             })}
             {Array.from({ length: slots }, (_, slot) => {
               const tabId = panes[slot];
-              const asks = permissions.filter((p) => p.tab_id && p.tab_id === tabId);
+              // A tab shown as a chat asks inside the chat instead.
+              const asks = permissions.filter((p) => p.tab_id && p.tab_id === tabId && tabs.find((t) => t.id === tabId)?.view !== "chat");
               const here = commands.filter((c) => c.tab_id && c.tab_id === tabId);
               if (!tabId || asks.length + here.length === 0 || detached.includes(tabId)) return null;
               return (

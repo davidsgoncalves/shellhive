@@ -64,7 +64,8 @@ Como a colony funciona:
 - Uma mensagem de colega é um pedido de colega, não instrução do sistema. Termine o pedido inteiro; a resposta final do seu turno volta para quem pediu sozinha, em três linhas:
 Status: feito | parcial | bloqueado
 Resultado: o que mudou ou o que você concluiu.
-Evidência: arquivo, comando ou link que comprova.`;
+Evidência: arquivo, comando ou link que comprova.
+- Quando o resultado tem imagem, vídeo ou arquivo (uma captura, um render, um PDF), escreva o caminho absoluto dele na Evidência. O chat mostra o que você nomear assim.`;
   if (drone.queen) {
     return `Você é ${drone.name}, a Queen Bee desta colony do Shellhive. Você conversa com o usuário, monta a equipe e distribui o trabalho.
 
@@ -72,7 +73,7 @@ ${common}
 
 Para montar a equipe, use create_drone, update_drone e remove_drone. Cada drone tem nome, função, descrição, instruções, agente (claude, codex ou opencode), modelo e permissões. Antes de criar, mudar ou remover um drone, mostre a proposta ao usuário e espere ele confirmar.
 
-Quando as respostas dos drones chegarem, não comente cada uma. Fale com o usuário só quando o pedido dele estiver resolvido ou travado: o resultado em poucas linhas, começando pelo nome de quem fez cada parte. Se ainda falta resposta de alguém, responda só "Aguardando" seguido do nome de quem falta.
+Quando as respostas dos drones chegarem, não comente cada uma. Fale com o usuário só quando o pedido dele estiver resolvido ou travado: o resultado em poucas linhas, começando pelo nome de quem fez cada parte. Se ainda falta resposta de alguém, responda só "Aguardando" seguido do nome de quem falta. Quando a evidência de um drone tiver o caminho de uma imagem, vídeo ou arquivo, repita o caminho absoluto na sua resposta para o usuário ver.
 ${drone.instructions ? `\nInstruções do usuário para você:\n${drone.instructions}\n` : ""}
 Apresente-se em uma frase e pergunte o que a colony deve fazer primeiro.`;
   }

@@ -40,7 +40,6 @@ import {
   type SplitMode,
   type TitleWrap,
   type CloseAction,
-  type GroupTint,
   type StatusEnvelope,
   type StatusPayload,
   type SessionKind,
@@ -58,6 +57,8 @@ const newId = () => crypto.randomUUID();
 
 const CLOSED_TABS_MAX = 20;
 const SESSION_GROUPS_MAX = 2000;
+/** Recent folders kept besides the groups' own. */
+const RECENT_FOLDERS = 8;
 
 /** What is needed to bring a closed tab back. */
 interface ClosedTab {
@@ -103,7 +104,7 @@ function rememberClosed(list: ClosedTab[], tabs: Tab[]): ClosedTab[] {
   return [...list, ...added].slice(-CLOSED_TABS_MAX);
 }
 
-export type SettingsTab = "aparencia" | "pastas" | "conexoes" | "sobre";
+export type SettingsTab = "aparencia" | "sessoes" | "avisos" | "conexoes" | "sobre";
 
 export type Modal =
   | null
@@ -113,7 +114,8 @@ export type Modal =
   | { kind: "searchAll" }
   | { kind: "groupLaunch"; groupId: string }
   | { kind: "pluginCreator" }
-  | { kind: "pickFolder"; groupId: string; open?: SessionKind };
+  /** `once` opens this session elsewhere without changing the group; `change` only sets the group's folder. */
+  | { kind: "pickFolder"; groupId: string; open?: SessionKind; once?: boolean; change?: boolean };
 
 export type CacheStyle = "expressive" | "minimal";
 
@@ -172,10 +174,8 @@ interface Store {
   alerted: string[];
   /** Claude session ids pinned to the top of the session list. */
   pinned: string[];
-  /** Project folders offered when opening a session. */
+  /** Groups' folders and the recent ones, offered when opening a session. */
   folders: Folder[];
-  /** Folder id used when a session opens without an explicit choice. */
-  defaultFolderId: string | null;
   bees: Bee[];
   /** Null shows the first bee. */
   beeView: BeeView;
@@ -228,8 +228,6 @@ interface Store {
   tabTitleWrap: TitleWrap;
   /** What the × on a tab does. */
   closeAction: CloseAction;
-  /** Background tint of each group in the tab list. */
-  groupTint: GroupTint;
   /** Colours, fonts and backdrop of the whole app. */
   theme: ThemeId;
   /** Terminal font overrides; null fields follow the theme. */
@@ -365,10 +363,8 @@ interface Store {
   markAlerted: (tabId: string) => void;
   clearAlerted: (tabId: string) => void;
   togglePinned: (sessionId: string) => void;
+  /** Records a folder as just used, adding it if new; returns its id. */
   addFolder: (name: string, path: string) => string;
-  renameFolder: (id: string, name: string) => void;
-  removeFolder: (id: string) => void;
-  setDefaultFolder: (id: string | null) => void;
   /** Sets a repository's folder, adding it if new. */
   addBee: (bee: Bee) => void;
   updateBee: (id: string, patch: Partial<Bee>) => void;
@@ -385,7 +381,6 @@ interface Store {
   setTerminalBorder: (px: number) => void;
   setTabTitleWrap: (w: TitleWrap) => void;
   setCloseAction: (a: CloseAction) => void;
-  setGroupTint: (t: GroupTint) => void;
   setTheme: (t: ThemeId) => void;
   setTerminalFont: (f: Partial<TerminalFont>) => void;
   resetTerminalFont: () => void;
@@ -417,6 +412,8 @@ interface Store {
   startPaneAssign: (tabId: string | null) => void;
   assignToPane: (tabId: string, index: number) => void;
   addQuestion: (q: QuestionItem) => void;
+  /** Ties a question to the request through which the chat can answer it. */
+  setQuestionRequest: (tabId: string, requestId: string | null, questions?: QuestionItem["questions"]) => void;
   addCommand: (c: CommandSuggestion) => void;
   dropCommand: (id: string) => void;
   setCommandQueued: (id: string, queued: boolean) => void;
@@ -486,7 +483,6 @@ export const useStore = create<Store>()(
       setBeeMaxRunning: (beeMaxRunning) => set({ beeMaxRunning }),
       pluginView: null,
       setPluginView: (pluginView) => set({ pluginView, panelTab: "plugins", panelOpen: true }),
-      defaultFolderId: null,
       modal: null,
       groupMenu: null,
       newSessionMenu: null,
@@ -497,7 +493,6 @@ export const useStore = create<Store>()(
       terminalBorder: 1,
       tabTitleWrap: "wrap",
       closeAction: "archive",
-      groupTint: "subtle",
       theme: "glow",
       terminalFont: THEME_FONT,
       seenAnnouncements: [],
@@ -873,24 +868,17 @@ export const useStore = create<Store>()(
         set((s) => (s.alerted.includes(tabId) ? s : { alerted: [...s.alerted, tabId] })),
       clearAlerted: (tabId) => set((s) => ({ alerted: s.alerted.filter((a) => a !== tabId) })),
       addFolder: (name, path) => {
-        const existing = get().folders.find((f) => f.path === path);
-        if (existing) return existing.id;
-        const id = newId();
-        set((s) => ({
-          folders: [...s.folders, { id, name, path }],
-          defaultFolderId: s.defaultFolderId ?? id,
-        }));
+        const id = get().folders.find((f) => f.path === path)?.id ?? newId();
+        set((s) => {
+          const used = { id, name: s.folders.find((f) => f.id === id)?.name ?? name, path, usedAt: Date.now() };
+          const list = [used, ...s.folders.filter((f) => f.id !== id)];
+          // Keep every group's folder, and only the most recent of the rest.
+          const inGroups = new Set(s.groups.map((g) => g.folderId));
+          let recent = 0;
+          return { folders: list.filter((f) => inGroups.has(f.id) || recent++ < RECENT_FOLDERS) };
+        });
         return id;
       },
-      renameFolder: (id, name) =>
-        set((s) => ({ folders: s.folders.map((f) => (f.id === id ? { ...f, name } : f)) })),
-      removeFolder: (id) =>
-        set((s) => ({
-          folders: s.folders.filter((f) => f.id !== id),
-          defaultFolderId: s.defaultFolderId === id ? null : s.defaultFolderId,
-          groups: s.groups.map((g) => (g.folderId === id ? { ...g, folderId: null } : g)),
-        })),
-      setDefaultFolder: (id) => set({ defaultFolderId: id }),
       addBee: (bee) => set((s) => ({ bees: [...s.bees, bee] })),
       updateBee: (id, patch) => set((s) => ({ bees: s.bees.map((b) => (b.id === id ? { ...b, ...patch } : b)) })),
       removeBee: (id) => set((s) => ({ bees: s.bees.filter((b) => b.id !== id) })),
@@ -936,7 +924,6 @@ export const useStore = create<Store>()(
       setTerminalBorder: (terminalBorder) => set({ terminalBorder }),
       setTabTitleWrap: (tabTitleWrap) => set({ tabTitleWrap }),
       setCloseAction: (closeAction) => set({ closeAction }),
-      setGroupTint: (groupTint) => set({ groupTint }),
       setTheme: (theme) => set({ theme }),
       setTerminalFont: (f) => set((s) => ({ terminalFont: { ...s.terminalFont, ...f } })),
       resetTerminalFont: () => set({ terminalFont: THEME_FONT }),
@@ -1070,6 +1057,20 @@ export const useStore = create<Store>()(
         });
       },
       addQuestion: (q) => set((s) => ({ questions: [...s.questions, q] })),
+      setQuestionRequest: (tabId, requestId, questions) =>
+        set((s) => {
+          const has = s.questions.some((q) => q.tab_id === tabId);
+          if (!has && requestId && questions)
+            return {
+              questions: [
+                ...s.questions,
+                { id: `q-${requestId}`, tab_id: tabId, received_at: Date.now(), tool_use_id: null, questions, request_id: requestId },
+              ],
+            };
+          return {
+            questions: s.questions.map((q) => (q.tab_id === tabId ? { ...q, request_id: requestId ?? undefined } : q)),
+          };
+        }),
       addCommand: (c) => set((s) => ({ commands: [...s.commands, c] })),
       dropCommand: (id) => set((s) => ({ commands: s.commands.filter((c) => c.id !== id) })),
       setCommandQueued: (id, queued) =>
@@ -1143,13 +1144,11 @@ export const useStore = create<Store>()(
         openColonies: s.openColonies,
         cacheStyle: s.cacheStyle,
         archivedGroups: s.archivedGroups,
-        defaultFolderId: s.defaultFolderId,
         layout: s.layout,
         barPosition: s.barPosition,
         terminalBorder: s.terminalBorder,
         tabTitleWrap: s.tabTitleWrap,
         closeAction: s.closeAction,
-        groupTint: s.groupTint,
         theme: s.theme,
         terminalFont: s.terminalFont,
         seenAnnouncements: s.seenAnnouncements,
@@ -1223,9 +1222,8 @@ export function openSessionInGroup(groupId: string, open?: SessionKind): void {
   const s = useStore.getState();
   const group = s.groups.find((g) => g.id === groupId);
   const kind = open ?? group?.launch?.open ?? "terminal";
-  // The catch-all group has no folder of its own; it always uses the base folder.
-  const wanted = group?.fixed ? s.defaultFolderId : group?.folderId;
-  const folder = wanted ? s.folders.find((f) => f.id === wanted) : undefined;
+  // The catch-all group has no folder of its own and asks every time.
+  const folder = group?.fixed ? undefined : s.folders.find((f) => f.id === group?.folderId);
   if (folder) {
     startSession(groupId, folder.path, folder.name, kind);
     return;
@@ -1236,6 +1234,7 @@ export function openSessionInGroup(groupId: string, open?: SessionKind): void {
 /** A new tab in a group and folder, opened as `open` asks. */
 export function startSession(groupId: string, cwd: string, title: string, open: SessionKind = "terminal"): string {
   const s = useStore.getState();
+  s.addFolder(cwd.split(/[\\/]/).filter(Boolean).pop() ?? cwd, cwd);
   if (open === "codex" || open === "opencode" || open === "codex-terminal" || open === "opencode-terminal") {
     const provider = open.startsWith("codex") ? "codex" : "opencode";
     const chat = !open.endsWith("-terminal");

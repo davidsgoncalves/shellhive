@@ -289,7 +289,6 @@ export interface GitInfo {
 }
 
 /** How strongly a group's colour tints its background. */
-export type GroupTint = "subtle" | "strong" | "none";
 
 /** How a long tab name fits in the sidebar. */
 export type TitleWrap = "truncate" | "wrap";
@@ -416,10 +415,13 @@ export const DEFAULT_TAB_TITLE = "Nova sessão";
 export const WATCHDOG_MINUTES = 5;
 
 /** A project folder registered in settings; new sessions open in one of these. */
+/** A folder the user opened sessions in, kept as a recent and as a group's folder. */
 export interface Folder {
   id: string;
   name: string;
   path: string;
+  /** When a session last opened in it. */
+  usedAt?: number;
 }
 
 export interface PathCheck {
@@ -436,6 +438,8 @@ export interface QuestionItem {
   received_at: number;
   /** Tool use id, used to drop the item once Claude moves on. */
   tool_use_id: string | null;
+  /** Set while Claude waits for the app's answer instead of drawing its picker. */
+  request_id?: string;
   questions: Array<{
     question: string;
     header?: string;

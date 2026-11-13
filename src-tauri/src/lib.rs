@@ -76,6 +76,7 @@ pub fn run() {
             sessions::session_titles,
             chat::chat_read,
             chat::chat_save_image,
+            chat::chat_media,
             hooks::codex_hooks_install,
             codex::codex_start,
             codex::codex_send,

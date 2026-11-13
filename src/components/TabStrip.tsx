@@ -138,13 +138,13 @@ function GroupSegment({ group, tabs, activeTabId }: { group: Group; tabs: Tab[];
 
 /** Horizontal tab bar with Chrome-style groups, chosen in settings. */
 export function TabStrip() {
-  const { groups, tabs, activeTabId, openModal, groupTint } = useStore();
+  const { groups, tabs, activeTabId, openModal } = useStore();
   const ordered = [
     ...groups.filter((g) => !g.fixed && !g.hidden && tabs.some((t) => t.groupId === g.id)),
     ...groups.filter((g) => g.fixed),
   ];
   return (
-    <div className={`tab-strip tint-${groupTint}`}>
+    <div className="tab-strip">
       <div className="strip-scroll">
         {ordered.map((g) => (
           <GroupSegment key={g.id} group={g} tabs={tabs.filter((t) => t.groupId === g.id)} activeTabId={activeTabId} />

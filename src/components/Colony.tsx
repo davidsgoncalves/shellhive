@@ -98,7 +98,7 @@ export function ColonyPanel() {
                         onClick={() => setView({ colonyId: c.id, show: d.id })}
                         onContextMenu={(e) => setMenu({ ...at(e), droneId: d.id })}
                       >
-                        <BeeAvatar seed={d.id} queen={d.queen} />
+                        <BeeAvatar seed={d.id} queen={d.queen} size={32} state={stateOf(d)} />
                         <span className="drone-main">
                           <span className="drone-name">
                             {d.name}
@@ -466,7 +466,7 @@ function DroneWaking({ drone }: { drone: Drone }) {
   }, [drone.id]);
   return (
     <div className="bee-blank">
-      <BeeAvatar seed={drone.id} queen={drone.queen} size={40} />
+      <BeeAvatar seed={drone.id} queen={drone.queen} size={64} state="working" />
       <p className="hint">Abrindo {drone.name}…</p>
     </div>
   );
@@ -495,7 +495,7 @@ function Messages({ colony }: { colony: Colony }) {
           {list.map((m) => (
             <li key={m.id} className={`colony-message ${m.status}`} onClick={() => setOpen(open === m.id ? null : m.id)}>
               <div className="row">
-                <BeeAvatar seed={m.from} queen={drones.find((d) => d.id === m.from)?.queen} size={18} />
+                <BeeAvatar seed={m.from} queen={drones.find((d) => d.id === m.from)?.queen} size={24} />
                 <strong>
                   {name(m.from)} → {name(m.to)}
                 </strong>

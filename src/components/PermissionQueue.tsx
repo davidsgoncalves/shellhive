@@ -23,17 +23,9 @@ function Countdown({ req }: { req: PermissionRequest }) {
   );
 }
 
-export function PermissionCard({
-  req,
-  overlay = false,
-  onOpen,
-}: {
-  req: PermissionRequest;
-  overlay?: boolean;
-  /** Replaces going to the tab, for a tab that is not in the lists. */
-  onOpen?: () => void;
-}) {
-  const { tabs, groups, activateTab, dropPermission, addGroupRule } = useStore();
+/** What a permission card can do: decide, and allow from now on in the tab's group. */
+export function usePermissionActions(req: PermissionRequest) {
+  const { tabs, groups, dropPermission, addGroupRule } = useStore();
   const [sent, setSent] = useState<PermissionDecision | null>(null);
   const tab = tabs.find((t) => t.id === req.tab_id);
   const tool = req.payload.tool_name;
@@ -47,6 +39,32 @@ export function PermissionCard({
     const accepted = await invoke<boolean>("permission_decide", { id: req.id, decision });
     if (!accepted) dropPermission(req.id);
   };
+  const always =
+    group && rule && !risky
+      ? {
+          label: `Sempre permitir no grupo ${group.name}${rule.command === null ? ` (qualquer ${rule.tool})` : ""}`,
+          title: `Aprova agora e, daqui pra frente, sem perguntar: ${describeRule(rule)}`,
+          run: () => {
+            addGroupRule(group.id, rule);
+            void decide("allow");
+          },
+        }
+      : null;
+  return { tab, tool, summary, risky, sent, decide, always };
+}
+
+export function PermissionCard({
+  req,
+  overlay = false,
+  onOpen,
+}: {
+  req: PermissionRequest;
+  overlay?: boolean;
+  /** Replaces going to the tab, for a tab that is not in the lists. */
+  onOpen?: () => void;
+}) {
+  const activateTab = useStore((s) => s.activateTab);
+  const { tab, tool, summary, risky, sent, decide, always } = usePermissionActions(req);
 
   return (
     <li className={`perm-item ${risky ? "risky" : ""} ${sent ? "sent" : ""} ${overlay ? "overlay" : ""}`}>
@@ -80,18 +98,9 @@ export function PermissionCard({
           Permitir
         </button>
       </div>
-      {group && rule && !risky && (
-        <button
-          className="perm-always"
-          disabled={!!sent}
-          title={`Aprova agora e, daqui pra frente, sem perguntar: ${describeRule(rule)}`}
-          onClick={() => {
-            addGroupRule(group.id, rule);
-            void decide("allow");
-          }}
-        >
-          Sempre permitir no grupo {group.name}
-          {rule.command === null ? ` (qualquer ${rule.tool})` : ""}
+      {always && (
+        <button className="perm-always" disabled={!!sent} title={always.title} onClick={always.run}>
+          {always.label}
         </button>
       )}
     </li>

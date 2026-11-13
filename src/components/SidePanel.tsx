@@ -59,7 +59,7 @@ function initials(title: string): string {
  * open icon closes the panel; icons are dragged to reorder them.
  */
 export function SidePanel() {
-  const { panelOpen, togglePanel, showEvents, groupTint } = useStore();
+  const { panelOpen, togglePanel, showEvents } = useStore();
   const layout = useStore((s) => s.layout);
   const queued = useQueued();
   const pending = queued.permissions.length + queued.questions.length + queued.commands.length + queued.approvals;
@@ -188,7 +188,7 @@ export function SidePanel() {
       </nav>
 
       {panelOpen && (
-        <aside className={`sidebar side-panel tint-${groupTint}`} style={width ? { width } : undefined}>
+        <aside className="sidebar side-panel" style={width ? { width } : undefined}>
           <ColumnResizer column="sidebar" />
           <header className="sidebar-header">
             <h1>{currentTab?.label}</h1>

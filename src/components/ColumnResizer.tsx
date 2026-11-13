@@ -15,7 +15,7 @@ export function ColumnResizer({ column }: { column: "sidebar" | "events" }) {
 
   return (
     <div
-      className={`column-resizer ${column}`}
+      className={`column-resizer at-${column}`}
       title="Arraste para redimensionar; duplo clique volta ao padrão"
       onPointerDown={(e) => {
         if (e.button !== 0) return;

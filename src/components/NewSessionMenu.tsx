@@ -53,6 +53,8 @@ export function NewSessionMenu() {
   const openMenu = useStore((s) => s.openNewSessionMenu);
   const group = useStore((s) => s.groups.find((g) => g.id === menu?.groupId));
   const ref = useRef<HTMLDivElement>(null);
+  // Opens this one session in a folder picked now, leaving the group's folder alone.
+  const [elsewhere, setElsewhere] = useState(false);
   const [agent, setAgent] = useState<Agent | null>(null);
   const [cursor, setCursor] = useState(0);
   const steps = useRef<(HTMLDivElement | null)[]>([]);
@@ -65,6 +67,7 @@ export function NewSessionMenu() {
   useEffect(() => {
     if (!menu) return;
     setAgent(null);
+    setElsewhere(false);
     setCursor(preferredSplit ? AGENTS.findIndex((a) => a.id === preferredSplit[0]) + 1 : 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [menu]);
@@ -75,7 +78,8 @@ export function NewSessionMenu() {
   const open = (kind: SessionKind) => {
     if (!group) return;
     openMenu(null);
-    openSessionInGroup(group.id, kind);
+    if (elsewhere) useStore.getState().openModal({ kind: "pickFolder", groupId: group.id, open: kind, once: true });
+    else openSessionInGroup(group.id, kind);
   };
 
   const pickAgent = (a: Agent) => {
@@ -189,6 +193,12 @@ export function NewSessionMenu() {
           ))}
         </div>
       </div>
+      {group.folderId && !group.fixed && (
+        <button className={`ns-elsewhere${elsewhere ? " on" : ""}`} onClick={() => setElsewhere(!elsewhere)} aria-pressed={elsewhere}>
+          <span className="ns-check">{elsewhere ? "✓" : ""}</span>
+          Em outra pasta…
+        </button>
+      )}
     </div>
   );
 }

@@ -84,7 +84,12 @@ export function TopBar() {
           </div>
         </>
       )}
-      {colony && <div className="counts" />}
+      {colony && (
+        <>
+          <div className="counts" />
+          <div className="active-info" />
+        </>
+      )}
 
       <PluginStatus />
       <ProcessesButton />
