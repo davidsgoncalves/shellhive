@@ -232,7 +232,10 @@ const MEDIA_MAX: u64 = 12 * 1024 * 1024;
 pub fn chat_media(path: String) -> Result<String, String> {
     use base64::Engine;
     let lower = path.to_ascii_lowercase();
-    if ![".png", ".jpg", ".jpeg", ".gif", ".webp"].iter().any(|e| lower.ends_with(e)) {
+    if ![".png", ".jpg", ".jpeg", ".gif", ".webp"]
+        .iter()
+        .any(|e| lower.ends_with(e))
+    {
         return Err("not an image".into());
     }
     let meta = std::fs::metadata(&path).map_err(|e| e.to_string())?;

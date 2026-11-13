@@ -91,7 +91,13 @@ impl Permissions {
     }
 
     /// `decide`, along with a tool input that replaces the one the agent sent.
-    pub fn decide_with(&self, id: &str, decision: Decision, reason: String, input: Option<serde_json::Value>) -> bool {
+    pub fn decide_with(
+        &self,
+        id: &str,
+        decision: Decision,
+        reason: String,
+        input: Option<serde_json::Value>,
+    ) -> bool {
         let (lock, cv) = &*self.inner;
         let mut guard = lock.lock().unwrap();
         if !guard.waiting.contains_key(id) {

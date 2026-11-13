@@ -420,12 +420,14 @@ fn handle(app: AppHandle, mut req: tiny_http::Request) {
             let answer = permissions.wait_for(&id, DECISION_TIMEOUT);
             let input = permissions.take_input(&id);
             let response = match (answer, input) {
-                (Some((crate::permissions::Decision::Allow, _)), Some(input)) => serde_json::json!({
-                    "hookSpecificOutput": {
-                        "hookEventName": "PermissionRequest",
-                        "decision": { "behavior": "allow", "updatedInput": input },
-                    }
-                }),
+                (Some((crate::permissions::Decision::Allow, _)), Some(input)) => {
+                    serde_json::json!({
+                        "hookSpecificOutput": {
+                            "hookEventName": "PermissionRequest",
+                            "decision": { "behavior": "allow", "updatedInput": input },
+                        }
+                    })
+                }
                 _ => serde_json::json!({}),
             };
             let _ = req.respond(json_response(&response));
