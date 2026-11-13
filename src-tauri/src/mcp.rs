@@ -269,6 +269,38 @@ fn core_tools() -> Vec<serde_json::Value> {
                 },
                 "additionalProperties": false
             }
+        },
+        {
+            "name": "wait_for",
+            "description": "Abre uma espera: quando algo acontecer, o Shellhive manda `message` de volta para esta sessão, que retoma o trabalho. \
+    Use quando o usuário pedir para fazer algo depois que outra sessão terminar, ou daqui a um tempo. Depois de abrir, termine o turno.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "on": { "type": "string", "enum": ["session", "time"], "description": "session: quando outra aba do Shellhive terminar; time: depois de alguns minutos." },
+                    "session": { "type": "string", "description": "Com on=session: o nome da aba a esperar, como aparece na lista de sessões do Shellhive." },
+                    "event": { "type": "string", "enum": ["stopped", "ended"], "description": "Com on=session: stopped quando ela terminar de responder (padrão), ended quando for encerrada." },
+                    "minutes": { "type": "number", "description": "Com on=time: daqui a quantos minutos." },
+                    "message": { "type": "string", "description": "O que esta sessão vai receber ao acordar: o que fazer a seguir, com o contexto necessário." }
+                },
+                "required": ["on", "message"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "list_waits",
+            "description": "Lista as esperas abertas por esta sessão, com o id de cada uma.",
+            "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false }
+        },
+        {
+            "name": "cancel_wait",
+            "description": "Cancela uma espera aberta por esta sessão, pelo id de list_waits.",
+            "inputSchema": {
+                "type": "object",
+                "properties": { "id": { "type": "string" } },
+                "required": ["id"],
+                "additionalProperties": false
+            }
         }
     ]);
     tools.as_array().cloned().unwrap_or_default()
@@ -395,6 +427,9 @@ pub fn handle_rpc(
             match name {
                 "list_sessions" => call_list_sessions(app, &args),
                 "suggest_command" => call_suggest_command(app, tab_id, &args),
+                "wait_for" | "list_waits" | "cancel_wait" => {
+                    crate::plugins::call_frontend(app, "flows", name, tab_id, &args)
+                }
                 bee if BEE_TOOLS.contains(&bee) && is_bee_creator(tab_id.as_deref()) => {
                     crate::plugins::call_frontend(app, "worker-bee", bee, tab_id, &args)
                 }

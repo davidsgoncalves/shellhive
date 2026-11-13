@@ -113,7 +113,7 @@ export function TerminalView({
     const bee = beeRun && useStore.getState().bees.find((b) => b.id === beeRun.beeId);
     // A colony's drone on Claude runs with its own model and permissions.
     const drone = droneOfTab(tab.id);
-    const own = bee ?? (drone?.agent === "claude" ? drone : undefined);
+    const own = bee ?? beeRun?.spec ?? (drone?.agent === "claude" ? drone : undefined);
     invoke("pty_spawn", {
       id: tab.id,
       cols: term.cols,
@@ -123,7 +123,7 @@ export function TerminalView({
       fork: !!fork,
       prompt,
       launch: !agentTab && takePendingLaunch(tab.id),
-      model: (drone?.agent === "claude" ? drone.model : null) ?? launch?.model ?? null,
+      model: beeRun?.spec?.model ?? (drone?.agent === "claude" ? drone.model : null) ?? launch?.model ?? null,
       permissionMode: own?.permissionMode ?? launch?.permissionMode ?? null,
       allowedTools: own?.allowedTools ?? null,
     })

@@ -6,6 +6,38 @@ import { describeRule, ruleFor } from "../lib/permRules";
 import { isBeeTab, type PermissionDecision, type PermissionRequest, type QuestionItem } from "../lib/types";
 import { CommandCard } from "./CommandCard";
 import { PluginApprovals, pendingApprovals } from "./PluginApprovals";
+import { answerApproval, useFlowApprovals } from "../lib/flows";
+import type { FlowNode, FlowRun } from "../lib/types";
+
+/** A flow stopped at an approval: what reached it, and the two ways out. */
+export function FlowApprovalCard({ run, node }: { run: FlowRun; node: FlowNode }) {
+  const setFlowView = useStore((s) => s.setFlowView);
+  const question = node.kind === "approval" && node.question.trim() ? node.question : "Seguir com o fluxo?";
+  const input = run.states[node.id]?.output ?? "";
+  return (
+    <li className="perm-item question">
+      <div className="perm-head">
+        <span className="perm-tool">Fluxo · {run.flowName}</span>
+        <time>{new Date(run.states[node.id]?.startedAt ?? run.startedAt).toLocaleTimeString()}</time>
+      </div>
+      <p className="question-text">{question}</p>
+      {input && <pre className="flow-approval-input">{input.slice(0, 1200)}</pre>}
+      <div className="perm-meta">
+        <button className="link" onClick={() => setFlowView({ flowId: run.flowId, runId: run.id })}>
+          Ver a execução
+        </button>
+      </div>
+      <div className="perm-actions">
+        <button className="deny" onClick={() => answerApproval(run.id, node.id, false)}>
+          Recusar
+        </button>
+        <button className="allow" onClick={() => answerApproval(run.id, node.id, true)}>
+          Aprovar
+        </button>
+      </div>
+    </li>
+  );
+}
 
 function Countdown({ req }: { req: PermissionRequest }) {
   const secondsLeft = () =>
@@ -163,12 +195,16 @@ export function useQueued() {
 
 export function PermissionQueue() {
   const { permissions, questions, commands, approvals } = useQueued();
-  if (permissions.length === 0 && questions.length === 0 && commands.length === 0 && approvals === 0) {
+  const flowApprovals = useFlowApprovals();
+  if (permissions.length === 0 && questions.length === 0 && commands.length === 0 && approvals === 0 && flowApprovals.length === 0) {
     return <p className="hint pad">Nada pendente.</p>;
   }
   return (
     <ul className="perm-list">
       <PluginApprovals />
+      {flowApprovals.map(({ run, node }) => (
+        <FlowApprovalCard key={`${run.id}:${node.id}`} run={run} node={node} />
+      ))}
       {permissions.map((p) => (
         <PermissionCard key={p.id} req={p} />
       ))}

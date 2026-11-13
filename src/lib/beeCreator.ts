@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useStore } from "./store";
 import { markPendingPrompt } from "./restored";
 import { describeTrigger, runBee } from "./bees";
+import { makeNode, NODE_GAP, NODE_W } from "./flowGraph";
 import type { ToolReply } from "./plugins";
 import type { Bee, BeeTrigger, PathCheck } from "./types";
 import { PLACEHOLDER, TEMPLATES } from "./beeTemplates";
@@ -69,7 +70,11 @@ function parseTrigger(raw: unknown): BeeTrigger | string {
 export async function callBeeTool(tool: string, args: Record<string, unknown>): Promise<ToolReply> {
   const s = useStore.getState();
   if (tool === "list_bees") {
-    const bees = s.bees.map((b) => ({ id: b.id, name: b.name, enabled: b.enabled, trigger: describeTrigger(b.trigger) }));
+    const bees = s.bees.map((b) => ({
+      id: b.id,
+      name: b.name,
+      flows: s.flows.filter((f) => !f.wait && f.nodes.some((n) => n.kind === "bee" && n.beeId === b.id)).map((f) => f.name),
+    }));
     const templates = TEMPLATES.map((t) => ({ id: t.id, name: t.name, description: t.description, prompt: t.prompt }));
     return { text: JSON.stringify({ bees, templates }, null, 2) };
   }
@@ -101,9 +106,7 @@ export async function callBeeTool(tool: string, args: Record<string, unknown>): 
       name,
       instructions: prompt,
       templateId,
-      trigger,
-      missed: args.missed === "skip" ? "skip" : "run",
-      enabled: false,
+      enabled: true,
       createdAt: Date.now(),
       lastRunAt: null,
       worktree: args.worktree === true,
@@ -111,7 +114,22 @@ export async function callBeeTool(tool: string, args: Record<string, unknown>): 
       allowedTools,
     };
     s.addBee(bee);
-    return { text: `Worker bee criada, desligada: ${name} (id ${bee.id}). O usuário confere e liga no painel do Worker bee.` };
+    if (trigger.kind === "manual") return { text: `Worker bee criada: ${name} (id ${bee.id}). Ela roda quando o usuário pedir.` };
+    // When it runs belongs to a flow: trigger, then the bee, off until the user checks it.
+    const t = makeNode({ kind: "trigger", trigger, missed: args.missed === "skip" ? "skip" : "run" }, 40, 80);
+    const node = makeNode({ kind: "bee", beeId: bee.id, dir: null }, 40 + NODE_W + NODE_GAP, 80);
+    s.addFlow({
+      id: crypto.randomUUID(),
+      name,
+      enabled: false,
+      nodes: [t, node],
+      edges: [{ id: crypto.randomUUID(), from: t.id, port: "out", to: node.id }],
+      createdAt: Date.now(),
+      lastRunAt: null,
+    });
+    return {
+      text: `Worker bee criada: ${name} (id ${bee.id}), com um fluxo ${describeTrigger(trigger).toLowerCase()}, desligado. O usuário confere e liga o fluxo em Fluxos.`,
+    };
   }
   return { text: `Ferramenta desconhecida: ${tool}`, isError: true };
 }

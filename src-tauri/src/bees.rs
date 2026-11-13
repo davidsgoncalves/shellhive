@@ -299,3 +299,24 @@ pub fn bee_runs_set(value: serde_json::Value) -> Result<(), String> {
     fs::write(&tmp, body).map_err(|e| e.to_string())?;
     fs::rename(&tmp, &path).map_err(|e| e.to_string())
 }
+
+fn flow_runs_path() -> Option<PathBuf> {
+    Some(crate::paths::data_dir()?.join("flow-runs.json"))
+}
+
+#[tauri::command]
+pub fn flow_runs_get() -> serde_json::Value {
+    flow_runs_path()
+        .and_then(|p| fs::read_to_string(p).ok())
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .unwrap_or(serde_json::Value::Null)
+}
+
+#[tauri::command]
+pub fn flow_runs_set(value: serde_json::Value) -> Result<(), String> {
+    let path = flow_runs_path().ok_or("no data dir")?;
+    let body = serde_json::to_string(&value).map_err(|e| e.to_string())?;
+    let tmp = path.with_extension("json.tmp");
+    fs::write(&tmp, body).map_err(|e| e.to_string())?;
+    fs::rename(&tmp, &path).map_err(|e| e.to_string())
+}

@@ -94,6 +94,8 @@ pub fn run() {
             connections::connections_check,
             bees::bee_runs_get,
             bees::bee_runs_set,
+            bees::flow_runs_get,
+            bees::flow_runs_set,
             bees::bee_workdir,
             bees::bee_prepare_dir,
             bees::bee_command_run,
