@@ -30,7 +30,9 @@ serde_json = { version = "1", features = ["preserve_order"] }
 portable-pty = "0.9.0"
 tiny_http = "0.12.0"
 getrandom = "0.3"
-ureq = { version = "3", default-features = false }
+ureq = { version = "3", default-features = false, features = ["rustls"] }
+keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust"] }
+keepawake = "0.6"
 base64 = "0.23.1"
 dirs = "7.0.0"
 tauri-plugin-notification = "2.4.0"

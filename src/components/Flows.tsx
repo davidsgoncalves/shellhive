@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../lib/store";
-import { describeTrigger, DAY_NAMES, openBeeRun, useBeeRuns } from "../lib/bees";
+import { describeTrigger, DAY_NAMES, GITHUB_EVENTS, openBeeRun, SLACK_EVENTS, useBeeRuns } from "../lib/bees";
+import { githubRepos, JIRA_PRESETS, jiraQuery, pollNow, slackChannels, slackPeople, useTriggerErrors } from "../lib/integrations";
+import { invoke } from "@tauri-apps/api/core";
 import {
   answerApproval,
   cancelFlowRun,
@@ -43,6 +45,8 @@ import type {
   FlowPort,
   FlowRun,
   FlowTrigger,
+  GithubEvent,
+  SlackEvent,
 } from "../lib/types";
 
 const when = (at: number) =>
@@ -766,12 +770,20 @@ function TriggerFields({
           if (k === "interval") set({ kind: "interval", minutes: 60 });
           if (k === "schedule") set({ kind: "schedule", days: WORKDAYS, time: "09:00" });
           if (k === "event") set({ kind: "event", event: { on: "stop" }, groupId: null, cooldown: 10 });
+          if (k === "github") set({ kind: "github", event: "review_requested", repo: null });
+          if (k === "jira") set({ kind: "jira", jql: "", preset: "assigned", project: null });
+          if (k === "slack") set({ kind: "slack", event: "mention", channel: null });
+          if (k === "webhook") set({ kind: "webhook", key: newKey() });
         }}
       >
         <option value="manual">Manual</option>
         <option value="schedule">Agendamento</option>
         <option value="interval">Intervalo</option>
-        <option value="event">Evento</option>
+        <option value="event">Evento no Shellhive</option>
+        <option value="github">GitHub</option>
+        <option value="jira">Jira</option>
+        <option value="slack">Slack</option>
+        <option value="webhook">Webhook local</option>
       </select>
       {t.kind === "manual" && <span className="hint">Roda quando você pedir.</span>}
       {t.kind === "interval" && (
@@ -799,6 +811,9 @@ function TriggerFields({
         </div>
       )}
       {t.kind === "event" && <EventFields trigger={t as EventTrigger} selfId={flow?.id} onChange={set} />}
+      {(t.kind === "github" || t.kind === "jira" || t.kind === "slack" || t.kind === "webhook") && flow && (
+        <ServiceTriggerFields trigger={t} flow={flow} onChange={set} />
+      )}
       {(t.kind === "interval" || t.kind === "schedule") && (
         <>
           <label className="flow-kv">
@@ -823,6 +838,289 @@ function TriggerFields({
   );
 }
 
+const newKey = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
+
+const GITHUB_NEEDS_REPO: GithubEvent[] = ["comment", "ci_failed", "ci_passed"];
+
+/** A repository field that offers the user's own, newest first. */
+function RepoField({ value, required, onChange }: { value: string | null; required: boolean; onChange: (v: string | null) => void }) {
+  const [repos, setRepos] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    githubRepos()
+      .then((list) => (list.length ? setRepos(list) : setError("Nenhum repositório; confira o token do GitHub.")))
+      .catch((err) => setError(String(err)));
+  }, []);
+  return (
+    <>
+      <select className="bee-select wide" value={value ?? ""} onChange={(e) => onChange(e.target.value || null)}>
+        <option value="">{required ? "Escolha o repositório" : "Qualquer repositório"}</option>
+        {value && !repos.includes(value) && <option value={value}>{value}</option>}
+        {repos.map((r) => (
+          <option key={r} value={r}>
+            {r}
+          </option>
+        ))}
+      </select>
+      {error && <span className="hint bee-warn">{error}</span>}
+    </>
+  );
+}
+
+function usePicker<T>(load: () => Promise<T[]>): { items: T[]; error: string | null } {
+  const [items, setItems] = useState<T[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    load()
+      .then(setItems)
+      .catch((err) => setError(String(err).replace(/^Error: /, "")));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return { items, error };
+}
+
+function SlackChannelField({ value, onChange }: { value: string | null; onChange: (v: string | null) => void }) {
+  const { items, error } = usePicker(slackChannels);
+  return (
+    <>
+      <select className="bee-select wide" value={value ?? ""} onChange={(e) => onChange(e.target.value || null)}>
+        <option value="">Escolha o canal</option>
+        {value && !items.includes(value) && <option value={value}>#{value}</option>}
+        {items.map((c) => (
+          <option key={c} value={c}>
+            #{c}
+          </option>
+        ))}
+      </select>
+      {error && !items.length && <span className="hint bee-warn">Não consegui listar os canais: {error}</span>}
+    </>
+  );
+}
+
+function SlackPersonField({ value, name, onChange }: { value: string | null; name: string | null; onChange: (id: string | null, name: string | null) => void }) {
+  const { items, error } = usePicker(slackPeople);
+  return (
+    <>
+      <select
+        className="bee-select wide"
+        value={value ?? ""}
+        onChange={(e) => onChange(e.target.value || null, items.find((p) => p.id === e.target.value)?.name ?? null)}
+      >
+        <option value="">De qualquer pessoa</option>
+        {value && !items.some((p) => p.id === value) && <option value={value}>{name ?? value}</option>}
+        {items.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name}
+          </option>
+        ))}
+      </select>
+      {error && !items.length && <span className="hint bee-warn">Não consegui listar as pessoas: {error}</span>}
+    </>
+  );
+}
+
+/** GitHub, Jira, Slack and webhook triggers: what to watch, and how the last look went. */
+function ServiceTriggerFields({
+  trigger: t,
+  flow,
+  onChange,
+}: {
+  trigger: Extract<FlowTrigger, { kind: "github" | "jira" | "slack" | "webhook" }>;
+  flow: Flow;
+  onChange: (t: FlowTrigger) => void;
+}) {
+  const error = useTriggerErrors((s) => s.byFlow[flow.id]);
+  const openModal = useStore((s) => s.openModal);
+  const [port, setPort] = useState<number | null>(null);
+  useEffect(() => {
+    if (t.kind === "webhook") void invoke<number>("webhook_port").then(setPort).catch(() => {});
+  }, [t.kind]);
+  const settings = (
+    <button className="link" onClick={() => openModal({ kind: "settings", tab: "integracoes" })}>
+      Configurar tokens
+    </button>
+  );
+  if (t.kind === "webhook") {
+    const url = port ? `http://127.0.0.1:${port}/flow/${flow.id}` : "…";
+    return (
+      <>
+        <code className="flow-code" title="Clique para copiar" onClick={() => void navigator.clipboard.writeText(`curl -X POST -H 'X-Shellhive-Key: ${t.key}' --data 'texto' ${url}`)}>
+          curl -X POST -H 'X-Shellhive-Key: {t.key.slice(0, 6)}…' --data 'texto' {url}
+        </code>
+        <span className="hint">Clique para copiar. O corpo do POST chega ao próximo nó. Só aceita chamadas desta máquina.</span>
+        <button className="link flow-more" onClick={() => onChange({ kind: "webhook", key: newKey() })}>
+          Trocar a chave
+        </button>
+      </>
+    );
+  }
+  return (
+    <>
+      {t.kind === "github" && (
+        <>
+          <select className="bee-select wide" value={t.event} onChange={(e) => onChange({ ...t, event: e.target.value as GithubEvent })}>
+            {(Object.keys(GITHUB_EVENTS) as GithubEvent[]).map((k) => (
+              <option key={k} value={k}>
+                {GITHUB_EVENTS[k][0].toUpperCase() + GITHUB_EVENTS[k].slice(1)}
+              </option>
+            ))}
+          </select>
+          {t.event === "pr_opened" && (
+            <div className="flow-seg">
+              <button className={t.author !== "anyone" ? "on" : ""} onClick={() => onChange({ ...t, author: "me" })}>
+                Por você
+              </button>
+              <button className={t.author === "anyone" ? "on" : ""} onClick={() => onChange({ ...t, author: "anyone" })}>
+                Por qualquer pessoa
+              </button>
+            </div>
+          )}
+          <RepoField
+            value={t.repo}
+            required={GITHUB_NEEDS_REPO.includes(t.event) || (t.event === "pr_opened" && t.author === "anyone")}
+            onChange={(repo) => onChange({ ...t, repo })}
+          />
+          {t.event === "pr_opened" && t.author !== "anyone" && (
+            <span className="hint">Cada PR novo seu chega ao próximo nó com título, link e descrição.</span>
+          )}
+        </>
+      )}
+      {t.kind === "jira" && (
+        <>
+          <select
+            className="bee-select wide"
+            value={JIRA_PRESETS.some((p) => p.id === t.preset) ? t.preset : "custom"}
+            onChange={(e) => {
+              const id = e.target.value;
+              // Going custom starts from the search that was on screen.
+              if (id === "custom") onChange({ ...t, preset: "custom", jql: t.jql.trim() || jiraQuery(t) });
+              else onChange({ ...t, preset: id });
+            }}
+          >
+            {JIRA_PRESETS.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.label}
+              </option>
+            ))}
+            <option value="custom">Minha própria busca (JQL)</option>
+          </select>
+          {JIRA_PRESETS.some((p) => p.id === t.preset) ? (
+            <input placeholder="Projeto (vazio: todos), ex.: VK25" value={t.project ?? ""} onChange={(e) => onChange({ ...t, project: e.target.value.trim() || null })} />
+          ) : (
+            <textarea className="flow-text short mono" placeholder="Busca JQL" value={t.jql} onChange={(e) => onChange({ ...t, jql: e.target.value })} />
+          )}
+          <span className="hint">Dispara quando uma issue entra nesta busca.</span>
+        </>
+      )}
+      {t.kind === "slack" && (
+        <>
+          <select className="bee-select wide" value={t.event} onChange={(e) => onChange({ ...t, event: e.target.value as SlackEvent })}>
+            {(Object.keys(SLACK_EVENTS) as SlackEvent[]).map((k) => (
+              <option key={k} value={k}>
+                {SLACK_EVENTS[k][0].toUpperCase() + SLACK_EVENTS[k].slice(1)}
+              </option>
+            ))}
+          </select>
+          {t.event === "channel" && <SlackChannelField value={t.channel} onChange={(channel) => onChange({ ...t, channel })} />}
+          {t.event === "dm" && (
+            <SlackPersonField value={t.person ?? null} name={t.personName ?? null} onChange={(person, personName) => onChange({ ...t, person, personName })} />
+          )}
+        </>
+      )}
+      <span className="hint">Olha a cada 2 minutos. A primeira olhada só aprende o que já existe.</span>
+      {error && <span className="hint bee-warn">{error}</span>}
+      <div className="flow-row-btns">
+        {settings}
+        <button className="link" onClick={() => pollNow(flow)}>
+          Olhar agora
+        </button>
+      </div>
+    </>
+  );
+}
+
+/** What a trigger hands on, in words. */
+function triggerGives(t: FlowTrigger): string {
+  switch (t.kind) {
+    case "manual":
+      return "só o aviso de que você rodou à mão";
+    case "interval":
+    case "schedule":
+      return "só o aviso do horário";
+    case "webhook":
+      return "o corpo do POST";
+    case "jira":
+      return "as issues novas (chave, título, status e link)";
+    case "slack":
+      return "as mensagens novas (canal, autor, texto e link)";
+    case "github":
+      return {
+        pr_opened: "os PRs novos (título, repositório, link e descrição)",
+        review_requested: "os PRs (título, repositório, link e descrição)",
+        issue_assigned: "as issues (título, repositório, link e descrição)",
+        comment: "os comentários (autor, texto e link)",
+        ci_failed: "as execuções de CI (workflow, branch e link)",
+        ci_passed: "as execuções de CI (workflow, branch e link)",
+      }[t.event];
+    case "event":
+      return t.event.on === "tool"
+        ? "a sessão, a ferramenta e o que ela recebeu"
+        : t.event.on === "flowDone"
+          ? "o último resultado do outro fluxo"
+          : t.event.on === "usage"
+            ? "quanto do uso foi gasto"
+            : t.event.on === "appOpen"
+              ? "só o aviso de que o app abriu"
+              : "a sessão (nome e pasta)";
+  }
+}
+
+/** What reaches a node through its links, one line per source. */
+function receives(flow: Flow, node: FlowNode): string[] {
+  const bees = useStore.getState().bees;
+  return flow.edges
+    .filter((e) => e.to === node.id)
+    .map((e) => {
+      const from = flow.nodes.find((n) => n.id === e.from);
+      if (!from) return "";
+      const via = e.port !== "out" ? ` (pelo ${portLabel(from.kind, e.port)})` : "";
+      switch (from.kind) {
+        case "trigger":
+          return `Do Gatilho: ${triggerGives(from.trigger)}`;
+        case "instruction":
+          return `Da Instrução: "${from.text.trim().slice(0, 60) || "vazia"}${from.text.trim().length > 60 ? "…" : ""}", com o que chegou a ela`;
+        case "ai":
+          return "Da IA: a resposta do agente";
+        case "bee":
+          return `Da abelha ${bees.find((b) => b.id === from.beeId)?.name ?? ""}: a resposta dela`;
+        case "condition":
+          return `Da Condição${via}: o que chegou a ela`;
+        case "approval":
+          return `Da Aprovação${via}: o que chegou a ela`;
+        case "output":
+          return "";
+      }
+    })
+    .filter(Boolean);
+}
+
+/** The "Recebe" line under a prompt, and how {{entrada}} places it. */
+function Receives({ flow, node, prompt }: { flow?: Flow; node: FlowNode; prompt: string }) {
+  if (!flow) return null;
+  const lines = receives(flow, node);
+  if (!lines.length) return <span className="hint">Recebe: nada ligado na entrada; vai só o prompt.</span>;
+  const placed = /\{\{(?:entrada|previous)\}\}/.test(prompt);
+  return (
+    <div className="flow-receives">
+      <span className="hint">Recebe</span>
+      {lines.map((l) => (
+        <span key={l}>{l}</span>
+      ))}
+      <span className="hint">{placed ? "Entra onde está {{entrada}}." : "Vai depois do prompt. Escreva {{entrada}} para pôr em outro lugar."}</span>
+    </div>
+  );
+}
+
 const AGENTS: DroneAgent[] = ["claude", "codex", "opencode"];
 
 function AiFields({ node, flow, onPatch }: { node: Extract<FlowNode, { kind: "ai" }>; flow?: Flow; onPatch: (patch: Partial<FlowNodeData>) => void }) {
@@ -830,6 +1128,7 @@ function AiFields({ node, flow, onPatch }: { node: Extract<FlowNode, { kind: "ai
   return (
     <div className="flow-fields">
       <textarea className="flow-text" placeholder="Diga ao agente o que fazer" value={node.prompt} onChange={(e) => onPatch({ prompt: e.target.value })} />
+      <Receives flow={flow} node={node} prompt={node.prompt} />
       <div className="flow-inline">
         <select className="bee-select" value={node.agent} onChange={(e) => onPatch({ agent: e.target.value as DroneAgent, model: null })}>
           {AGENTS.map((a) => (
@@ -904,9 +1203,8 @@ function BeeFields({ node, flow, onPatch }: { node: Extract<FlowNode, { kind: "b
         <p className="flow-preview" title={bee.instructions}>
           {bee.instructions}
         </p>
-      ) : (
-        <span className="hint">O que chegar antes vai junto com o prompt dela.</span>
-      )}
+      ) : null}
+      <Receives flow={flow} node={node} prompt={bee?.instructions ?? ""} />
       <DirField value={node.dir} onChange={(dir) => onPatch({ dir })} />
       <div className="flow-row-btns">
         {bee && (
