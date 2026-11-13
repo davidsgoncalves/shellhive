@@ -1,5 +1,19 @@
 [
   {
+    "version": "3.0.0-alpha.2",
+    "date": "2026-11-13",
+    "items": [
+      "Colônia: uma equipe de agentes numa tela própria. Você conversa com a Rainha, que cria os zangões (papel, instruções, Claude, Codex ou OpenCode, modelo e permissões) e distribui o trabalho. Cada zangão mantém a conversa entre os pedidos, e a resposta final volta para quem pediu.",
+      "Cada zangão tem uma abelha própria, com cor e olhos que acompanham o estado: trabalhando, esperando você ou dormindo.",
+      "Abelhas operárias: no máximo duas rodam ao mesmo tempo (dá para mudar) e as outras esperam na fila. Uma abelha pode rodar numa pasta ou numa worktree nova a cada vez, guardar dados entre execuções, definir as próprias permissões e receber o resumo da abelha anterior numa sequência.",
+      "Atividade das abelhas: todas as execuções numa lista, da mais nova para a mais antiga. Uma execução terminada abre como conversa, só para leitura, e a barra da esquerda conta as que você ainda não abriu.",
+      "Chat em balões dos dois lados. Passos de ferramenta viram linhas, imagens e arquivos aparecem no próprio chat, e perguntas do agente são respondidas ali mesmo.",
+      "O + pergunta primeiro o que abrir (terminal, Claude, Codex ou OpenCode) e depois se é chat ou terminal, já marcando o último estilo usado.",
+      "Configurações divididas em páginas, com navegação ao lado. As pastas viraram uma lista de recentes, e a pasta do grupo fica fixa depois de escolhida.",
+      "Temas novos: Sóbrio e Sóbrio Claro, planos, separados por linhas finas, com destaque cor de mel. O Glow e o Glow Claro ganharam cabeçalhos de grupo com as abas penduradas numa linha guia. Os temas antigos passam para o Glow."
+    ]
+  },
+  {
     "version": "3.0.0-alpha.1",
     "date": "2026-11-11",
     "items": [

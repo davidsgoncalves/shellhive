@@ -5,9 +5,12 @@ interface Props {
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
+  className?: string;
+  /** A column beside the content, for navigation between pages. */
+  aside?: ReactNode;
 }
 
-export function Modal({ title, onClose, children, footer }: Props) {
+export function Modal({ title, onClose, children, footer, className, aside }: Props) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -19,17 +22,30 @@ export function Modal({ title, onClose, children, footer }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  const main = (
+    <>
+      <header>
+        <h2>{title}</h2>
+        <button className="icon-btn" onClick={onClose} title="Fechar (Esc)">
+          ×
+        </button>
+      </header>
+      <div className="modal-body">{children}</div>
+      {footer && <footer className="modal-footer">{footer}</footer>}
+    </>
+  );
+
   return (
     <div className="modal-backdrop" onMouseDown={onClose}>
-      <div className="modal" onMouseDown={(e) => e.stopPropagation()}>
-        <header>
-          <h2>{title}</h2>
-          <button className="icon-btn" onClick={onClose} title="Fechar (Esc)">
-            ×
-          </button>
-        </header>
-        <div className="modal-body">{children}</div>
-        {footer && <footer className="modal-footer">{footer}</footer>}
+      <div className={`modal ${aside ? "with-aside" : ""} ${className ?? ""}`} onMouseDown={(e) => e.stopPropagation()}>
+        {aside ? (
+          <>
+            <nav className="modal-aside">{aside}</nav>
+            <div className="modal-main">{main}</div>
+          </>
+        ) : (
+          main
+        )}
       </div>
     </div>
   );

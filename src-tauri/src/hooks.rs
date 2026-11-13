@@ -401,10 +401,36 @@ fn handle(app: AppHandle, mut req: tiny_http::Request) {
     }
 
     if url.starts_with("/permission") {
-        // A question is not a permission: the app already shows it from
-        // PreToolUse, and holding it here keeps it out of the terminal.
+        // A question waits for an answer from the chat. Without one, the
+        // empty reply lets Claude Code show its own picker in the terminal.
         if payload.get("tool_name").and_then(|v| v.as_str()) == Some("AskUserQuestion") {
-            let _ = req.respond(json_response(&serde_json::json!({})));
+            let id = next_id();
+            let permissions = app.state::<Permissions>().inner().clone();
+            permissions.register(&id);
+            let _ = app.emit(
+                "question-request",
+                PermissionRequestEvent {
+                    id: id.clone(),
+                    received_at,
+                    tab_id: tab_id.clone(),
+                    payload: payload.clone(),
+                    expires_in: DECISION_TIMEOUT.as_secs(),
+                },
+            );
+            let answer = permissions.wait_for(&id, DECISION_TIMEOUT);
+            let input = permissions.take_input(&id);
+            let response = match (answer, input) {
+                (Some((crate::permissions::Decision::Allow, _)), Some(input)) => {
+                    serde_json::json!({
+                        "hookSpecificOutput": {
+                            "hookEventName": "PermissionRequest",
+                            "decision": { "behavior": "allow", "updatedInput": input },
+                        }
+                    })
+                }
+                _ => serde_json::json!({}),
+            };
+            let _ = req.respond(json_response(&response));
             return;
         }
         let answer = raise_permission(

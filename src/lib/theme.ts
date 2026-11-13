@@ -5,11 +5,13 @@ import "@fontsource/geist-sans/500.css";
 import "@fontsource/geist-sans/600.css";
 import "@fontsource/geist-mono/400.css";
 import "@fontsource/geist-mono/700.css";
-import { GROUP_COLORS } from "./types";
 import { IS_MAC } from "./shortcuts";
 import { reportError } from "./errors";
 
-export type ThemeId = "classic" | "glass" | "glow" | "glow-amber" | "glow-light";
+export type ThemeId = "glow" | "glow-light" | "sobrio" | "sobrio-light";
+
+/** The theme for a stored id; themes that were removed fall back to Glow. */
+export const themeOr = (value: unknown): ThemeId => (isThemeId(value) ? value : "glow");
 
 interface ThemeSpec {
   label: string;
@@ -86,37 +88,63 @@ const LIGHT_TERMINAL: ITheme = {
 /** None of them is orange, amber, blue or grey, which belong to the session states. */
 const LIGHT_GROUPS = ["#1f7f4a", "#0b7c86", "#6a46d0", "#b8337a", "#6f7310", "#7d5a3c"];
 
+/** Terminal colours of Sóbrio: warm near-black, muted tones, honey accent. */
+const SOBRIO_TERMINAL: ITheme = {
+  background: "#121110",
+  foreground: "#e2ddd5",
+  cursor: "#e8b54a",
+  cursorAccent: "#121110",
+  selectionBackground: "#3a352d",
+  black: "#7d776e",
+  red: "#e8737a",
+  green: "#9cc49a",
+  yellow: "#e8b54a",
+  blue: "#8fb3d9",
+  magenta: "#c9a0c4",
+  cyan: "#8cc4bd",
+  white: "#d6d1c9",
+  brightBlack: "#a39e96",
+  brightRed: "#f09ba0",
+  brightGreen: "#b9d8b7",
+  brightYellow: "#f3cb72",
+  brightBlue: "#b0cbe6",
+  brightMagenta: "#dcbfd8",
+  brightCyan: "#aed8d2",
+  brightWhite: "#f4f1ec",
+};
+
+const SOBRIO_GROUPS = ["#d9925a", "#7fa6cf", "#8fb98a", "#c49ac0", "#c9b26a", "#8cc4bd"];
+
+/** Terminal colours of Sóbrio Claro, each passing 4.5:1 on the warm white. */
+const SOBRIO_LIGHT_TERMINAL: ITheme = {
+  background: "#fdfcfa",
+  foreground: "#2e2b26",
+  cursor: "#2e2b26",
+  cursorAccent: "#fdfcfa",
+  selectionBackground: "#f0e3c4",
+  black: "#2e2b26",
+  red: "#b3343d",
+  green: "#3f7a3c",
+  yellow: "#8a5d00",
+  blue: "#2f65a3",
+  magenta: "#8d4486",
+  cyan: "#226d66",
+  white: "#6e695f",
+  brightBlack: "#6e695f",
+  brightRed: "#9a2a33",
+  brightGreen: "#346a32",
+  brightYellow: "#7a5200",
+  brightBlue: "#255891",
+  brightMagenta: "#7a3a74",
+  brightCyan: "#1b5f59",
+  brightWhite: "#22201c",
+};
+
+const SOBRIO_LIGHT_GROUPS = ["#c4642a", "#3f77b3", "#4f8a4a", "#9a4f92", "#8a7420", "#2e7d75"];
+
 export const THEMES: Record<ThemeId, ThemeSpec> = {
-  classic: {
-    label: "Clássico",
-    terminal: { background: "#0f1115", foreground: "#d6d8de", cursor: "#d97757" },
-    fontFamily: SYSTEM_MONO,
-    lineHeight: 1,
-    groupColors: GROUP_COLORS,
-    vibrancy: false,
-    layers: false,
-  },
-  glass: {
-    label: "Glass",
-    terminal: LAYERED_TERMINAL,
-    fontFamily: `'Geist Mono', ${SYSTEM_MONO}`,
-    // 13px text on 18px lines.
-    lineHeight: 18 / 13,
-    groupColors: LAYERED_GROUPS,
-    vibrancy: true,
-    layers: true,
-  },
   glow: {
     label: "Glow",
-    terminal: LAYERED_TERMINAL,
-    fontFamily: `'Geist Mono', ${SYSTEM_MONO}`,
-    lineHeight: 18 / 13,
-    groupColors: LAYERED_GROUPS,
-    vibrancy: false,
-    layers: true,
-  },
-  "glow-amber": {
-    label: "Glow Âmbar",
     terminal: LAYERED_TERMINAL,
     fontFamily: `'Geist Mono', ${SYSTEM_MONO}`,
     lineHeight: 18 / 13,
@@ -130,6 +158,24 @@ export const THEMES: Record<ThemeId, ThemeSpec> = {
     fontFamily: `'Geist Mono', ${SYSTEM_MONO}`,
     lineHeight: 18 / 13,
     groupColors: LIGHT_GROUPS,
+    vibrancy: false,
+    layers: true,
+  },
+  sobrio: {
+    label: "Sóbrio",
+    terminal: SOBRIO_TERMINAL,
+    fontFamily: `'Geist Mono', ${SYSTEM_MONO}`,
+    lineHeight: 18 / 13,
+    groupColors: SOBRIO_GROUPS,
+    vibrancy: false,
+    layers: true,
+  },
+  "sobrio-light": {
+    label: "Sóbrio Claro",
+    terminal: SOBRIO_LIGHT_TERMINAL,
+    fontFamily: `'Geist Mono', ${SYSTEM_MONO}`,
+    lineHeight: 18 / 13,
+    groupColors: SOBRIO_LIGHT_GROUPS,
     vibrancy: false,
     layers: true,
   },
@@ -148,7 +194,7 @@ export const DEFAULT_FONT_SIZE = 13;
 
 const STORAGE_KEY = "shellhive-look";
 
-let current: ThemeId = "classic";
+let current: ThemeId = "glow";
 let font: TerminalFont = THEME_FONT;
 
 export function isThemeId(value: unknown): value is ThemeId {
@@ -260,9 +306,9 @@ export function followSharedLook(): void {
   const read = (): [ThemeId, TerminalFont] => {
     try {
       const v = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
-      return [isThemeId(v.theme) ? v.theme : "classic", { ...THEME_FONT, ...v.font }];
+      return [themeOr(v.theme), { ...THEME_FONT, ...v.font }];
     } catch {
-      return ["classic", THEME_FONT];
+      return ["glow", THEME_FONT];
     }
   };
   applyLook(...read());

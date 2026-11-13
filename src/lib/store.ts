@@ -7,7 +7,7 @@ import { markPendingFork, markPendingLaunch, markPendingPrompt, markPendingResum
 import { sameRule } from "./permRules";
 import { mergeRateLimits } from "./rateLimits";
 import type { MiniBounds } from "./mini";
-import { THEME_FONT, THEMES, type TerminalFont, type ThemeId } from "./theme";
+import { THEME_FONT, THEMES, themeOr, type TerminalFont, type ThemeId } from "./theme";
 import { isView, viewOf, type LocalPlugin, type PluginPanel } from "./localPlugins";
 import { closeDetachedWindow, focusDetachedWindow, openDetachedWindow } from "./detach";
 import {
@@ -18,6 +18,10 @@ import {
   type Folder,
   type Bee,
   BEE_GROUP_ID,
+  COLONY_GROUP_ID,
+  type Colony,
+  type ColonyMessage,
+  type Drone,
   type GitInfo,
   type Subagent,
   type CommandSuggestion,
@@ -36,7 +40,6 @@ import {
   type SplitMode,
   type TitleWrap,
   type CloseAction,
-  type GroupTint,
   type StatusEnvelope,
   type StatusPayload,
   type SessionKind,
@@ -54,6 +57,8 @@ const newId = () => crypto.randomUUID();
 
 const CLOSED_TABS_MAX = 20;
 const SESSION_GROUPS_MAX = 2000;
+/** Recent folders kept besides the groups' own. */
+const RECENT_FOLDERS = 8;
 
 /** What is needed to bring a closed tab back. */
 interface ClosedTab {
@@ -99,7 +104,7 @@ function rememberClosed(list: ClosedTab[], tabs: Tab[]): ClosedTab[] {
   return [...list, ...added].slice(-CLOSED_TABS_MAX);
 }
 
-export type SettingsTab = "aparencia" | "pastas" | "conexoes" | "sobre";
+export type SettingsTab = "aparencia" | "sessoes" | "avisos" | "conexoes" | "sobre";
 
 export type Modal =
   | null
@@ -109,7 +114,8 @@ export type Modal =
   | { kind: "searchAll" }
   | { kind: "groupLaunch"; groupId: string }
   | { kind: "pluginCreator" }
-  | { kind: "pickFolder"; groupId: string; open?: SessionKind };
+  /** `once` opens this session elsewhere without changing the group; `change` only sets the group's folder. */
+  | { kind: "pickFolder"; groupId: string; open?: SessionKind; once?: boolean; change?: boolean };
 
 export type CacheStyle = "expressive" | "minimal";
 
@@ -121,7 +127,19 @@ export interface BeeQuota {
 }
 
 /** What the Worker bee shows in place of the terminals: a bee, its editor, or a new one. */
-export type BeeView = { mode: "detail" | "edit"; id: string } | { mode: "new" } | null;
+/** What the Colony screen shows: a colony's drone, its messages, or the form for a new colony. */
+/** Messages between drones kept across restarts, newest last. */
+const MAX_COLONY_MESSAGES = 1000;
+
+export type ColonyView = { colonyId: string; show: string | "messages" } | { mode: "new" } | null;
+
+/** What the Worker bee shows in the center: a bee, its editor, every run, or one run. */
+export type BeeView =
+  | { mode: "detail" | "edit"; id: string }
+  | { mode: "new" }
+  | { mode: "activity" }
+  | { mode: "run"; runId: string }
+  | null;
 
 /** A plugin's band on one terminal. */
 export interface PluginBand {
@@ -156,10 +174,8 @@ interface Store {
   alerted: string[];
   /** Claude session ids pinned to the top of the session list. */
   pinned: string[];
-  /** Project folders offered when opening a session. */
+  /** Groups' folders and the recent ones, offered when opening a session. */
   folders: Folder[];
-  /** Folder id used when a session opens without an explicit choice. */
-  defaultFolderId: string | null;
   bees: Bee[];
   /** Null shows the first bee. */
   beeView: BeeView;
@@ -170,6 +186,25 @@ interface Store {
   /** Usage ceilings, in percent, above which a scheduled bee run waits; null is off. */
   beeQuota: BeeQuota;
   setBeeQuota: (patch: Partial<BeeQuota>) => void;
+  colonies: Colony[];
+  drones: Drone[];
+  colonyMessages: ColonyMessage[];
+  colonyView: ColonyView;
+  setColonyView: (view: ColonyView) => void;
+  /** Colonies expanded in the side panel. */
+  openColonies: string[];
+  toggleColony: (id: string, open?: boolean) => void;
+  updateColony: (id: string, patch: Partial<Colony>) => void;
+  addColony: (colony: Colony, queen: Drone) => void;
+  removeColony: (id: string) => void;
+  addDrone: (drone: Drone) => void;
+  updateDrone: (id: string, patch: Partial<Drone>) => void;
+  removeDrone: (id: string) => void;
+  /** Adds a message or replaces the one with its id. */
+  putColonyMessage: (message: ColonyMessage) => void;
+  /** Most bee runs at once; the rest wait their turn. Null is no limit. */
+  beeMaxRunning: number | null;
+  setBeeMaxRunning: (n: number | null) => void;
   /** The plugin shown on the plugins screen; null shows the first. */
   pluginView: string | null;
   setPluginView: (id: string | null) => void;
@@ -193,8 +228,6 @@ interface Store {
   tabTitleWrap: TitleWrap;
   /** What the × on a tab does. */
   closeAction: CloseAction;
-  /** Background tint of each group in the tab list. */
-  groupTint: GroupTint;
   /** Colours, fonts and backdrop of the whole app. */
   theme: ThemeId;
   /** Terminal font overrides; null fields follow the theme. */
@@ -330,10 +363,8 @@ interface Store {
   markAlerted: (tabId: string) => void;
   clearAlerted: (tabId: string) => void;
   togglePinned: (sessionId: string) => void;
+  /** Records a folder as just used, adding it if new; returns its id. */
   addFolder: (name: string, path: string) => string;
-  renameFolder: (id: string, name: string) => void;
-  removeFolder: (id: string) => void;
-  setDefaultFolder: (id: string | null) => void;
   /** Sets a repository's folder, adding it if new. */
   addBee: (bee: Bee) => void;
   updateBee: (id: string, patch: Partial<Bee>) => void;
@@ -350,7 +381,6 @@ interface Store {
   setTerminalBorder: (px: number) => void;
   setTabTitleWrap: (w: TitleWrap) => void;
   setCloseAction: (a: CloseAction) => void;
-  setGroupTint: (t: GroupTint) => void;
   setTheme: (t: ThemeId) => void;
   setTerminalFont: (f: Partial<TerminalFont>) => void;
   resetTerminalFont: () => void;
@@ -382,6 +412,8 @@ interface Store {
   startPaneAssign: (tabId: string | null) => void;
   assignToPane: (tabId: string, index: number) => void;
   addQuestion: (q: QuestionItem) => void;
+  /** Ties a question to the request through which the chat can answer it. */
+  setQuestionRequest: (tabId: string, requestId: string | null, questions?: QuestionItem["questions"]) => void;
   addCommand: (c: CommandSuggestion) => void;
   dropCommand: (id: string) => void;
   setCommandQueued: (id: string, queued: boolean) => void;
@@ -412,9 +444,45 @@ export const useStore = create<Store>()(
       setCacheStyle: (cacheStyle) => set({ cacheStyle }),
       beeQuota: { session: null, weekly: null },
       setBeeQuota: (patch) => set((s) => ({ beeQuota: { ...s.beeQuota, ...patch } })),
+      colonies: [],
+      drones: [],
+      colonyMessages: [],
+      colonyView: null,
+      openColonies: [],
+      toggleColony: (id, open) =>
+        set((s) => {
+          const now = open ?? !s.openColonies.includes(id);
+          return { openColonies: now ? [...new Set([...s.openColonies, id])] : s.openColonies.filter((c) => c !== id) };
+        }),
+      updateColony: (id, patch) => set((s) => ({ colonies: s.colonies.map((c) => (c.id === id ? { ...c, ...patch } : c)) })),
+      setColonyView: (colonyView) => set({ colonyView, panelTab: "colony", panelOpen: true }),
+      addColony: (colony, queen) =>
+        set((s) => ({
+          colonies: [...s.colonies, colony],
+          openColonies: [...s.openColonies, colony.id],
+          drones: [...s.drones, queen],
+          colonyView: { colonyId: colony.id, show: queen.id },
+        })),
+      removeColony: (id) =>
+        set((s) => ({
+          colonies: s.colonies.filter((c) => c.id !== id),
+          drones: s.drones.filter((d) => d.colonyId !== id),
+          colonyMessages: s.colonyMessages.filter((m) => m.colonyId !== id),
+          colonyView: s.colonyView && "colonyId" in s.colonyView && s.colonyView.colonyId === id ? null : s.colonyView,
+        })),
+      addDrone: (drone) => set((s) => ({ drones: [...s.drones, drone] })),
+      updateDrone: (id, patch) => set((s) => ({ drones: s.drones.map((d) => (d.id === id ? { ...d, ...patch } : d)) })),
+      removeDrone: (id) => set((s) => ({ drones: s.drones.filter((d) => d.id !== id) })),
+      putColonyMessage: (message) =>
+        set((s) => {
+          const others = s.colonyMessages.filter((m) => m.id !== message.id);
+          // The newest messages are kept; the rest of a long colony's history goes.
+          return { colonyMessages: [...others, message].sort((a, b) => a.createdAt - b.createdAt).slice(-MAX_COLONY_MESSAGES) };
+        }),
+      beeMaxRunning: 2,
+      setBeeMaxRunning: (beeMaxRunning) => set({ beeMaxRunning }),
       pluginView: null,
       setPluginView: (pluginView) => set({ pluginView, panelTab: "plugins", panelOpen: true }),
-      defaultFolderId: null,
       modal: null,
       groupMenu: null,
       newSessionMenu: null,
@@ -425,8 +493,7 @@ export const useStore = create<Store>()(
       terminalBorder: 1,
       tabTitleWrap: "wrap",
       closeAction: "archive",
-      groupTint: "subtle",
-      theme: "classic",
+      theme: "glow",
       terminalFont: THEME_FONT,
       seenAnnouncements: [],
       tourSeen: false,
@@ -801,24 +868,17 @@ export const useStore = create<Store>()(
         set((s) => (s.alerted.includes(tabId) ? s : { alerted: [...s.alerted, tabId] })),
       clearAlerted: (tabId) => set((s) => ({ alerted: s.alerted.filter((a) => a !== tabId) })),
       addFolder: (name, path) => {
-        const existing = get().folders.find((f) => f.path === path);
-        if (existing) return existing.id;
-        const id = newId();
-        set((s) => ({
-          folders: [...s.folders, { id, name, path }],
-          defaultFolderId: s.defaultFolderId ?? id,
-        }));
+        const id = get().folders.find((f) => f.path === path)?.id ?? newId();
+        set((s) => {
+          const used = { id, name: s.folders.find((f) => f.id === id)?.name ?? name, path, usedAt: Date.now() };
+          const list = [used, ...s.folders.filter((f) => f.id !== id)];
+          // Keep every group's folder, and only the most recent of the rest.
+          const inGroups = new Set(s.groups.map((g) => g.folderId));
+          let recent = 0;
+          return { folders: list.filter((f) => inGroups.has(f.id) || recent++ < RECENT_FOLDERS) };
+        });
         return id;
       },
-      renameFolder: (id, name) =>
-        set((s) => ({ folders: s.folders.map((f) => (f.id === id ? { ...f, name } : f)) })),
-      removeFolder: (id) =>
-        set((s) => ({
-          folders: s.folders.filter((f) => f.id !== id),
-          defaultFolderId: s.defaultFolderId === id ? null : s.defaultFolderId,
-          groups: s.groups.map((g) => (g.folderId === id ? { ...g, folderId: null } : g)),
-        })),
-      setDefaultFolder: (id) => set({ defaultFolderId: id }),
       addBee: (bee) => set((s) => ({ bees: [...s.bees, bee] })),
       updateBee: (id, patch) => set((s) => ({ bees: s.bees.map((b) => (b.id === id ? { ...b, ...patch } : b)) })),
       removeBee: (id) => set((s) => ({ bees: s.bees.filter((b) => b.id !== id) })),
@@ -864,7 +924,6 @@ export const useStore = create<Store>()(
       setTerminalBorder: (terminalBorder) => set({ terminalBorder }),
       setTabTitleWrap: (tabTitleWrap) => set({ tabTitleWrap }),
       setCloseAction: (closeAction) => set({ closeAction }),
-      setGroupTint: (groupTint) => set({ groupTint }),
       setTheme: (theme) => set({ theme }),
       setTerminalFont: (f) => set((s) => ({ terminalFont: { ...s.terminalFont, ...f } })),
       resetTerminalFont: () => set({ terminalFont: THEME_FONT }),
@@ -998,6 +1057,20 @@ export const useStore = create<Store>()(
         });
       },
       addQuestion: (q) => set((s) => ({ questions: [...s.questions, q] })),
+      setQuestionRequest: (tabId, requestId, questions) =>
+        set((s) => {
+          const has = s.questions.some((q) => q.tab_id === tabId);
+          if (!has && requestId && questions)
+            return {
+              questions: [
+                ...s.questions,
+                { id: `q-${requestId}`, tab_id: tabId, received_at: Date.now(), tool_use_id: null, questions, request_id: requestId },
+              ],
+            };
+          return {
+            questions: s.questions.map((q) => (q.tab_id === tabId ? { ...q, request_id: requestId ?? undefined } : q)),
+          };
+        }),
       addCommand: (c) => set((s) => ({ commands: [...s.commands, c] })),
       dropCommand: (id) => set((s) => ({ commands: s.commands.filter((c) => c.id !== id) })),
       setCommandQueued: (id, queued) =>
@@ -1022,7 +1095,7 @@ export const useStore = create<Store>()(
     }),
     {
       name: "claude-terminal-layout",
-      version: 3,
+      version: 4,
       storage: createJSONStorage(() => fileStorage),
       // main.tsx rehydrates before the first render; see persist.ts.
       skipHydration: true,
@@ -1033,6 +1106,8 @@ export const useStore = create<Store>()(
         const { betaChannel, ...rest } = prev;
         return {
           ...rest,
+          // Clássico, Glass and Glow Âmbar were removed.
+          theme: themeOr(prev.theme),
           updateChannel: ["regular", "beta", "alpha"].includes(prev.updateChannel as string)
             ? prev.updateChannel
             : betaChannel === true
@@ -1051,7 +1126,7 @@ export const useStore = create<Store>()(
         groups: s.groups,
         // A bee's run ends with the app; its tab is not brought back.
         tabs: s.tabs
-          .filter((t) => t.groupId !== BEE_GROUP_ID)
+          .filter((t) => t.groupId !== BEE_GROUP_ID && t.groupId !== COLONY_GROUP_ID)
           .map((t) => ({ ...t, state: "dormant" as TabState, pendingMessage: null })),
         activeTabId: s.activeTabId,
         panelOpen: s.panelOpen,
@@ -1062,15 +1137,18 @@ export const useStore = create<Store>()(
         folders: s.folders,
         bees: s.bees,
         beeQuota: s.beeQuota,
+        beeMaxRunning: s.beeMaxRunning,
+        colonies: s.colonies,
+        drones: s.drones,
+        colonyMessages: s.colonyMessages,
+        openColonies: s.openColonies,
         cacheStyle: s.cacheStyle,
         archivedGroups: s.archivedGroups,
-        defaultFolderId: s.defaultFolderId,
         layout: s.layout,
         barPosition: s.barPosition,
         terminalBorder: s.terminalBorder,
         tabTitleWrap: s.tabTitleWrap,
         closeAction: s.closeAction,
-        groupTint: s.groupTint,
         theme: s.theme,
         terminalFont: s.terminalFont,
         seenAnnouncements: s.seenAnnouncements,
@@ -1144,9 +1222,8 @@ export function openSessionInGroup(groupId: string, open?: SessionKind): void {
   const s = useStore.getState();
   const group = s.groups.find((g) => g.id === groupId);
   const kind = open ?? group?.launch?.open ?? "terminal";
-  // The catch-all group has no folder of its own; it always uses the base folder.
-  const wanted = group?.fixed ? s.defaultFolderId : group?.folderId;
-  const folder = wanted ? s.folders.find((f) => f.id === wanted) : undefined;
+  // The catch-all group has no folder of its own and asks every time.
+  const folder = group?.fixed ? undefined : s.folders.find((f) => f.id === group?.folderId);
   if (folder) {
     startSession(groupId, folder.path, folder.name, kind);
     return;
@@ -1157,6 +1234,7 @@ export function openSessionInGroup(groupId: string, open?: SessionKind): void {
 /** A new tab in a group and folder, opened as `open` asks. */
 export function startSession(groupId: string, cwd: string, title: string, open: SessionKind = "terminal"): string {
   const s = useStore.getState();
+  s.addFolder(cwd.split(/[\\/]/).filter(Boolean).pop() ?? cwd, cwd);
   if (open === "codex" || open === "opencode" || open === "codex-terminal" || open === "opencode-terminal") {
     const provider = open.startsWith("codex") ? "codex" : "opencode";
     const chat = !open.endsWith("-terminal");

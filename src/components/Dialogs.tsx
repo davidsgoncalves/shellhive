@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { sendPerfReport } from "../lib/perfDiag";
 import { CopyCommand } from "./UpdateBanner";
 import { invoke } from "@tauri-apps/api/core";
@@ -8,19 +8,18 @@ import { installKind, RELEASES_URL } from "../lib/update";
 import { useUpdater } from "../lib/updater";
 import type { ReportsState } from "../lib/errors";
 import { shortcutLabel, withShortcuts } from "../lib/shortcuts";
-import { open } from "@tauri-apps/plugin-dialog";
 import { startSession, useStore, type SettingsTab } from "../lib/store";
 import { CLAUDE_MODELS as MODELS, SESSION_KINDS } from "../lib/providers";
 import { openPluginCreator } from "../lib/pluginCreator";
 import { ConnectionsTab } from "./WorkSettings";
 import { DEFAULT_FONT_SIZE, THEMES, type ThemeId } from "../lib/theme";
 import { Modal } from "./Modal";
-import { AddFolder, FolderChoice } from "./FolderFields";
+import { browseFolder, FolderList, useRecentFolders } from "./FolderFields";
 import { BORDER_OPTIONS } from "../lib/types";
 import { QuickSwitcher } from "./QuickSwitcher";
 import { SearchAll } from "./SearchAll";
 import changelog from "../changelog.json";
-import type { PathCheck, SessionKind } from "../lib/types";
+import type { Folder, SessionKind } from "../lib/types";
 
 const INSTALL_LABEL: Record<string, string> = {
   native: "instalação nativa",
@@ -38,8 +37,64 @@ interface ChangelogEntry {
 /** Written by hand for each release; `pnpm bump` adds the empty entry. */
 const CHANGELOG = changelog as ChangelogEntry[];
 
+/** One setting: its name and an optional line on the left, its control on the right. */
+function Row({ label, hint, children }: { label: ReactNode; hint?: ReactNode; children?: ReactNode }) {
+  return (
+    <div className="set-row">
+      <div className="set-text">
+        <b>{label}</b>
+        {hint && <small>{hint}</small>}
+      </div>
+      {children && <div className="set-ctl">{children}</div>}
+    </div>
+  );
+}
+
+/** A titled block of settings. */
+function Block({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="settings-section">
+      <h3>{title}</h3>
+      <div className="set-rows">{children}</div>
+    </section>
+  );
+}
+
+/** A segmented choice between a few values. */
+function Seg<T extends string | number>({
+  value,
+  options,
+  onChange,
+}: {
+  value: T;
+  options: ReadonlyArray<readonly [T, string]>;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="seg" role="radiogroup">
+      {options.map(([v, label]) => (
+        <button key={String(v)} role="radio" aria-checked={value === v} className={value === v ? "on" : ""} onClick={() => onChange(v)}>
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function Toggle({ on, onChange, disabled }: { on: boolean; onChange: (on: boolean) => void; disabled?: boolean }) {
+  return (
+    <button
+      role="switch"
+      aria-checked={on}
+      disabled={disabled}
+      className={`toggle ${on ? "on" : ""}`}
+      onClick={() => onChange(!on)}
+    />
+  );
+}
+
 /** Copies the Claude Terminal data in again, over the current data. */
-function LegacyImportSection() {
+function LegacyImportBlock() {
   const [available, setAvailable] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,27 +111,22 @@ function LegacyImportSection() {
   };
 
   return (
-    <section className="settings-section">
-      <h3>Dados do Claude Terminal</h3>
-      <p className="hint">
-        Na primeira abertura do Shellhive, suas abas, grupos e configurações foram copiados do Claude Terminal, e a pasta
-        antiga ficou como backup. Importar de novo substitui os dados atuais por essa cópia e reinicia o app.
-      </p>
-      <div className="row">
+    <Block title="Dados">
+      <Row label="Importar do Claude Terminal" hint={error ?? "Substitui os dados atuais pela cópia antiga e reinicia o app"}>
         <button className={`ghost auto ${confirming ? "danger" : ""}`} onClick={reimport}>
-          {confirming ? "Confirmar: substituir e reiniciar" : "Importar de novo do Claude Terminal"}
+          {confirming ? "Confirmar e reiniciar" : "Importar"}
         </button>
-      </div>
-      {error && <p className="error">{error}</p>}
-    </section>
+      </Row>
+    </Block>
   );
 }
 
 const ISSUE_BODY_MAX = 6000;
 
-/** Opt-in error reports, and a GitHub issue carrying the local error log. */
-function ErrorReportsSection({ version, kind }: { version: string; kind: string }) {
+/** Opt-in error reports, the raw events panel, and a GitHub issue carrying the local error log. */
+function SupportBlock({ version, kind }: { version: string; kind: string }) {
   const [state, setState] = useState<ReportsState | null>(null);
+  const { showEvents, setShowEvents } = useStore();
 
   useEffect(() => {
     void invoke<ReportsState>("error_reports_get").then(setState).catch(() => {});
@@ -124,60 +174,55 @@ function ErrorReportsSection({ version, kind }: { version: string; kind: string 
   };
 
   return (
-    <section className="settings-section">
-      <h3>Relatórios de erro</h3>
-      <p className="hint">
-        Envia os erros do app para análise, sem nada do que você digita ou vê no terminal. Pastas pessoais, nome de
-        usuário e qualquer coisa parecida com token são removidos antes.
-      </p>
-      {state?.available ? (
-        <div className="chip-row">
-          <button className={`chip ${state.enabled ? "on" : ""}`} onClick={() => toggle(true)}>
-            Enviar
-          </button>
-          <button className={`chip ${!state.enabled ? "on" : ""}`} onClick={() => toggle(false)}>
-            Não enviar
-          </button>
-        </div>
-      ) : (
-        <p className="hint">Esta versão não tem o envio configurado. Os erros ficam só no registro local.</p>
-      )}
-      <div className="row">
+    <Block title="Suporte">
+      <Row
+        label="Enviar relatórios de erro"
+        hint={
+          state?.available
+            ? "Sem nada do que você digita ou vê no terminal. Pastas, usuário e tokens são removidos antes."
+            : "Esta versão não tem o envio configurado. Os erros ficam só no registro local."
+        }
+      >
+        {state?.available && <Toggle on={state.enabled} onChange={toggle} />}
+      </Row>
+      <Row label="Eventos crus do Claude Code" hint="Mostra no painel da direita, para quando o status das abas ou as permissões param">
+        <Toggle on={showEvents} onChange={setShowEvents} />
+      </Row>
+      <Row
+        label="Relatar um problema"
+        hint={
+          diag.text ??
+          (state?.available
+            ? "O diagnóstico leva o uso de memória e processador dos últimos 30 minutos, sem nomes de abas, pastas nem o terminal"
+            : undefined)
+        }
+      >
         <button className="ghost auto" onClick={() => void reportProblem()}>
-          Relatar problema
+          Relatar
         </button>
         {state?.available && (
           <button
             className="ghost auto"
             disabled={diag.busy || !state.enabled}
-            title={state.enabled ? "Manda o uso de memória e processador dos últimos 30 minutos" : "Ligue Enviar para mandar o diagnóstico"}
+            title={state.enabled ? undefined : "Ligue o envio de relatórios para mandar o diagnóstico"}
             onClick={() => void sendDiagnostic()}
           >
-            {diag.busy ? "Enviando…" : "Enviar diagnóstico de desempenho"}
+            {diag.busy ? "Enviando…" : "Enviar diagnóstico"}
           </button>
         )}
-      </div>
-      {diag.text && (
-        <p className={diag.error ? "error" : "hint"} style={{ userSelect: "text" }}>
-          {diag.text}
-        </p>
-      )}
-      <p className="hint">
-        O diagnóstico leva o uso de memória e processador do app, das sessões do Claude e do sistema nos últimos 30
-        minutos, o quanto a tela demorou para responder, o sistema e o tema. Não leva nomes de abas, pastas nem o que
-        aparece no terminal.
-      </p>
-    </section>
+      </Row>
+    </Block>
   );
 }
 
-function AboutTab() {
+function AboutPage() {
   const [version, setVersion] = useState("…");
   const [kind, setKind] = useState("…");
   const [status, setStatus] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
+  const [news, setNews] = useState(false);
   const { version: available, phase, progress, message, look: lookForUpdate, install, restart } = useUpdater();
-  const { showEvents, setShowEvents, updateChannel, setUpdateChannel, setTourOpen, openModal } = useStore();
+  const { updateChannel, setUpdateChannel, setTourOpen, openModal } = useStore();
 
   useEffect(() => {
     void getVersion().then(setVersion);
@@ -197,137 +242,97 @@ function AboutTab() {
     }
   };
 
+  const kindLabel = INSTALL_LABEL[kind] ?? kind;
+
   return (
     <>
-    <section className="settings-section">
-      <h3>Versão</h3>
-      <ul className="about-list">
-        <li>
-          <span>Instalada</span>
-          <strong>{version}</strong>
-        </li>
-        <li>
-          <span>Formato</span>
-          <strong>{INSTALL_LABEL[kind] ?? kind}</strong>
-        </li>
-      </ul>
-      <div className="row">
-        <button className="ghost auto" onClick={() => void look()} disabled={checking}>
-          {checking ? "Verificando…" : "Procurar atualizações"}
-        </button>
-        <button className="ghost auto" onClick={() => void openUrl(RELEASES_URL)}>
-          Ver releases
-        </button>
-      </div>
-      {status && <p className="hint">{status}</p>}
-      {phase === "found" && available && (
-        <div className="about-update">
-          <span>
-            Versão <strong>{available}</strong> disponível.
-          </span>
-          <button className="primary" onClick={() => void install()}>
-            Atualizar agora
+      <Block title="Versão">
+        <Row label={`Shellhive ${version}`} hint={status ?? kindLabel}>
+          <button className="ghost auto" onClick={() => void look()} disabled={checking}>
+            {checking ? "Verificando…" : "Procurar atualização"}
           </button>
-        </div>
-      )}
-      {phase === "working" && <p className="hint">Baixando atualização… {progress}%</p>}
-      {phase === "ready" && (
-        <div className="about-update">
-          <span>Atualização instalada.</span>
-          <button className="primary" onClick={() => void restart()}>
-            Reiniciar agora
+          <button className="ghost auto" onClick={() => setNews(!news)}>
+            Novidades
           </button>
-        </div>
-      )}
-      {phase === "restart-failed" && (
-        <p className="hint">Atualização instalada. Feche e abra o app para concluir.{message ? ` (${message})` : ""}</p>
-      )}
-      {phase === "error" && (
-        <div className="about-update">
-          <p className="error">Falha ao atualizar: {message}</p>
-          <CopyCommand message={message} />
-        </div>
-      )}
-    </section>
-
-    <section className="settings-section">
-      <h3>Versões de teste</h3>
-      <p className="hint">
-        O beta recebe as versões beta antes de todo mundo, além das normais. O alpha recebe também as versões alpha,
-        mais cedo e menos testadas, além das beta e das normais. Ao voltar para um canal mais estável, o app fica na
-        versão instalada até sair uma versão mais nova nesse canal.
-      </p>
-      <div className="chip-row">
-        {(
-          [
-            ["regular", "Só versões normais"],
-            ["beta", "Beta"],
-            ["alpha", "Alpha"],
-          ] as const
-        ).map(([value, label]) => (
-          <button
-            key={value}
-            className={`chip ${updateChannel === value ? "on" : ""}`}
-            onClick={() => {
-              setUpdateChannel(value);
+        </Row>
+        {phase === "found" && available && (
+          <Row label={`Versão ${available} disponível`}>
+            <button className="primary" onClick={() => void install()}>
+              Atualizar agora
+            </button>
+          </Row>
+        )}
+        {phase === "working" && <Row label="Baixando a atualização…" hint={`${progress}%`} />}
+        {phase === "ready" && (
+          <Row label="Atualização instalada">
+            <button className="primary" onClick={() => void restart()}>
+              Reiniciar agora
+            </button>
+          </Row>
+        )}
+        {phase === "restart-failed" && (
+          <Row label="Atualização instalada" hint={`Feche e abra o app para concluir.${message ? ` (${message})` : ""}`} />
+        )}
+        {phase === "error" && (
+          <Row label="Falha ao atualizar" hint={message}>
+            <CopyCommand message={message} />
+          </Row>
+        )}
+        <Row label="Canal" hint="Beta e alpha recebem versões antes, menos testadas. Ao voltar, o app espera a próxima versão do canal.">
+          <Seg
+            value={updateChannel}
+            options={[
+              ["regular", "Normal"],
+              ["beta", "Beta"],
+              ["alpha", "Alpha"],
+            ]}
+            onChange={(v) => {
+              setUpdateChannel(v);
               void look();
             }}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-    </section>
-
-    <ErrorReportsSection version={version} kind={INSTALL_LABEL[kind] ?? kind} />
-
-    <LegacyImportSection />
-
-    <section className="settings-section">
-      <h3>Diagnóstico</h3>
-      <p className="hint">Mostra no painel da direita os eventos crus que o Claude Code envia ao app. Útil quando o status das abas ou as permissões param.</p>
-      <div className="chip-row">
-        <button className={`chip ${showEvents ? "on" : ""}`} onClick={() => setShowEvents(true)}>
-          Mostrar eventos
-        </button>
-        <button className={`chip ${!showEvents ? "on" : ""}`} onClick={() => setShowEvents(false)}>
-          Esconder
-        </button>
-      </div>
-    </section>
-
-    <section className="settings-section">
-      <h3>Novidades</h3>
-      <div className="row">
-        <button
-          className="ghost auto"
-          onClick={() => {
-            openModal(null);
-            setTourOpen(true);
-          }}
-        >
-          Ver o tour do Swarm update
-        </button>
-      </div>
-      <ol className="changelog">
-        {CHANGELOG.map((entry) => (
-          <li key={entry.version}>
-            <div className="changelog-head">
-              <strong>{entry.version}</strong>
-              {entry.version.includes("-beta") && <span className="changelog-tag beta">beta</span>}
-              {entry.version.includes("-alpha") && <span className="changelog-tag beta">alpha</span>}
-              {entry.version === version && <span className="changelog-tag">instalada</span>}
-              <time>{new Date(`${entry.date}T12:00:00`).toLocaleDateString()}</time>
+          />
+        </Row>
+        {news && (
+          <div className="set-news">
+            <div className="row">
+              <button
+                className="ghost auto"
+                onClick={() => {
+                  openModal(null);
+                  setTourOpen(true);
+                }}
+              >
+                Ver o tour
+              </button>
+              <button className="ghost auto" onClick={() => void openUrl(RELEASES_URL)}>
+                Ver releases
+              </button>
             </div>
-            <ul>
-              {entry.items.map((item) => (
-                <li key={item}>{withShortcuts(item)}</li>
+            <ol className="changelog">
+              {CHANGELOG.map((entry) => (
+                <li key={entry.version}>
+                  <div className="changelog-head">
+                    <strong>{entry.version}</strong>
+                    {entry.version.includes("-beta") && <span className="changelog-tag beta">beta</span>}
+                    {entry.version.includes("-alpha") && <span className="changelog-tag beta">alpha</span>}
+                    {entry.version === version && <span className="changelog-tag">instalada</span>}
+                    <time>{new Date(`${entry.date}T12:00:00`).toLocaleDateString()}</time>
+                  </div>
+                  <ul>
+                    {entry.items.map((item) => (
+                      <li key={item}>{withShortcuts(item)}</li>
+                    ))}
+                  </ul>
+                </li>
               ))}
-            </ul>
-          </li>
-        ))}
-      </ol>
-    </section>
+            </ol>
+          </div>
+        )}
+      </Block>
+
+      <SupportBlock version={version} kind={kindLabel} />
+
+      <LegacyImportBlock />
     </>
   );
 }
@@ -366,125 +371,121 @@ function Stepper({
   );
 }
 
-/** Terminal font overrides; every field falls back to the theme's choice. */
-function TerminalFontSection() {
-  const { theme, terminalFont, setTerminalFont, resetTerminalFont } = useStore();
+/** Terminal font and border; every font field falls back to the theme's choice. */
+function TerminalBlock() {
+  const { theme, terminalFont, setTerminalFont, resetTerminalFont, terminalBorder, setTerminalBorder } = useStore();
   const [custom, setCustom] = useState(
     terminalFont.family !== null && !FONT_PRESETS.includes(terminalFont.family),
   );
+  const [fine, setFine] = useState(false);
   const themeLine = THEMES[theme].lineHeight;
   const decimal = (n: number) => n.toFixed(2).replace(".", ",");
   const untouched = Object.values(terminalFont).every((v) => v === null);
+  const family = custom ? "__other" : (terminalFont.family ?? "");
 
   return (
-    <section className="settings-section">
-      <h3>Fonte do terminal</h3>
-      <div className="field">
-        <span>Fonte</span>
-        <div className="chip-row">
-          <button
-            className={`chip ${terminalFont.family === null && !custom ? "on" : ""}`}
-            onClick={() => {
-              setCustom(false);
-              setTerminalFont({ family: null });
-            }}
-          >
-            Do tema
-          </button>
+    <Block title="Terminal">
+      <Row label="Fonte">
+        <select
+          className="select"
+          value={family}
+          onChange={(e) => {
+            const v = e.target.value;
+            setCustom(v === "__other");
+            if (v !== "__other") setTerminalFont({ family: v || null });
+          }}
+        >
+          <option value="">Do tema</option>
           {FONT_PRESETS.map((f) => (
-            <button
-              key={f}
-              className={`chip ${terminalFont.family === f && !custom ? "on" : ""}`}
-              onClick={() => {
-                setCustom(false);
-                setTerminalFont({ family: f });
-              }}
-            >
+            <option key={f} value={f}>
               {f}
-            </button>
+            </option>
           ))}
-          <button className={`chip ${custom ? "on" : ""}`} onClick={() => setCustom(true)}>
-            Outra…
-          </button>
-        </div>
-        {custom && (
+          <option value="__other">Outra…</option>
+        </select>
+      </Row>
+      {custom && (
+        <Row label="Nome da fonte" hint="Uma fonte instalada, ex. JetBrains Mono">
           <input
-            placeholder="Nome de uma fonte instalada, ex. JetBrains Mono"
             defaultValue={terminalFont.family ?? ""}
             onChange={(e) => setTerminalFont({ family: e.target.value.trim() || null })}
           />
-        )}
-      </div>
-      <div className="font-steppers">
-        <div className="field">
-          <span>Tamanho</span>
-          <Stepper
-            value={terminalFont.size ?? DEFAULT_FONT_SIZE}
-            min={10}
-            max={18}
-            step={1}
-            format={(n) => `${n} px`}
-            onChange={(size) => setTerminalFont({ size })}
-          />
-        </div>
-        <div className="field">
-          <span>Altura da linha</span>
-          <Stepper
-            value={terminalFont.lineHeight ?? round2(themeLine)}
-            min={1}
-            max={1.6}
-            step={0.05}
-            format={decimal}
-            onChange={(lineHeight) => setTerminalFont({ lineHeight })}
-          />
-        </div>
-        <div className="field">
-          <span>Espaço entre letras</span>
-          <Stepper
-            value={terminalFont.letterSpacing ?? 0}
-            min={-1}
-            max={2}
-            step={0.5}
-            format={(n) => `${decimal(n)} px`}
-            onChange={(letterSpacing) => setTerminalFont({ letterSpacing })}
-          />
-        </div>
-      </div>
-      <div className="row">
-        <button
-          className="ghost auto"
-          disabled={untouched}
-          onClick={() => {
-            setCustom(false);
-            resetTerminalFont();
-          }}
-        >
-          Restaurar padrão do tema
-        </button>
-      </div>
-    </section>
+        </Row>
+      )}
+      <Row label="Tamanho">
+        <Stepper
+          value={terminalFont.size ?? DEFAULT_FONT_SIZE}
+          min={10}
+          max={18}
+          step={1}
+          format={(n) => `${n} px`}
+          onChange={(size) => setTerminalFont({ size })}
+        />
+      </Row>
+      <Row label="Borda">
+        <Seg value={terminalBorder} options={BORDER_OPTIONS.map((o) => [o.value, o.label] as const)} onChange={setTerminalBorder} />
+      </Row>
+      <button className="link set-more" onClick={() => setFine(!fine)} aria-expanded={fine}>
+        Ajuste fino: altura da linha e espaço entre letras {fine ? "▾" : "▸"}
+      </button>
+      {fine && (
+        <>
+          <Row label="Altura da linha">
+            <Stepper
+              value={terminalFont.lineHeight ?? round2(themeLine)}
+              min={1}
+              max={1.6}
+              step={0.05}
+              format={decimal}
+              onChange={(lineHeight) => setTerminalFont({ lineHeight })}
+            />
+          </Row>
+          <Row label="Espaço entre letras">
+            <Stepper
+              value={terminalFont.letterSpacing ?? 0}
+              min={-1}
+              max={2}
+              step={0.5}
+              format={(n) => `${decimal(n)} px`}
+              onChange={(letterSpacing) => setTerminalFont({ letterSpacing })}
+            />
+          </Row>
+          <Row label="Padrão do tema">
+            <button
+              className="ghost auto"
+              disabled={untouched}
+              onClick={() => {
+                setCustom(false);
+                resetTerminalFont();
+              }}
+            >
+              Restaurar
+            </button>
+          </Row>
+        </>
+      )}
+    </Block>
   );
 }
 
+const SETTINGS_PAGES: Array<[SettingsTab, string]> = [
+  ["aparencia", "Aparência"],
+  ["sessoes", "Sessões"],
+  ["avisos", "Avisos"],
+  ["conexoes", "Conexões"],
+  ["sobre", "Sobre"],
+];
+
 function SettingsDialog({ initialTab, onClose }: { initialTab?: SettingsTab; onClose: () => void }) {
   const {
-    folders,
-    removeFolder,
-    renameFolder,
-    defaultFolderId,
-    setDefaultFolder,
     layout,
     setLayout,
     barPosition,
     setBarPosition,
-    terminalBorder,
-    setTerminalBorder,
     tabTitleWrap,
     setTabTitleWrap,
     closeAction,
     setCloseAction,
-    groupTint,
-    setGroupTint,
     miniPanel,
     setMiniPanel,
     theme,
@@ -492,249 +493,134 @@ function SettingsDialog({ initialTab, onClose }: { initialTab?: SettingsTab; onC
     cacheStyle,
     setCacheStyle,
   } = useStore();
-  const [editing, setEditing] = useState<string | null>(null);
-  const [draft, setDraft] = useState("");
   const [tab, setTab] = useState<SettingsTab>(initialTab ?? "aparencia");
+  const title = SETTINGS_PAGES.find(([id]) => id === tab)?.[1] ?? "Configurações";
 
   return (
-    <Modal title="Configurações" onClose={onClose}>
-      <nav className="modal-tabs">
-        <button className={tab === "aparencia" ? "on" : ""} onClick={() => setTab("aparencia")}>
-          Aparência
-        </button>
-        <button className={tab === "pastas" ? "on" : ""} onClick={() => setTab("pastas")}>
-          Pastas
-        </button>
-        <button className={tab === "conexoes" ? "on" : ""} onClick={() => setTab("conexoes")}>
-          Conexões
-        </button>
-        <button className={tab === "sobre" ? "on" : ""} onClick={() => setTab("sobre")}>
-          Sobre
-        </button>
-      </nav>
+    <Modal
+      title={title}
+      onClose={onClose}
+      className="settings"
+      aside={
+        <>
+          <h2>Configurações</h2>
+          {SETTINGS_PAGES.map(([id, label]) => (
+            <button key={id} className={`settings-nav ${tab === id ? "on" : ""}`} onClick={() => setTab(id)}>
+              {label}
+            </button>
+          ))}
+        </>
+      }
+    >
+      {tab === "aparencia" && (
+        <>
+          <Block title="Tema">
+            <Row
+              label="Tema do app"
+              hint={
+                (theme === "glow-light" || theme === "sobrio-light")
+                  ? "O Claude Code desenha as próprias cores: rode /theme dentro dele e escolha um tema claro"
+                  : "Cores do app e do terminal"
+              }
+            >
+              {(Object.keys(THEMES) as ThemeId[]).map((id) => (
+                <button key={id} className={`theme-tile ${id} ${theme === id ? "on" : ""}`} onClick={() => setTheme(id)}>
+                  <span className="theme-swatch" />
+                  {THEMES[id].label}
+                </button>
+              ))}
+            </Row>
+          </Block>
+          <TerminalBlock />
+        </>
+      )}
 
-      {tab === "sobre" && <AboutTab />}
+      {tab === "sessoes" && (
+        <Block title="Lista de sessões">
+          <Row label="Posição">
+            <Seg
+              value={layout}
+              options={[
+                ["sidebar", "Lateral"],
+                ["topbar", "Superior"],
+              ]}
+              onChange={setLayout}
+            />
+          </Row>
+          <Row label="Nomes longos">
+            <Seg
+              value={tabTitleWrap}
+              options={[
+                ["wrap", "Quebrar em linhas"],
+                ["truncate", "Cortar com …"],
+              ]}
+              onChange={setTabTitleWrap}
+            />
+          </Row>
+          <Row
+            label="Botão × das abas"
+            hint={
+              closeAction === "archive"
+                ? "Encerra a sessão e a manda para o Histórico"
+                : closeAction === "pane"
+                  ? "Só libera o painel; a sessão continua rodando na lista"
+                  : "Encerra o terminal e deixa a aba fechada na lista; a conversa volta ao clicar nela"
+            }
+          >
+            <select className="select" value={closeAction} onChange={(e) => setCloseAction(e.target.value as typeof closeAction)}>
+              <option value="archive">Arquivar sessão</option>
+              <option value="pane">Fechar terminal</option>
+              <option value="sleep">Suspender sessão</option>
+            </select>
+          </Row>
+        </Block>
+      )}
+
+      {tab === "avisos" && (
+        <>
+          <Block title="Na tela">
+            <Row label="Cache do Claude" hint="Em cima de uma sessão esperando você, com contexto grande">
+              <Seg
+                value={cacheStyle}
+                options={[
+                  ["expressive", "Expressivo"],
+                  ["minimal", "Minimalista"],
+                ]}
+                onChange={setCacheStyle}
+              />
+            </Row>
+            <Row label="Barra de limites">
+              <Seg
+                value={barPosition}
+                options={[
+                  ["top", "No topo"],
+                  ["bottom", "Embaixo"],
+                ]}
+                onChange={setBarPosition}
+              />
+            </Row>
+          </Block>
+          <Block title="Fora do app">
+            <Row
+              label="Mini painel flutuante"
+              hint={`Janela pequena, sempre por cima, com o estado de cada sessão. ${shortcutLabel("miniPanel")} liga e desliga`}
+            >
+              <Toggle on={miniPanel} onChange={setMiniPanel} />
+            </Row>
+          </Block>
+        </>
+      )}
 
       {tab === "conexoes" && <ConnectionsTab />}
 
-      {tab === "aparencia" && (
-      <>
-      <section className="settings-section">
-        <h3>Tema</h3>
-        <p className="hint">No macOS, o Glass deixa o fundo da janela translúcido; nos outros sistemas ele usa um fundo sólido.</p>
-        <div className="chip-row">
-          {(Object.keys(THEMES) as ThemeId[]).map((id) => (
-            <button key={id} className={`chip ${theme === id ? "on" : ""}`} onClick={() => setTheme(id)}>
-              {THEMES[id].label}
-            </button>
-          ))}
-        </div>
-        {theme === "glow-light" && (
-          <p className="hint">
-            O Claude Code desenha as próprias cores. Para ele ficar legível no fundo claro, rode <code>/theme</code> dentro do
-            Claude e escolha um tema claro.
-          </p>
-        )}
-      </section>
-
-      <TerminalFontSection />
-
-      <section className="settings-section">
-        <h3>Lista de sessões</h3>
-        <div className="chip-row">
-          <button className={`chip ${layout === "sidebar" ? "on" : ""}`} onClick={() => setLayout("sidebar")}>
-            Lateral
-          </button>
-          <button className={`chip ${layout === "topbar" ? "on" : ""}`} onClick={() => setLayout("topbar")}>
-            Superior
-          </button>
-        </div>
-      </section>
-
-      <section className="settings-section">
-        <h3>Cache do Claude</h3>
-        <p className="hint">Aparece em cima de uma sessão esperando você, com contexto grande.</p>
-        <div className="chip-row">
-          <button className={`chip ${cacheStyle === "expressive" ? "on" : ""}`} onClick={() => setCacheStyle("expressive")}>
-            Expressivo
-          </button>
-          <button className={`chip ${cacheStyle === "minimal" ? "on" : ""}`} onClick={() => setCacheStyle("minimal")}>
-            Minimalista
-          </button>
-        </div>
-      </section>
-
-      <section className="settings-section">
-        <h3>Mini painel flutuante</h3>
-        <p className="hint">
-          Janela pequena, sempre por cima, com o estado de cada sessão. {shortcutLabel("miniPanel")} liga e desliga.
-        </p>
-        <div className="chip-row">
-          <button className={`chip ${miniPanel ? "on" : ""}`} onClick={() => setMiniPanel(true)}>
-            Ligado
-          </button>
-          <button className={`chip ${!miniPanel ? "on" : ""}`} onClick={() => setMiniPanel(false)}>
-            Desligado
-          </button>
-        </div>
-      </section>
-
-      <section className="settings-section">
-        <h3>Fundo dos grupos</h3>
-        <div className="chip-row">
-          {(
-            [
-              ["subtle", "Sutil"],
-              ["strong", "Marcado"],
-              ["none", "Sem fundo"],
-            ] as const
-          ).map(([value, label]) => (
-            <button key={value} className={`chip ${groupTint === value ? "on" : ""}`} onClick={() => setGroupTint(value)}>
-              {label}
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section className="settings-section">
-        <h3>Nomes longos na lista lateral</h3>
-        <div className="chip-row">
-          <button
-            className={`chip ${tabTitleWrap === "wrap" ? "on" : ""}`}
-            onClick={() => setTabTitleWrap("wrap")}
-          >
-            Quebrar em linhas
-          </button>
-          <button
-            className={`chip ${tabTitleWrap === "truncate" ? "on" : ""}`}
-            onClick={() => setTabTitleWrap("truncate")}
-          >
-            Cortar com …
-          </button>
-        </div>
-      </section>
-
-      <section className="settings-section">
-        <h3>Botão × das abas</h3>
-        <p className="hint">
-          Arquivar encerra a sessão e a manda para o Histórico. Fechar terminal só libera o painel, e a sessão continua
-          rodando na lista. Suspender encerra o terminal e deixa a aba fechada na lista; a conversa volta ao clicar nela.
-        </p>
-        <div className="chip-row">
-          {(
-            [
-              ["archive", "Arquivar sessão"],
-              ["pane", "Fechar terminal"],
-              ["sleep", "Suspender sessão"],
-            ] as const
-          ).map(([value, label]) => (
-            <button key={value} className={`chip ${closeAction === value ? "on" : ""}`} onClick={() => setCloseAction(value)}>
-              {label}
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section className="settings-section">
-        <h3>Barra de limites</h3>
-        <div className="chip-row">
-          <button
-            className={`chip ${barPosition === "top" ? "on" : ""}`}
-            onClick={() => setBarPosition("top")}
-          >
-            No topo
-          </button>
-          <button
-            className={`chip ${barPosition === "bottom" ? "on" : ""}`}
-            onClick={() => setBarPosition("bottom")}
-          >
-            Embaixo
-          </button>
-        </div>
-      </section>
-
-      <section className="settings-section">
-        <h3>Borda do terminal</h3>
-        <div className="chip-row">
-          {BORDER_OPTIONS.map((o) => (
-            <button
-              key={o.value}
-              className={`chip ${terminalBorder === o.value ? "on" : ""}`}
-              onClick={() => setTerminalBorder(o.value)}
-            >
-              {o.label}
-            </button>
-          ))}
-        </div>
-      </section>
-      </>
-      )}
-
-      {tab === "pastas" && (
-      <>
-      <section className="settings-section">
-        <h3>Pasta base de abertura</h3>
-        <p className="hint">Usada pelo grupo Sem grupo e como sugestão inicial dos demais.</p>
-        <FolderChoice
-          value={defaultFolderId}
-          onChange={setDefaultFolder}
-          allowNone
-          noneLabel="Perguntar toda vez"
-        />
-      </section>
-
-      <section className="settings-section">
-        <h3>Pastas de trabalho</h3>
-        <p className="hint">Toda sessão nova abre em uma destas pastas.</p>
-        <AddFolder />
-        <ul className="folder-manage">
-          {folders.map((f) => (
-            <li key={f.id}>
-              {editing === f.id ? (
-                <input
-                  className="inline-edit"
-                  autoFocus
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  onBlur={() => {
-                    if (draft.trim()) renameFolder(f.id, draft.trim());
-                    setEditing(null);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") e.currentTarget.blur();
-                    if (e.key === "Escape") setEditing(null);
-                  }}
-                />
-              ) : (
-                <span
-                  className="folder-name"
-                  title="Duplo clique para renomear"
-                  onDoubleClick={() => {
-                    setDraft(f.name);
-                    setEditing(f.id);
-                  }}
-                >
-                  {f.name}
-                </span>
-              )}
-              <span className="folder-path" title={f.path}>
-                {f.path}
-              </span>
-              <button className="icon-btn" title="Remover" onClick={() => removeFolder(f.id)}>
-                ×
-              </button>
-            </li>
-          ))}
-        </ul>
-      </section>
-      </>
-      )}
+      {tab === "sobre" && <AboutPage />}
     </Modal>
   );
 }
 
 function NewGroupDialog({ onClose }: { onClose: () => void }) {
-  const { addGroup, folders } = useStore();
+  const addGroup = useStore((s) => s.addGroup);
+  const recent = useRecentFolders();
   const [name, setName] = useState("");
   const [folderId, setFolderId] = useState<string | null>(null);
 
@@ -769,17 +655,27 @@ function NewGroupDialog({ onClose }: { onClose: () => void }) {
         />
       </label>
       <section className="settings-section">
-        <h3>Pasta base (opcional)</h3>
-        <p className="hint">Com pasta base, sessões novas do grupo abrem direto nela.</p>
-        <FolderChoice value={folderId} onChange={setFolderId} allowNone noneLabel="Perguntar toda vez" />
-        {folders.length === 0 && <AddFolder onAdded={setFolderId} />}
+        <h3>Pasta</h3>
+        <div className="set-rows">
+          <p className="hint">As sessões do grupo abrem nela. Sem escolher agora, a primeira sessão pergunta.</p>
+          {recent.length > 0 && <FolderList folders={recent} value={folderId} onPick={(f) => setFolderId(f.id === folderId ? null : f.id)} />}
+          <div className="row">
+            <button
+              className="ghost auto"
+              onClick={() => void browseFolder("Pasta do grupo").then((f) => f && setFolderId(f.id))}
+            >
+              Procurar…
+            </button>
+          </div>
+        </div>
       </section>
     </Modal>
   );
+
 }
 
 
-const PERMISSION_MODES: Array<[string, string]> = [
+export const PERMISSION_MODES: Array<[string, string]> = [
   ["manual", "Perguntar tudo"],
   ["acceptEdits", "Aceitar edições"],
   ["auto", "Automático"],
@@ -871,64 +767,68 @@ function GroupLaunchDialog({ groupId, onClose }: { groupId: string; onClose: () 
   );
 }
 
-function PickFolderDialog({ groupId, kind, onClose }: { groupId: string; kind?: SessionKind; onClose: () => void }) {
-  const { folders, setGroupFolder, groups } = useStore();
+/**
+ * Where a session opens. A group without a folder keeps the one picked; `once`
+ * opens this session elsewhere, and `change` only sets the group's folder.
+ */
+function PickFolderDialog({
+  groupId,
+  kind,
+  once,
+  change,
+  onClose,
+}: {
+  groupId: string;
+  kind?: SessionKind;
+  once?: boolean;
+  change?: boolean;
+  onClose: () => void;
+}) {
+  const { setGroupFolder, groups } = useStore();
+  const recent = useRecentFolders();
   const group = groups.find((g) => g.id === groupId);
-  const [remember, setRemember] = useState(false);
+  const keeps = !!group && !group.fixed && !once;
 
-  const openIn = (path: string, name: string, folderId?: string) => {
-    if (remember && folderId) setGroupFolder(groupId, folderId);
-    startSession(groupId, path, name, kind);
+  const choose = (f: Folder) => {
+    if (keeps) setGroupFolder(groupId, f.id);
+    if (!change) startSession(groupId, f.path, f.name, kind);
     onClose();
-  };
-
-  const browseOnce = async () => {
-    const picked = await open({ directory: true, multiple: false, title: "Abrir sessão em" });
-    if (typeof picked !== "string") return;
-    const check = await invoke<PathCheck>("path_check", { path: picked });
-    openIn(check.expanded, check.name ?? check.expanded);
   };
 
   const openHome = async () => {
     const home = await invoke<string>("home_dir");
-    openIn(home, "~");
+    const id = useStore.getState().addFolder("~", home);
+    choose({ id, name: "~", path: home });
   };
+
+  const title = change
+    ? `Pasta de ${group?.name ?? "grupo"}`
+    : group
+      ? `Nova sessão em ${group.name}`
+      : "Nova sessão";
 
   return (
     <Modal
-      title={group ? `Nova sessão em ${group.name}` : "Nova sessão"}
+      title={title}
       onClose={onClose}
       footer={
         <>
-          <label className="check">
-            <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
-            usar como pasta base do grupo
-          </label>
-          <button className="ghost auto" onClick={() => void browseOnce()}>
-            Outra pasta…
+          <button className="ghost auto" onClick={() => void browseFolder(change ? "Pasta do grupo" : "Abrir sessão em").then((f) => f && choose(f))}>
+            Procurar…
           </button>
-          <button className="ghost auto" onClick={() => void openHome()}>
-            Pasta pessoal
-          </button>
+          {!change && (
+            <button className="ghost auto" onClick={() => void openHome()}>
+              Pasta pessoal
+            </button>
+          )}
         </>
       }
     >
-      {folders.length === 0 ? (
-        <>
-          <p className="hint">Nenhuma pasta configurada. Adicione a primeira:</p>
-          <AddFolder />
-        </>
+      {keeps && <p className="hint">As próximas sessões de {group?.name} abrem direto na pasta escolhida.</p>}
+      {recent.length > 0 ? (
+        <FolderList folders={recent} value={change ? group?.folderId : undefined} onPick={choose} />
       ) : (
-        <ul className="folder-choice pick">
-          {folders.map((f) => (
-            <li key={f.id} onClick={() => openIn(f.path, f.name, f.id)}>
-              <span className="folder-name">{f.name}</span>
-              <span className="folder-path" title={f.path}>
-                {f.path}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <p className="hint">Nenhuma pasta usada ainda. Use Procurar para escolher.</p>
       )}
     </Modal>
   );
@@ -981,5 +881,5 @@ export function Dialogs() {
   if (modal.kind === "searchAll") return <SearchAll onClose={close} />;
   if (modal.kind === "groupLaunch") return <GroupLaunchDialog groupId={modal.groupId} onClose={close} />;
   if (modal.kind === "pluginCreator") return <PluginCreatorDialog onClose={close} />;
-  return <PickFolderDialog groupId={modal.groupId} kind={modal.open} onClose={close} />;
+  return <PickFolderDialog groupId={modal.groupId} kind={modal.open} once={modal.once} change={modal.change} onClose={close} />;
 }

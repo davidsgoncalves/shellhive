@@ -154,6 +154,18 @@ export function GroupMenu() {
         Ocultar grupo
       </button>
 
+      {!group.fixed && (
+        <button
+          className="menu-item"
+          onClick={() => {
+            openModal({ kind: "pickFolder", groupId: group.id, change: true });
+            close();
+          }}
+        >
+          {group.folderId ? "Trocar a pasta do grupo…" : "Escolher a pasta do grupo…"}
+        </button>
+      )}
+
       <button
         className="menu-item"
         onClick={() => {

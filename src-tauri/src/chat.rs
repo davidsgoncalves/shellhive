@@ -224,6 +224,32 @@ pub fn chat_save_image(data: String, ext: String) -> Result<String, String> {
     Ok(path.to_string_lossy().into_owned())
 }
 
+/// The largest image the chat shows inline.
+const MEDIA_MAX: u64 = 12 * 1024 * 1024;
+
+/// An image an agent wrote or named, as a data URL the chat can show.
+#[tauri::command]
+pub fn chat_media(path: String) -> Result<String, String> {
+    use base64::Engine;
+    let lower = path.to_ascii_lowercase();
+    if ![".png", ".jpg", ".jpeg", ".gif", ".webp"]
+        .iter()
+        .any(|e| lower.ends_with(e))
+    {
+        return Err("not an image".into());
+    }
+    let meta = std::fs::metadata(&path).map_err(|e| e.to_string())?;
+    if !meta.is_file() || meta.len() > MEDIA_MAX {
+        return Err("not shown inline".into());
+    }
+    let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
+    Ok(format!(
+        "data:{};base64,{}",
+        image_mime(&path),
+        base64::engine::general_purpose::STANDARD.encode(bytes)
+    ))
+}
+
 /// Media type of an image file, by its extension.
 pub fn image_mime(path: &str) -> &'static str {
     match path

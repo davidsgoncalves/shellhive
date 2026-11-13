@@ -200,9 +200,8 @@ function TabRow({ tab, active }: { tab: Tab; active: boolean }) {
 }
 
 function GroupSection({ group, tabs, activeTabId }: { group: Group; tabs: Tab[]; activeTabId: string | null }) {
-  const { renameGroup, toggleGroupCollapsed, moveTab, folders, defaultFolderId, openGroupMenu } = useStore();
+  const { renameGroup, toggleGroupCollapsed, moveTab, folders, openGroupMenu } = useStore();
   const folder = folders.find((f) => f.id === group.folderId);
-  const baseFolder = folders.find((f) => f.id === defaultFolderId);
   const [over, setOver] = useState(false);
 
   const onDrop = (e: DragEvent) => {
@@ -249,11 +248,6 @@ function GroupSection({ group, tabs, activeTabId }: { group: Group; tabs: Tab[];
         {folder && !group.fixed && (
           <span className="group-folder" title={folder.path}>
             {folder.name}
-          </span>
-        )}
-        {group.fixed && baseFolder && (
-          <span className="group-folder" title={`Pasta base: ${baseFolder.path}`}>
-            {baseFolder.name}
           </span>
         )}
         {pending > 0 && <span className="badge">{pending}</span>}

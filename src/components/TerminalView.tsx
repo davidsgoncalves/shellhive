@@ -12,6 +12,8 @@ import { reportError } from "../lib/errors";
 import { sessionFromDrag, useStore, type SessionRef } from "../lib/store";
 import { attachLinks, carriesFiles, carriesSession, carriesTab, fixEmojiWidth, fixLinuxInput, pasteDroppedFiles } from "../lib/termExtras";
 import { openAgentTerminal } from "../lib/agents";
+import { runOfTab } from "../lib/bees";
+import { droneOfTab } from "../lib/colony";
 import { takePendingFork, takePendingLaunch, takePendingPrompt, takePendingResume } from "../lib/restored";
 import type { Tab } from "../lib/types";
 
@@ -104,8 +106,14 @@ export function TerminalView({
     const fork = agentTab ? null : takePendingFork(tab.id);
     const resume = fork ?? (!agentTab && tab.claudeSessionId && takePendingResume(tab.id) ? tab.claudeSessionId : null);
     const prompt = resume || agentTab ? null : takePendingPrompt(tab.id);
-    // The group's model and permission mode apply to every `claude` started in the tab.
+    // The group's model and permission mode apply to every `claude` started in
+    // the tab; a bee's own permissions win in the tab it runs in.
     const launch = useStore.getState().groups.find((g) => g.id === tab.groupId)?.launch;
+    const beeRun = runOfTab(tab.id);
+    const bee = beeRun && useStore.getState().bees.find((b) => b.id === beeRun.beeId);
+    // A colony's drone on Claude runs with its own model and permissions.
+    const drone = droneOfTab(tab.id);
+    const own = bee ?? (drone?.agent === "claude" ? drone : undefined);
     invoke("pty_spawn", {
       id: tab.id,
       cols: term.cols,
@@ -115,8 +123,9 @@ export function TerminalView({
       fork: !!fork,
       prompt,
       launch: !agentTab && takePendingLaunch(tab.id),
-      model: launch?.model ?? null,
-      permissionMode: launch?.permissionMode ?? null,
+      model: (drone?.agent === "claude" ? drone.model : null) ?? launch?.model ?? null,
+      permissionMode: own?.permissionMode ?? launch?.permissionMode ?? null,
+      allowedTools: own?.allowedTools ?? null,
     })
       .then(() => {
         const now = useStore.getState().tabs.find((t) => t.id === tab.id);

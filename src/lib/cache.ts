@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import { useStore, type CacheStyle } from "./store";
-import { isBeeTab, type Tab } from "./types";
+import { isHiddenTab, type Tab } from "./types";
 
 /** Context below this size costs little either way, so its tab shows no card. */
 export const CACHE_CARD_MIN_TOKENS = 50_000;
@@ -56,6 +56,6 @@ export function refreshCacheAfterTurn(tabId: string): void {
 /** The cache a tab's card shows: a session waiting on the user, with context worth keeping. */
 export function cacheCardOf(tab: Tab, byTab: Record<string, CacheInfo>): CacheInfo | null {
   const info = byTab[tab.id];
-  if (!info || tab.state !== "waiting" || isBeeTab(tab) || info.tokens < CACHE_CARD_MIN_TOKENS) return null;
+  if (!info || tab.state !== "waiting" || isHiddenTab(tab) || info.tokens < CACHE_CARD_MIN_TOKENS) return null;
   return info;
 }

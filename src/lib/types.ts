@@ -106,6 +106,65 @@ export const BEE_GROUP_ID = "worker-bee";
 /** True for a tab a worker bee runs in, kept out of sight. */
 export const isBeeTab = (t: { groupId: string }) => t.groupId === BEE_GROUP_ID;
 
+export const COLONY_GROUP_ID = "colony";
+
+/** True for a tab a drone of a colony runs in, shown only on the Colony screen. */
+export const isColonyTab = (t: { groupId: string }) => t.groupId === COLONY_GROUP_ID;
+
+/** Tabs that live out of the tab list: a worker bee's run or a colony's drone. */
+export const isHiddenTab = (t: { groupId: string }) => isBeeTab(t) || isColonyTab(t);
+
+export type DroneAgent = "claude" | "codex" | "opencode";
+
+/** A team of agents that keep their conversations: a Queen and her drones. */
+export interface Colony {
+  id: string;
+  name: string;
+  goal: string;
+  /** Where the drones work; unset is an empty folder of the app. */
+  cwd: string | null;
+  createdAt: number;
+}
+
+/** An agent of a colony; the Queen is the one that builds the colony and hands out work. */
+export interface Drone {
+  id: string;
+  colonyId: string;
+  queen: boolean;
+  name: string;
+  /** What the drone does, in a few words; its colleagues pick by it. */
+  role: string;
+  description: string;
+  /** How the drone works, sent when its session starts. */
+  instructions: string;
+  agent: DroneAgent;
+  model: string | null;
+  permissionMode: string | null;
+  allowedTools: string[];
+  /** The agent's session, resumed when the drone is woken again. */
+  sessionId: string | null;
+  createdAt: number;
+}
+
+/** A request from one drone to another, or the reply that comes back. */
+export interface ColonyMessage {
+  id: string;
+  colonyId: string;
+  /** A drone's id, or "user". */
+  from: string;
+  to: string;
+  text: string;
+  expectsReply: boolean;
+  status: "queued" | "delivered" | "answered" | "failed";
+  /** What the receiver answered at the end of the turn the message started. */
+  reply: string | null;
+  /** The message this one answers. */
+  replyTo: string | null;
+  createdAt: number;
+  deliveredAt: number | null;
+  answeredAt: number | null;
+}
+
 export type BeeTrigger =
   | { kind: "manual" }
   | { kind: "interval"; minutes: number }
@@ -152,6 +211,14 @@ export interface Bee {
   createdAt: number;
   /** Start of the last run, or of the last missed one skipped. */
   lastRunAt: number | null;
+  /** A run given a repository works in a fresh worktree of it, not in the repository itself. */
+  worktree?: boolean;
+  /** Claude's permission mode for the bee's runs; unset keeps the app's. */
+  permissionMode?: string | null;
+  /** Permission rules the bee's runs allow without asking, as Claude Code writes them. */
+  allowedTools?: string[];
+  /** What the bee keeps between runs, as JSON text it reads and writes over MCP. */
+  state?: string | null;
 }
 
 export interface BeeRun {
@@ -162,6 +229,8 @@ export interface BeeRun {
   sessionId: string | null;
   /** Where it ran; runs from before the bees' own folder have none and ran in the home folder. */
   cwd?: string;
+  /** The folder the run was asked to work on, if any; `cwd` is its worktree when the bee uses one. */
+  dir?: string | null;
   startedAt: number;
   endedAt: number | null;
   status: "running" | "done" | "error";
@@ -169,6 +238,12 @@ export interface BeeRun {
   summary: string | null;
   /** Opened in a normal tab while running, so it stays open at the end. */
   revealed?: boolean;
+  /** Why the bee asked for the user, when it did. */
+  attention?: string | null;
+  /** False for a run that ended and the user has not opened yet; unset counts as seen. */
+  read?: boolean;
+  /** The session's transcript, to show the run as a chat once it ended. */
+  transcriptPath?: string | null;
 }
 
 export const UNGROUPED_NAME = "Sem grupo";
@@ -214,7 +289,6 @@ export interface GitInfo {
 }
 
 /** How strongly a group's colour tints its background. */
-export type GroupTint = "subtle" | "strong" | "none";
 
 /** How a long tab name fits in the sidebar. */
 export type TitleWrap = "truncate" | "wrap";
@@ -341,10 +415,13 @@ export const DEFAULT_TAB_TITLE = "Nova sessão";
 export const WATCHDOG_MINUTES = 5;
 
 /** A project folder registered in settings; new sessions open in one of these. */
+/** A folder the user opened sessions in, kept as a recent and as a group's folder. */
 export interface Folder {
   id: string;
   name: string;
   path: string;
+  /** When a session last opened in it. */
+  usedAt?: number;
 }
 
 export interface PathCheck {
@@ -361,6 +438,8 @@ export interface QuestionItem {
   received_at: number;
   /** Tool use id, used to drop the item once Claude moves on. */
   tool_use_id: string | null;
+  /** Set while Claude waits for the app's answer instead of drawing its picker. */
+  request_id?: string;
   questions: Array<{
     question: string;
     header?: string;

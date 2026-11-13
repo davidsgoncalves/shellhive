@@ -1,4 +1,4 @@
-import { isBeeTab, type Tab } from "./types";
+import { isHiddenTab, type Tab } from "./types";
 
 /**
  * Claude Code redraws its spinner several times a second for as long as a
@@ -26,6 +26,6 @@ export function forgetOutput(tabId: string): void {
  */
 export function quietWorkingTabs(tabs: Tab[], now = Date.now()): Tab[] {
   return tabs.filter(
-    (t) => t.state === "working" && !isBeeTab(t) && now - Math.max(lastOutput.get(t.id) ?? 0, t.lastEventAt ?? 0) > QUIET_MS,
+    (t) => t.state === "working" && !isHiddenTab(t) && now - Math.max(lastOutput.get(t.id) ?? 0, t.lastEventAt ?? 0) > QUIET_MS,
   );
 }

@@ -11,9 +11,11 @@ import { ColumnResizer } from "./ColumnResizer";
 import { RailIcon } from "./RailIcon";
 import { UsageRings } from "./UsageRings";
 import { BeePanel, NewBeeButton, useBeeWaiting } from "./WorkerBee";
+import { useUnreadRuns } from "../lib/bees";
+import { ColonyPanel, NewColonyButton } from "./Colony";
 import { PluginsPanel } from "./PluginsScreen";
 
-type PanelTab = "tabs" | "queue" | "sessions" | "bees" | "plugins" | "events" | `plugin:${string}` | `official:${string}`;
+type PanelTab = "tabs" | "queue" | "sessions" | "bees" | "colony" | "plugins" | "events" | `plugin:${string}` | `official:${string}`;
 
 /** Drag payload type for an icon of the rail. */
 const PANEL_TAB_DRAG = "application/x-panel-tab";
@@ -41,6 +43,7 @@ const ICONS = {
   sessions: <RailIcon><circle cx="12" cy="12" r="8" /><path d="M12 8v4l3 2" /></RailIcon>,
   events: <RailIcon><path d="M3 12h4l3-7 4 14 3-7h4" /></RailIcon>,
   bees: <RailIcon><path d="M12 3l7.5 4.5v9L12 21l-7.5-4.5v-9z" /><path d="M9 10.5h6M9 13.5h6" /></RailIcon>,
+  colony: <RailIcon><circle cx="12" cy="7" r="3" /><circle cx="6.5" cy="16" r="3" /><circle cx="17.5" cy="16" r="3" /><path d="M10.5 9.5l-2.5 4M13.5 9.5l2.5 4M9.5 16h5" /></RailIcon>,
   plugins: <RailIcon><path d="M9 4h6v4h-6zM5 8h14v12H5z" /><path d="M9 14h6" /></RailIcon>,
 };
 
@@ -56,11 +59,12 @@ function initials(title: string): string {
  * open icon closes the panel; icons are dragged to reorder them.
  */
 export function SidePanel() {
-  const { panelOpen, togglePanel, showEvents, groupTint } = useStore();
+  const { panelOpen, togglePanel, showEvents } = useStore();
   const layout = useStore((s) => s.layout);
   const queued = useQueued();
   const pending = queued.permissions.length + queued.questions.length + queued.commands.length + queued.approvals;
   const beeWaiting = useBeeWaiting();
+  const unreadRuns = useUnreadRuns();
   const localPlugins = useStore((s) => s.localPlugins);
   const enabledPlugins = useStore((s) => s.enabledPlugins);
   const sidePlugins = localPlugins.filter(
@@ -87,8 +91,9 @@ export function SidePanel() {
       key: "bees",
       label: "Worker bee",
       icon: ICONS.bees,
-      badge: beeWaiting.permissions.length + beeWaiting.questions.length,
+      badge: beeWaiting.permissions.length + beeWaiting.questions.length + unreadRuns,
     },
+    { key: "colony", label: "Colony", icon: ICONS.colony },
     { key: "plugins", label: "Plugins", icon: ICONS.plugins },
     // Raw hook traffic, only for diagnosing the app; switched on under Sobre.
     ...(showEvents ? [{ key: "events" as const, label: "Eventos", icon: ICONS.events }] : []),
@@ -183,11 +188,12 @@ export function SidePanel() {
       </nav>
 
       {panelOpen && (
-        <aside className={`sidebar side-panel tint-${groupTint}`} style={width ? { width } : undefined}>
+        <aside className="sidebar side-panel" style={width ? { width } : undefined}>
           <ColumnResizer column="sidebar" />
           <header className="sidebar-header">
             <h1>{currentTab?.label}</h1>
             {current === "bees" && <NewBeeButton />}
+            {current === "colony" && <NewColonyButton />}
             <button className="icon-btn" title={`Recolher (${shortcutLabel("sidebar")})`} onClick={togglePanel}>
               «
             </button>
@@ -202,6 +208,11 @@ export function SidePanel() {
           {current === "bees" && (
             <div className="panel-body">
               <BeePanel />
+            </div>
+          )}
+          {current === "colony" && (
+            <div className="panel-body">
+              <ColonyPanel />
             </div>
           )}
           {current === "plugins" && <PluginsPanel />}
