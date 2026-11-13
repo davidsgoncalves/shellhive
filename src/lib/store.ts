@@ -6,6 +6,7 @@ import { PROVIDER_NAMES } from "./providers";
 import { markPendingFork, markPendingLaunch, markPendingPrompt, markPendingResume } from "./restored";
 import { sameRule } from "./permRules";
 import { mergeRateLimits } from "./rateLimits";
+import { beesToFlows } from "./flowMigrate";
 import type { MiniBounds } from "./mini";
 import { THEME_FONT, THEMES, themeOr, type TerminalFont, type ThemeId } from "./theme";
 import { isView, viewOf, type LocalPlugin, type PluginPanel } from "./localPlugins";
@@ -17,6 +18,7 @@ import {
   UNGROUPED_NAME,
   type Folder,
   type Bee,
+  type Flow,
   BEE_GROUP_ID,
   COLONY_GROUP_ID,
   type Colony,
@@ -134,6 +136,9 @@ const MAX_COLONY_MESSAGES = 1000;
 export type ColonyView = { colonyId: string; show: string | "messages" } | { mode: "new" } | null;
 
 /** What the Worker bee shows in the center: a bee, its editor, every run, or one run. */
+/** What the Fluxos screen shows: a flow's canvas, or one of its runs. */
+export type FlowView = { flowId: string; runId?: string } | null;
+
 export type BeeView =
   | { mode: "detail" | "edit"; id: string }
   | { mode: "new" }
@@ -177,6 +182,13 @@ interface Store {
   /** Groups' folders and the recent ones, offered when opening a session. */
   folders: Folder[];
   bees: Bee[];
+  flows: Flow[];
+  /** Null shows the first flow. */
+  flowView: FlowView;
+  setFlowView: (view: FlowView) => void;
+  addFlow: (flow: Flow) => void;
+  updateFlow: (id: string, patch: Partial<Flow>) => void;
+  removeFlow: (id: string) => void;
   /** Null shows the first bee. */
   beeView: BeeView;
   setBeeView: (view: BeeView) => void;
@@ -438,6 +450,16 @@ export const useStore = create<Store>()(
       pinned: [],
       folders: [],
       bees: [],
+      flows: [],
+      flowView: null,
+      setFlowView: (flowView) => set({ flowView, panelTab: "flows", panelOpen: true }),
+      addFlow: (flow) => set((s) => ({ flows: [...s.flows, flow] })),
+      updateFlow: (id, patch) => set((s) => ({ flows: s.flows.map((f) => (f.id === id ? { ...f, ...patch } : f)) })),
+      removeFlow: (id) =>
+        set((s) => ({
+          flows: s.flows.filter((f) => f.id !== id),
+          flowView: s.flowView?.flowId === id ? null : s.flowView,
+        })),
       beeView: null,
       setBeeView: (beeView) => set({ beeView, panelTab: "bees", panelOpen: true }),
       cacheStyle: "expressive",
@@ -1095,12 +1117,12 @@ export const useStore = create<Store>()(
     }),
     {
       name: "claude-terminal-layout",
-      version: 4,
+      version: 5,
       storage: createJSONStorage(() => fileStorage),
       // main.tsx rehydrates before the first render; see persist.ts.
       skipHydration: true,
       // v1 layouts predate pinned sessions, v2 the alpha channel (a beta
-      // switch then); everything else carries over.
+      // switch then), v4 flows; everything else carries over.
       migrate: (persisted) => {
         const prev = (persisted ?? {}) as Record<string, unknown>;
         const { betaChannel, ...rest } = prev;
@@ -1114,6 +1136,8 @@ export const useStore = create<Store>()(
               ? "beta"
               : "regular",
           pinned: Array.isArray(prev.pinned) ? prev.pinned : [],
+          // v4 bees ran on their own triggers; each becomes a flow.
+          ...beesToFlows(Array.isArray(prev.bees) ? (prev.bees as Bee[]) : [], Array.isArray(prev.flows) ? (prev.flows as Flow[]) : []),
           folders: Array.isArray(prev.folders) ? prev.folders : [],
           groups: (Array.isArray(prev.groups) ? prev.groups : []).map((g: Record<string, unknown>) => ({
             ...g,
@@ -1136,6 +1160,7 @@ export const useStore = create<Store>()(
         pinned: s.pinned,
         folders: s.folders,
         bees: s.bees,
+        flows: s.flows,
         beeQuota: s.beeQuota,
         beeMaxRunning: s.beeMaxRunning,
         colonies: s.colonies,

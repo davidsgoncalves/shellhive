@@ -1,5 +1,19 @@
 [
   {
+    "version": "3.0.0-alpha.3",
+    "date": "2026-11-13",
+    "items": [
+      "Fluxos: um canvas onde você liga um gatilho a instruções, agentes de IA, worker bees, condições, aprovações e saídas. O fluxo roda sozinho quando o gatilho dispara, e cada nó é editado no próprio cartão.",
+      "O gatilho pode ser manual, por intervalo, por agendamento ou por evento: uma sessão terminar, uma ferramenta ser usada, o uso passar de um limite ou outro fluxo acabar.",
+      "Nó de IA com Claude, Codex ou OpenCode, modelo, pasta e permissões. \"Executar etapa\" roda só aquele nó, para testar.",
+      "Condição pelo texto ou perguntando a um modelo pequeno, e aprovação que espera você na Fila antes de seguir.",
+      "Cada execução abre o canvas com o estado e o resultado de cada nó, e o caminho que não foi seguido aparece apagado.",
+      "Esperas abertas: uma sessão pode pedir \"me acorda quando a aba X terminar\" ou \"daqui a N minutos\", e recebe a mensagem de volta na hora certa.",
+      "As worker bees deixam de ter gatilho próprio e viram instruções reutilizáveis. Quem já tinha uma worker bee agendada ganha um fluxo equivalente, com o mesmo horário.",
+      "No canvas, o botão direito no fundo adiciona nós, Alt com a rolagem dá zoom em passos de 20%, e arrastar da bolinha de saída liga os nós."
+    ]
+  },
+  {
     "version": "3.0.0-alpha.2",
     "date": "2026-11-13",
     "items": [

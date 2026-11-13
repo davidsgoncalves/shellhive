@@ -30,7 +30,9 @@ import { CommandCard, typeCommand } from "./components/CommandCard";
 import { PermissionCard } from "./components/PermissionQueue";
 import { checkConnections } from "./lib/connections";
 import { callColonyTool, droneTurnEnded, startColony } from "./lib/colony";
-import { callBeeRunTool, finishBeeRun, fireBeeEvent, happeningOf, startBeeScheduler, stopBeeRun, useBeeRuns } from "./lib/bees";
+import { callBeeRunTool, finishBeeRun, startBeeWatch, stopBeeRun, useBeeRuns } from "./lib/bees";
+import { callFlowTool, fireFlowEvent, happeningOf, startFlows } from "./lib/flows";
+import { FlowsMain } from "./components/Flows";
 import { callBeeTool, syncBeeCreators } from "./lib/beeCreator";
 import { BeeMain, LIVE_RECT, useWatchedBeeTab } from "./components/WorkerBee";
 import { PluginsMain } from "./components/PluginsScreen";
@@ -157,8 +159,8 @@ function useBackendBridge() {
       store().setSubagents(tab.id, nextSubagents(store().subagentsByTab[tab.id] ?? [], e));
       // A bee's own run never starts event bees, or one could start itself over and over.
       const runningBee = useBeeRuns.getState().runs.some((r) => r.tabId === tab.id && r.status === "running");
-      const happening = isHiddenTab(tab) || runningBee ? null : happeningOf(e, tab.groupId);
-      if (happening) fireBeeEvent(happening);
+      const happening = isHiddenTab(tab) || runningBee ? null : happeningOf(e, tab);
+      if (happening) fireFlowEvent(happening);
       const patch = tabPatchFor(tab, e);
       if (!patch) return;
       store().patchTab(tab.id, patch);
@@ -567,6 +569,10 @@ function usePluginToolCalls() {
           const out = callColonyTool(payload.tool, payload.args ?? {}, payload.tab_id);
           return void reply(out.text, !!out.isError);
         }
+        if (payload.plugin === "flows") {
+          const out = callFlowTool(payload.tool, payload.args ?? {}, payload.tab_id);
+          return void reply(out.text, !!out.isError);
+        }
         if (payload.plugin === "worker-bee") {
           const out = payload.tool.startsWith("bee_")
             ? callBeeRunTool(payload.tool, payload.args ?? {}, payload.tab_id)
@@ -724,7 +730,7 @@ function useWorkSetup() {
   useEffect(
     () =>
       useStore.subscribe((s, prev) => {
-        if (s.pickedTab === prev.pickedTab || s.panelTab !== "bees") return;
+        if (s.pickedTab === prev.pickedTab || (s.panelTab !== "bees" && s.panelTab !== "flows")) return;
         s.setPanelTab(s.layout === "sidebar" ? "tabs" : "queue");
       }),
     [],
@@ -732,10 +738,12 @@ function useWorkSetup() {
   useEffect(() => {
     void checkConnections();
     syncBeeCreators();
-    const stopBees = startBeeScheduler();
+    const stopBees = startBeeWatch();
+    const stopFlows = startFlows();
     const stopColony = startColony();
     return () => {
       stopBees();
+      stopFlows();
       stopColony();
     };
   }, []);
@@ -803,6 +811,7 @@ function App() {
   const watchedBee = useWatchedBeeTab();
   // The Colony takes the center the same way, with the shown drone's chat or terminal.
   const colonyMode = useStore((s) => s.panelOpen && s.panelTab === "colony");
+  const flowsMode = useStore((s) => s.panelOpen && s.panelTab === "flows");
   const watchedDrone = useWatchedDroneTab();
   const droneTabNow = tabs.find((t) => t.id === watchedDrone);
   const watched = watchedBee ?? (droneTabNow && droneTabNow.view !== "chat" ? droneTabNow.id : null);
@@ -895,7 +904,7 @@ function App() {
                   key={t.id}
                   tab={t}
                   visible={visible}
-                  focused={watching || (!beeMode && !pluginsMode && !colonyMode && slot === focusedPane)}
+                  focused={watching || (!beeMode && !pluginsMode && !colonyMode && !flowsMode && slot === focusedPane)}
                   raised={watching}
                   rect={
                     watching
@@ -992,6 +1001,7 @@ function App() {
             {colonyMode && <ColonyMain />}
             {colonyMode && droneTabNow?.view === "chat" && <ChatView key={`drone-${droneTabNow.id}`} tab={droneTabNow} rect={COLONY_RECT} />}
             {pluginsMode && <PluginsMain />}
+            {flowsMode && <FlowsMain />}
           </div>
         </main>
       </div>

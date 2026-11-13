@@ -13,9 +13,11 @@ import { UsageRings } from "./UsageRings";
 import { BeePanel, NewBeeButton, useBeeWaiting } from "./WorkerBee";
 import { useUnreadRuns } from "../lib/bees";
 import { ColonyPanel, NewColonyButton } from "./Colony";
+import { FlowsPanel, NewFlowButton } from "./Flows";
+import { useFlowApprovals } from "../lib/flows";
 import { PluginsPanel } from "./PluginsScreen";
 
-type PanelTab = "tabs" | "queue" | "sessions" | "bees" | "colony" | "plugins" | "events" | `plugin:${string}` | `official:${string}`;
+type PanelTab = "tabs" | "queue" | "sessions" | "bees" | "flows" | "colony" | "plugins" | "events" | `plugin:${string}` | `official:${string}`;
 
 /** Drag payload type for an icon of the rail. */
 const PANEL_TAB_DRAG = "application/x-panel-tab";
@@ -43,6 +45,7 @@ const ICONS = {
   sessions: <RailIcon><circle cx="12" cy="12" r="8" /><path d="M12 8v4l3 2" /></RailIcon>,
   events: <RailIcon><path d="M3 12h4l3-7 4 14 3-7h4" /></RailIcon>,
   bees: <RailIcon><path d="M12 3l7.5 4.5v9L12 21l-7.5-4.5v-9z" /><path d="M9 10.5h6M9 13.5h6" /></RailIcon>,
+  flows: <RailIcon><rect x="3" y="9" width="6" height="6" rx="1.5" /><rect x="15" y="4" width="6" height="6" rx="1.5" /><rect x="15" y="14" width="6" height="6" rx="1.5" /><path d="M9 12h2.5c1 0 1.5-.5 1.5-1.5V8.5c0-1 .5-1.5 1.5-1.5H15M11.5 12h0c1 0 1.5.5 1.5 1.5v2c0 1 .5 1.5 1.5 1.5H15" /></RailIcon>,
   colony: <RailIcon><circle cx="12" cy="7" r="3" /><circle cx="6.5" cy="16" r="3" /><circle cx="17.5" cy="16" r="3" /><path d="M10.5 9.5l-2.5 4M13.5 9.5l2.5 4M9.5 16h5" /></RailIcon>,
   plugins: <RailIcon><path d="M9 4h6v4h-6zM5 8h14v12H5z" /><path d="M9 14h6" /></RailIcon>,
 };
@@ -62,7 +65,8 @@ export function SidePanel() {
   const { panelOpen, togglePanel, showEvents } = useStore();
   const layout = useStore((s) => s.layout);
   const queued = useQueued();
-  const pending = queued.permissions.length + queued.questions.length + queued.commands.length + queued.approvals;
+  const flowApprovals = useFlowApprovals();
+  const pending = queued.permissions.length + queued.questions.length + queued.commands.length + queued.approvals + flowApprovals.length;
   const beeWaiting = useBeeWaiting();
   const unreadRuns = useUnreadRuns();
   const localPlugins = useStore((s) => s.localPlugins);
@@ -93,6 +97,7 @@ export function SidePanel() {
       icon: ICONS.bees,
       badge: beeWaiting.permissions.length + beeWaiting.questions.length + unreadRuns,
     },
+    { key: "flows", label: "Fluxos", icon: ICONS.flows },
     { key: "colony", label: "Colony", icon: ICONS.colony },
     { key: "plugins", label: "Plugins", icon: ICONS.plugins },
     // Raw hook traffic, only for diagnosing the app; switched on under Sobre.
@@ -194,6 +199,7 @@ export function SidePanel() {
             <h1>{currentTab?.label}</h1>
             {current === "bees" && <NewBeeButton />}
             {current === "colony" && <NewColonyButton />}
+            {current === "flows" && <NewFlowButton />}
             <button className="icon-btn" title={`Recolher (${shortcutLabel("sidebar")})`} onClick={togglePanel}>
               «
             </button>
@@ -213,6 +219,11 @@ export function SidePanel() {
           {current === "colony" && (
             <div className="panel-body">
               <ColonyPanel />
+            </div>
+          )}
+          {current === "flows" && (
+            <div className="panel-body">
+              <FlowsPanel />
             </div>
           )}
           {current === "plugins" && <PluginsPanel />}

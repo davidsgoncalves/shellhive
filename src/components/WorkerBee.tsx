@@ -3,9 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { useStore } from "../lib/store";
 import {
-  DAY_NAMES,
   describeEvent,
-  describeTrigger,
   hasUnfilled,
   markRunRead,
   openBeeRun,
@@ -18,7 +16,7 @@ import { TranscriptView } from "./ChatView";
 import { PERMISSION_MODES } from "./Dialogs";
 import { openBeeCreator } from "../lib/beeCreator";
 import { BLANK_PROMPT, TEMPLATES, type BeeTemplate } from "../lib/beeTemplates";
-import { BEE_GROUP_ID, isBeeTab, type Bee, type BeeEvent, type BeeRun, type BeeTrigger, type PathCheck } from "../lib/types";
+import { BEE_GROUP_ID, isBeeTab, type Bee, type BeeEvent, type BeeRun, type BeeTrigger, type Flow, type PathCheck } from "../lib/types";
 import { PermissionCard, QuestionCard } from "./PermissionQueue";
 
 /** Requests from the bees' hidden tabs: permissions and questions. */
@@ -35,8 +33,6 @@ const STATUS_LABEL: Record<BeeRun["status"], string> = { running: "rodando", don
 
 const when = (at: number) =>
   new Date(at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
-
-const clock = (at: number) => new Date(at).toLocaleString("pt-BR", { weekday: "short", hour: "2-digit", minute: "2-digit" });
 
 const duration = (from: number, to: number) => {
   const min = Math.max(0, Math.round((to - from) / 60_000));
@@ -67,11 +63,10 @@ export function useWatchedBeeTab(): string | null {
 export function BeePanel() {
   const bees = useStore((s) => s.bees);
   const setBeeView = useStore((s) => s.setBeeView);
-  const updateBee = useStore((s) => s.updateBee);
+  const flows = useStore((s) => s.flows);
   const load = useBeeRuns((s) => s.load);
   const waiting = useBeeWaiting();
   const runs = useBeeRuns((s) => s.runs);
-  const held = useBeeRuns((s) => s.held);
   const queued = useBeeRuns((s) => s.queued);
   const shown = useShownBee();
   const view = useStore((s) => s.beeView);
@@ -106,7 +101,7 @@ export function BeePanel() {
         {unread > 0 && <span className="badge">{unread}</span>}
       </button>
       {bees.length === 0 ? (
-        <p className="hint">Nenhuma worker bee ainda. Uma worker bee roda uma tarefa do Claude em segundo plano, na hora que você escolher.</p>
+        <p className="hint">Nenhuma worker bee ainda. Uma worker bee é uma tarefa do Claude que roda em segundo plano, à mão ou num fluxo.</p>
       ) : (
         <ul className="bee-list">
           {bees.map((b) => {
@@ -115,16 +110,9 @@ export function BeePanel() {
             return (
               <li
                 key={b.id}
-                className={`bee-row ${shown?.id === b.id ? "on" : ""} ${b.enabled ? "" : "off"}`}
+                className={`bee-row ${shown?.id === b.id ? "on" : ""}`}
                 onClick={() => setBeeView({ mode: "detail", id: b.id })}
               >
-                <input
-                  type="checkbox"
-                  title={b.enabled ? "Desligar" : "Ligar"}
-                  checked={b.enabled}
-                  onClick={(e) => e.stopPropagation()}
-                  onChange={(e) => updateBee(b.id, { enabled: e.target.checked })}
-                />
                 <span className="bee-row-main">
                   <span className="bee-name">{b.name}</span>
                   <span className="bee-meta">
@@ -132,11 +120,9 @@ export function BeePanel() {
                       ? "rodando agora"
                       : needsYou
                         ? "precisa de você"
-                        : queued.some((q) => q.beeId === b.id)
+                        : queued.some((q) => q.key === b.id)
                         ? "na fila"
-                        : held[b.id]
-                        ? `adiada por cota até ${clock(held[b.id])}`
-                        : describeTrigger(b.trigger)}
+                        : usedIn(flows, b.id)}
                   </span>
                 </span>
                 {running && <span className="bee-run-dot live" />}
@@ -149,6 +135,16 @@ export function BeePanel() {
       <BeeQuotaSection />
     </div>
   );
+}
+
+/** Where a bee runs on its own: the flows that use it. */
+function flowsUsing(flows: Flow[], beeId: string): Flow[] {
+  return flows.filter((f) => !f.wait && f.nodes.some((n) => n.kind === "bee" && n.beeId === beeId));
+}
+
+function usedIn(flows: Flow[], beeId: string): string {
+  const n = flowsUsing(flows, beeId).length;
+  return n === 0 ? "só à mão" : n === 1 ? "em 1 fluxo" : `em ${n} fluxos`;
 }
 
 const CEILINGS = [50, 60, 70, 80, 90];
@@ -247,13 +243,12 @@ function BeeDetail({ bee, live }: { bee: Bee; live: boolean }) {
   const all = useBeeRuns((s) => s.runs);
   const runs = all.filter((r) => r.beeId === bee.id);
   const running = runs.find((r) => r.status === "running");
-  const queued = useBeeRuns((s) => s.queued.some((q) => q.beeId === bee.id));
+  const queued = useBeeRuns((s) => s.queued.some((q) => q.key === bee.id));
   const [asking, setAsking] = useState(false);
   const setQueued = useBeeRuns((s) => s.setQueued);
-  const bees = useStore((s) => s.bees);
-  const after = bee.trigger.kind === "event" && bee.trigger.event.on === "beeDone" ? bee.trigger.event.beeId : null;
-  const before = bees.find((b) => b.id === after);
-  const next = bees.filter((b) => b.trigger.kind === "event" && b.trigger.event.on === "beeDone" && b.trigger.event.beeId === bee.id);
+  const allFlows = useStore((s) => s.flows);
+  const setFlowView = useStore((s) => s.setFlowView);
+  const inFlows = flowsUsing(allFlows, bee.id);
   const mode = PERMISSION_MODES.find(([m]) => m === bee.permissionMode)?.[1];
   const [, tick] = useState(0);
   // Keeps the running time current.
@@ -269,14 +264,9 @@ function BeeDetail({ bee, live }: { bee: Bee; live: boolean }) {
         <div>
           <h2>{bee.name}</h2>
           <p className="hint">
-            {TEMPLATES.find((t) => t.id === bee.templateId)?.name ?? "Sem template"} · {describeTrigger(bee.trigger)}
-            {bee.trigger.kind !== "manual" && ` · horário perdido: ${bee.missed === "run" ? "roda ao abrir" : "pula"}`}
+            {TEMPLATES.find((t) => t.id === bee.templateId)?.name ?? "Sem template"} · {usedIn(allFlows, bee.id)}
           </p>
         </div>
-        <label className="check">
-          <input type="checkbox" checked={bee.enabled} onChange={(e) => updateBee(bee.id, { enabled: e.target.checked })} />
-          {bee.enabled ? "Ligada" : "Desligada"}
-        </label>
         <button className="ghost auto" onClick={() => setBeeView({ mode: "edit", id: bee.id })}>
           Editar
         </button>
@@ -288,7 +278,7 @@ function BeeDetail({ bee, live }: { bee: Bee; live: boolean }) {
           <button
             className="ghost auto"
             title="Esperando outras worker bees terminarem"
-            onClick={() => setQueued(useBeeRuns.getState().queued.filter((q) => q.beeId !== bee.id))}
+            onClick={() => setQueued(useBeeRuns.getState().queued.filter((q) => q.key !== bee.id))}
           >
             Tirar da fila
           </button>
@@ -323,29 +313,23 @@ function BeeDetail({ bee, live }: { bee: Bee; live: boolean }) {
             {bee.allowedTools?.length ? ` · liberado sem perguntar: ${bee.allowedTools.join(", ")}` : ""}
           </p>
         </section>
-        {(before || next.length > 0) && (
-          <section>
-            <h4>Cadeia</h4>
+        <section>
+          <h4>Fluxos</h4>
+          {inFlows.length === 0 ? (
+            <p className="hint">Nenhum fluxo usa esta worker bee. Para ela rodar sozinha, ponha num fluxo com um gatilho.</p>
+          ) : (
             <ul className="bee-chain">
-              {before && (
-                <li>
-                  Roda depois de{" "}
-                  <button className="link" onClick={() => setBeeView({ mode: "detail", id: before.id })}>
-                    {before.name}
+              {inFlows.map((f) => (
+                <li key={f.id}>
+                  <button className="link" onClick={() => setFlowView({ flowId: f.id })}>
+                    {f.name}
                   </button>
-                </li>
-              )}
-              {next.map((b) => (
-                <li key={b.id}>
-                  Ao terminar, dispara{" "}
-                  <button className="link" onClick={() => setBeeView({ mode: "detail", id: b.id })}>
-                    {b.name}
-                  </button>
+                  {f.enabled ? "" : " · desligado"}
                 </li>
               ))}
             </ul>
-          </section>
-        )}
+          )}
+        </section>
         {bee.state && bee.state !== "null" && (
           <section>
             <h4>
@@ -597,8 +581,8 @@ function RunRow({ run }: { run: BeeRun }) {
   );
 }
 
-const INTERVALS = [15, 30, 60, 120, 240, 480, 1440];
-const WORKDAYS = [1, 2, 3, 4, 5];
+export const INTERVALS = [15, 30, 60, 120, 240, 480, 1440];
+export const WORKDAYS = [1, 2, 3, 4, 5];
 
 type Start = "template" | "free" | "claude";
 
@@ -625,26 +609,17 @@ function BeeEditor({ beeId, onDone }: { beeId?: string; onDone: (id?: string) =>
   const [templateId, setTemplateId] = useState<string | undefined>(editing?.templateId);
   const [name, setName] = useState(editing?.name ?? "");
   const [prompt, setPrompt] = useState(editing?.instructions ?? BLANK_PROMPT);
-  const [trigger, setTrigger] = useState<BeeTrigger>(editing?.trigger ?? { kind: "manual" });
-  const [missed, setMissed] = useState<Bee["missed"]>(editing?.missed ?? "run");
   const [worktree, setWorktree] = useState(!!editing?.worktree);
   const [permissionMode, setPermissionMode] = useState(editing?.permissionMode ?? "");
   const [allowed, setAllowed] = useState<string[]>(editing?.allowedTools ?? []);
 
-  const unfilled = hasUnfilled(prompt, trigger);
-  const follows = trigger.kind === "event" && trigger.event.on === "beeDone";
-  const ready =
-    name.trim() &&
-    prompt.trim() &&
-    (trigger.kind !== "schedule" || trigger.days.length > 0) &&
-    (trigger.kind !== "event" || trigger.event.on !== "beeDone" || !!trigger.event.beeId);
+  const unfilled = hasUnfilled(prompt);
+  const ready = name.trim() && prompt.trim();
   const save = () => {
     if (!ready) return;
     const fields = {
       name: name.trim(),
       instructions: prompt.trim(),
-      trigger,
-      missed,
       templateId,
       worktree,
       permissionMode: permissionMode || null,
@@ -658,7 +633,6 @@ function BeeEditor({ beeId, onDone }: { beeId?: string; onDone: (id?: string) =>
   const pick = (t: BeeTemplate) => {
     setTemplateId(t.id);
     setName(t.name);
-    setTrigger(t.trigger);
     setPrompt(t.prompt);
     setStep("config");
   };
@@ -670,7 +644,7 @@ function BeeEditor({ beeId, onDone }: { beeId?: string; onDone: (id?: string) =>
         title: "Com template",
         text: "Parte de um prompt pronto, como o de review. Você troca as partes marcadas pelo seu conteúdo.",
       },
-      { id: "free", title: "Sem template", text: "Você escreve o prompt da worker bee e escolhe quando ela roda." },
+      { id: "free", title: "Sem template", text: "Você escreve o prompt da worker bee. Quando ela roda, quem decide é um fluxo." },
       {
         id: "claude",
         title: "Com o Claude",
@@ -736,10 +710,6 @@ function BeeEditor({ beeId, onDone }: { beeId?: string; onDone: (id?: string) =>
     );
   }
 
-  const toggleDay = (d: number) =>
-    trigger.kind === "schedule" &&
-    setTrigger({ ...trigger, days: trigger.days.includes(d) ? trigger.days.filter((x) => x !== d) : [...trigger.days, d] });
-
   return (
     <Frame
       title={editing ? `Editar ${editing.name}` : "Configure a worker bee"}
@@ -771,7 +741,7 @@ function BeeEditor({ beeId, onDone }: { beeId?: string; onDone: (id?: string) =>
             Cancelar
           </button>
           <button className="primary" disabled={!ready} onClick={save}>
-            {editing ? "Salvar" : "Criar e ligar"}
+            {editing ? "Salvar" : "Criar"}
           </button>
         </>
       }
@@ -787,84 +757,17 @@ function BeeEditor({ beeId, onDone }: { beeId?: string; onDone: (id?: string) =>
             <span className="hint">Substitua os {"{{...}}"} pelo seu próprio conteúdo. A worker bee roda exatamente este texto.</span>
             <textarea className="bee-textarea bee-prompt" spellCheck={false} value={prompt} onChange={(e) => setPrompt(e.target.value)} />
             {unfilled && <span className="hint bee-warn">Ainda há partes {"{{...}}"} para substituir.</span>}
-            {follows && (
-              <span className="hint">
-                Escreva {"{{previous}}"} no prompt para receber o resumo da última execução da worker bee anterior.
-              </span>
-            )}
+            <span className="hint">
+              Num fluxo, o que chega do passo anterior vai depois do prompt, ou no lugar de {"{{previous}}"} se ele aparecer.
+            </span>
           </label>
         </div>
         <aside className="bee-config-side">
           <section className="bee-card">
-            <h4>Quando roda</h4>
-            <div className="chip-row">
-              <button className={`chip ${trigger.kind === "manual" ? "on" : ""}`} onClick={() => setTrigger({ kind: "manual" })}>
-                Só manual
-              </button>
-              <button
-                className={`chip ${trigger.kind === "interval" ? "on" : ""}`}
-                onClick={() => setTrigger({ kind: "interval", minutes: 60 })}
-              >
-                Intervalo
-              </button>
-              <button
-                className={`chip ${trigger.kind === "schedule" ? "on" : ""}`}
-                onClick={() => setTrigger({ kind: "schedule", days: WORKDAYS, time: "09:00" })}
-              >
-                Dias e horário
-              </button>
-              <button
-                className={`chip ${trigger.kind === "event" ? "on" : ""}`}
-                onClick={() => setTrigger({ kind: "event", event: { on: "stop" }, groupId: null, cooldown: 10 })}
-              >
-                Evento
-              </button>
-            </div>
-            {trigger.kind === "manual" && <p className="hint">Roda só quando você pedir.</p>}
-            {trigger.kind === "event" && <EventFields trigger={trigger} selfId={editing?.id} onChange={setTrigger} />}
-            {trigger.kind === "interval" && (
-              <select
-                className="bee-select"
-                value={trigger.minutes}
-                onChange={(e) => setTrigger({ kind: "interval", minutes: Number(e.target.value) })}
-              >
-                {INTERVALS.map((m) => (
-                  <option key={m} value={m}>
-                    {describeTrigger({ kind: "interval", minutes: m })}
-                  </option>
-                ))}
-              </select>
-            )}
-            {trigger.kind === "schedule" && (
-              <div className="chip-row">
-                {DAY_NAMES.map((d, i) => (
-                  <button key={d} className={`chip ${trigger.days.includes(i) ? "on" : ""}`} onClick={() => toggleDay(i)}>
-                    {d}
-                  </button>
-                ))}
-                <input
-                  type="time"
-                  className="bee-time"
-                  value={trigger.time}
-                  onChange={(e) => e.target.value && setTrigger({ ...trigger, time: e.target.value })}
-                />
-              </div>
-            )}
-            {(trigger.kind === "interval" || trigger.kind === "schedule") && (
-              <label className="bee-quota-row">
-                <span>Horário perdido com o app fechado</span>
-                <select className="bee-select" value={missed} onChange={(e) => setMissed(e.target.value as Bee["missed"])}>
-                  <option value="run">Roda ao abrir</option>
-                  <option value="skip">Pula</option>
-                </select>
-              </label>
-            )}
-          </section>
-          <section className="bee-card">
             <h4>Pasta</h4>
             <p className="hint">
-              A pasta vem de quem pede: você ao rodar, a sessão que disparou o evento ou a worker bee anterior. Por agenda ou
-              intervalo, roda numa pasta vazia, e o prompt diz onde trabalhar.
+              A pasta vem de quem roda: você, ao rodar à mão, ou o fluxo (a do nó, ou a da sessão que disparou o gatilho).
+              Sem pasta, roda numa vazia, e o prompt diz onde trabalhar.
             </p>
             <label className="check">
               <input type="checkbox" checked={worktree} onChange={(e) => setWorktree(e.target.checked)} />
@@ -927,7 +830,7 @@ function RuleChips({ rules, onChange }: { rules: string[]; onChange: (rules: str
   );
 }
 
-type EventTrigger = Extract<BeeTrigger, { kind: "event" }>;
+export type EventTrigger = Extract<BeeTrigger, { kind: "event" }>;
 
 /** A fresh event of each kind, for the event picker. */
 const EVENTS: BeeEvent[] = [
@@ -936,7 +839,7 @@ const EVENTS: BeeEvent[] = [
   { on: "tool", tool: "Bash", match: null },
   { on: "notification" },
   { on: "subagentStop" },
-  { on: "beeDone", beeId: "" },
+  { on: "flowDone", flowId: "" },
   { on: "usage", window: "session", percent: 80 },
   { on: "appOpen" },
 ];
@@ -946,10 +849,10 @@ const COOLDOWNS = [1, 5, 10, 30, 60, 240];
 const PERCENTS = [50, 60, 70, 80, 90, 95];
 
 /** Which event starts the bee, its filters, and the least time between runs. */
-function EventFields({ trigger, selfId, onChange }: { trigger: EventTrigger; selfId?: string; onChange: (t: BeeTrigger) => void }) {
+export function EventFields({ trigger, selfId, onChange }: { trigger: EventTrigger; selfId?: string; onChange: (t: BeeTrigger) => void }) {
   // Selectors return the stored arrays; a filtered copy per render would loop.
   const groups = useStore((s) => s.groups).filter((g) => g.id !== BEE_GROUP_ID);
-  const bees = useStore((s) => s.bees).filter((b) => b.id !== selfId);
+  const flows = useStore((s) => s.flows).filter((f) => f.id !== selfId && !f.wait);
   const e = trigger.event;
   const set = (event: BeeEvent) => onChange({ ...trigger, event });
   const fromSession = ["stop", "sessionEnd", "tool", "notification", "subagentStop"].includes(e.on);
@@ -963,7 +866,7 @@ function EventFields({ trigger, selfId, onChange }: { trigger: EventTrigger; sel
       >
         {EVENTS.map((x) => (
           <option key={x.on} value={x.on}>
-            {x.on === "tool" ? "Depois de usar uma ferramenta" : x.on === "beeDone" ? "Depois de outra worker bee" : x.on === "usage" ? "Quando o uso passa de um limite" : describeEvent(x)}
+            {x.on === "tool" ? "Depois de usar uma ferramenta" : x.on === "flowDone" ? "Depois de outro fluxo" : x.on === "usage" ? "Quando o uso passa de um limite" : describeEvent(x)}
           </option>
         ))}
       </select>
@@ -982,12 +885,12 @@ function EventFields({ trigger, selfId, onChange }: { trigger: EventTrigger; sel
           />
         </div>
       )}
-      {e.on === "beeDone" && (
-        <select className="bee-select" value={e.beeId} onChange={(ev) => set({ ...e, beeId: ev.target.value })}>
-          <option value="">Escolha a worker bee</option>
-          {bees.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name}
+      {e.on === "flowDone" && (
+        <select className="bee-select" value={e.flowId} onChange={(ev) => set({ ...e, flowId: ev.target.value })}>
+          <option value="">Escolha o fluxo</option>
+          {flows.map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.name}
             </option>
           ))}
         </select>
@@ -1030,7 +933,7 @@ function EventFields({ trigger, selfId, onChange }: { trigger: EventTrigger; sel
           ))}
         </select>
       </label>
-      <p className="hint">As abas das próprias worker bees nunca disparam eventos.</p>
+      <p className="hint">As abas das worker bees e dos fluxos nunca disparam eventos.</p>
     </div>
   );
 }

@@ -175,7 +175,7 @@ export type BeeTrigger =
    * limited to one group; `cooldown` is the least time, in minutes, between
    * two runs it starts.
    */
-  | { kind: "event"; event: BeeEvent; groupId: string | null; cooldown: number };
+  | { kind: "event"; event: BeeEvent; groupId: string | null; cooldown: number; tabId?: string | null };
 
 /** What starts an event bee: Claude Code hooks from the tabs, or the app itself. */
 export type BeeEvent =
@@ -189,8 +189,10 @@ export type BeeEvent =
   | { on: "notification" }
   /** A subagent finished (SubagentStop). */
   | { on: "subagentStop" }
-  /** Another bee finished a run. */
+  /** Another bee finished a run. Only in bees saved before flows, which migration turns into a link. */
   | { on: "beeDone"; beeId: string }
+  /** Another flow finished a run. */
+  | { on: "flowDone"; flowId: string }
   /** Usage of a window went past a percentage. */
   | { on: "usage"; window: "session" | "weekly"; percent: number }
   /** The app was opened. */
@@ -204,9 +206,9 @@ export interface Bee {
   instructions: string;
   /** The template it started from, if any. */
   templateId?: string;
-  trigger: BeeTrigger;
-  /** What a run missed while the app was closed does on launch. */
-  missed: "run" | "skip";
+  /** When it ran on its own, before flows took that over; read only to migrate. */
+  trigger?: BeeTrigger;
+  missed?: "run" | "skip";
   enabled: boolean;
   createdAt: number;
   /** Start of the last run, or of the last missed one skipped. */
@@ -221,9 +223,24 @@ export interface Bee {
   state?: string | null;
 }
 
+/** How an agent run is set up when no bee holds the settings: a flow's AI node. */
+export interface AgentSpec {
+  name: string;
+  agent: DroneAgent;
+  model: string | null;
+  permissionMode: string | null;
+  allowedTools: string[];
+}
+
 export interface BeeRun {
   id: string;
+  /** The bee it ran, or "" for a flow's AI node. */
   beeId: string;
+  /** Set when a flow started it, for one of its nodes. */
+  flowRunId?: string;
+  nodeId?: string;
+  /** The settings of an AI node's run. */
+  spec?: AgentSpec;
   /** The hidden tab while it runs. */
   tabId: string | null;
   sessionId: string | null;
@@ -244,6 +261,103 @@ export interface BeeRun {
   read?: boolean;
   /** The session's transcript, to show the run as a chat once it ended. */
   transcriptPath?: string | null;
+}
+
+/** What a flow's trigger starts on: a bee trigger, with a session filter for open waits. */
+export type FlowTrigger = BeeTrigger;
+
+/** Where a node's result goes when the flow ends there. */
+export type FlowOutput =
+  | { action: "notify" }
+  | { action: "session"; tabId: string | null }
+  | { action: "none" };
+
+/** The fields of each kind of node. */
+export type FlowNodeData =
+  | { kind: "trigger"; trigger: FlowTrigger; missed: "run" | "skip" }
+  | { kind: "instruction"; text: string }
+  | {
+      kind: "ai";
+      /** What the agent is told to do; what reaches the node follows it. */
+      prompt: string;
+      agent: DroneAgent;
+      model: string | null;
+      /** Null works in the folder the trigger brought, or the bees' empty one. */
+      dir: string | null;
+      worktree: boolean;
+      permissionMode: string | null;
+      allowedTools: string[];
+    }
+  | { kind: "bee"; beeId: string; dir: string | null }
+  | {
+      kind: "condition";
+      label: string;
+      mode: "text" | "ai";
+      op: "contains" | "notContains" | "startsWith";
+      value: string;
+      question: string;
+    }
+  | { kind: "approval"; question: string }
+  | ({ kind: "output" } & FlowOutput);
+
+export type FlowNodeKind = FlowNodeData["kind"];
+
+export type FlowNode = FlowNodeData & { id: string; x: number; y: number; locked?: boolean };
+
+/** "out" for nodes with one exit; a condition and an approval leave by "yes" or "no". */
+export type FlowPort = "out" | "yes" | "no";
+
+export interface FlowEdge {
+  id: string;
+  from: string;
+  port: FlowPort;
+  to: string;
+}
+
+/** Bees and agents wired on a canvas, started by its trigger node. */
+export interface Flow {
+  id: string;
+  name: string;
+  enabled: boolean;
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+  createdAt: number;
+  /** Start of the last run, or of the last missed one skipped. */
+  lastRunAt: number | null;
+  /** An open wait a session asked for: runs once, then goes away. */
+  wait?: { tabId: string; title: string };
+}
+
+export type FlowNodeStatus = "pending" | "running" | "waiting" | "done" | "skipped" | "error";
+
+export interface FlowNodeState {
+  status: FlowNodeStatus;
+  /** What the node passes on, or what went wrong. */
+  output?: string;
+  /** The exit a condition or approval took. */
+  port?: FlowPort;
+  /** The agent run behind an AI, bee or AI condition node. */
+  runId?: string;
+  startedAt?: number;
+  endedAt?: number;
+}
+
+export interface FlowRun {
+  id: string;
+  flowId: string;
+  /** Kept so a run still reads well after its flow is gone or renamed. */
+  flowName: string;
+  /** The graph as it was when the run started. */
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+  startedAt: number;
+  endedAt: number | null;
+  status: "running" | "done" | "error" | "cancelled";
+  /** The folder the trigger brought, where agent nodes without one work. */
+  cwd: string | null;
+  states: Record<string, FlowNodeState>;
+  /** Why it ended badly. */
+  error?: string;
 }
 
 export const UNGROUPED_NAME = "Sem grupo";
