@@ -5,6 +5,7 @@ import { sendMessage } from "./typing";
 import { notify } from "./notify";
 import { useAgentEntries } from "./agents";
 import { agentCommand, PROVIDER_NAMES } from "./providers";
+import { availableAgents } from "./availability";
 import type { ToolReply } from "./plugins";
 import { COLONY_GROUP_ID, type Colony, type ColonyMessage, type Drone, type DroneAgent, type Tab } from "./types";
 
@@ -71,7 +72,7 @@ Evidência: arquivo, comando ou link que comprova.
 
 ${common}
 
-Para montar a equipe, use create_drone, update_drone e remove_drone. Cada drone tem nome, função, descrição, instruções, agente (claude, codex ou opencode), modelo e permissões. Antes de criar, mudar ou remover um drone, mostre a proposta ao usuário e espere ele confirmar.
+Para montar a equipe, use create_drone, update_drone e remove_drone. Cada drone tem nome, função, descrição, instruções, agente (${availableAgents().join(", ")}), modelo e permissões. Antes de criar, mudar ou remover um drone, mostre a proposta ao usuário e espere ele confirmar.
 
 Quando as respostas dos drones chegarem, não comente cada uma. Fale com o usuário só quando o pedido dele estiver resolvido ou travado: o resultado em poucas linhas, começando pelo nome de quem fez cada parte. Se ainda falta resposta de alguém, responda só "Aguardando" seguido do nome de quem falta. Quando a evidência de um drone tiver o caminho de uma imagem, vídeo ou arquivo, repita o caminho absoluto na sua resposta para o usuário ver.
 ${drone.instructions ? `\nInstruções do usuário para você:\n${drone.instructions}\n` : ""}
@@ -354,6 +355,11 @@ function droneFields(args: Record<string, unknown>): Partial<Drone> | string {
   if ("instructions" in args) out.instructions = str(args.instructions);
   if ("agent" in args) {
     if (!AGENTS.includes(args.agent as DroneAgent)) return 'agent deve ser "claude", "codex" ou "opencode".';
+    // Only an agent that works on this computer and the user left on.
+    const usable = availableAgents();
+    if (!usable.includes(args.agent as DroneAgent)) {
+      return `${AGENT_NAMES[args.agent as DroneAgent]} não está disponível aqui. Use ${usable.map((a) => `"${a}"`).join(" ou ")}.`;
+    }
     out.agent = args.agent as DroneAgent;
   }
   if ("model" in args) out.model = str(args.model) || null;

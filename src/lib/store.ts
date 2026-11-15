@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { fileStorage } from "./persist";
-import { PROVIDER_NAMES } from "./providers";
+import { PROVIDER_NAMES, type Provider } from "./providers";
 import { markPendingFork, markPendingLaunch, markPendingPrompt, markPendingResume } from "./restored";
 import { sameRule } from "./permRules";
 import { mergeRateLimits } from "./rateLimits";
@@ -278,6 +278,10 @@ interface Store {
   errorReportsAsked: boolean;
   /** Whether the raw hook events tab is shown in the right panel. */
   showEvents: boolean;
+  /** Codex and OpenCode the user hid from the choices of agent. */
+  agentsOff: Provider[];
+  /** Codex and OpenCode found installed and signed in at the last check; null before the first. */
+  agentsFound: Provider[] | null;
   /** Whether the floating mini panel is shown. */
   miniPanel: boolean;
   /** Where the mini panel was last left, in logical pixels. */
@@ -416,6 +420,8 @@ interface Store {
   closePluginView: (pluginId: string) => void;
   setMiniPanel: (on: boolean) => void;
   setShowEvents: (on: boolean) => void;
+  setAgentOff: (agent: Provider, off: boolean) => void;
+  setAgentsFound: (found: Provider[]) => void;
   setErrorReportsAsked: (asked: boolean) => void;
   setMiniBounds: (b: MiniBounds) => void;
   setSplitMode: (m: SplitMode) => void;
@@ -534,6 +540,8 @@ export const useStore = create<Store>()(
       panelTabOrder: [],
       miniPanel: false,
       showEvents: false,
+      agentsOff: [],
+      agentsFound: null,
       errorReportsAsked: false,
       miniBounds: null,
       splitMode: "single",
@@ -1035,6 +1043,9 @@ export const useStore = create<Store>()(
       setMiniPanel: (miniPanel) => set({ miniPanel }),
       setTourOpen: (tourOpen) => set({ tourOpen, tourSeen: true }),
       setShowEvents: (showEvents) => set({ showEvents }),
+      setAgentOff: (agent, off) =>
+        set((s) => ({ agentsOff: off ? [...new Set([...s.agentsOff, agent])] : s.agentsOff.filter((a) => a !== agent) })),
+      setAgentsFound: (agentsFound) => set({ agentsFound }),
       setErrorReportsAsked: (errorReportsAsked) => set({ errorReportsAsked }),
       setMiniBounds: (miniBounds) => set({ miniBounds }),
       setSplitMode: (splitMode) =>
@@ -1183,6 +1194,8 @@ export const useStore = create<Store>()(
         updateChannel: s.updateChannel,
         miniPanel: s.miniPanel,
         showEvents: s.showEvents,
+        agentsOff: s.agentsOff,
+        agentsFound: s.agentsFound,
         errorReportsAsked: s.errorReportsAsked,
         miniBounds: s.miniBounds,
         sessionGroups: s.sessionGroups,

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useAgentChoices } from "../lib/availability";
 import { invoke } from "@tauri-apps/api/core";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { useStore } from "../lib/store";
@@ -311,8 +312,6 @@ function EditColony({ colonyId, onClose }: { colonyId: string; onClose: () => vo
   );
 }
 
-const AGENTS: DroneAgent[] = ["claude", "codex", "opencode"];
-
 function ModelField({ agent, value, onChange }: { agent: DroneAgent; value: string; onChange: (v: string) => void }) {
   return agent === "claude" ? (
     <select className="bee-select" value={value} onChange={(e) => onChange(e.target.value)}>
@@ -336,6 +335,7 @@ function EditDrone({ droneId, onClose }: { droneId: string; onClose: () => void 
   const [description, setDescription] = useState(drone?.description ?? "");
   const [instructions, setInstructions] = useState(drone?.instructions ?? "");
   const [agent, setAgent] = useState<DroneAgent>(drone?.agent ?? "claude");
+  const agents = useAgentChoices(drone?.agent);
   const [model, setModel] = useState(drone?.model ?? "");
   const [mode, setMode] = useState(drone?.permissionMode ?? "");
   if (!drone) return null;
@@ -396,7 +396,7 @@ function EditDrone({ droneId, onClose }: { droneId: string; onClose: () => void 
       <div className="field">
         <span>Agente e modelo</span>
         <div className="chip-row">
-          {AGENTS.map((a) => (
+          {agents.map((a) => (
             <button key={a} className={`chip ${agent === a ? "on" : ""}`} onClick={() => (setAgent(a), setModel(""))}>
               {AGENT_NAMES[a]}
             </button>
@@ -528,6 +528,7 @@ function NewColony() {
   const [cwd, setCwd] = useState("");
   const [queenName, setQueenName] = useState("");
   const [agent, setAgent] = useState<DroneAgent>("claude");
+  const agents = useAgentChoices();
   const [model, setModel] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -582,7 +583,7 @@ function NewColony() {
           <span>Queen Bee</span>
           <input value={queenName} onChange={(e) => setQueenName(e.target.value)} placeholder="Nome (vazio fica Queen)" />
           <div className="chip-row">
-            {AGENTS.map((a) => (
+            {agents.map((a) => (
               <button key={a} className={`chip ${agent === a ? "on" : ""}`} onClick={() => (setAgent(a), setModel(""))}>
                 {AGENT_NAMES[a]}
               </button>

@@ -102,7 +102,7 @@ impl Server {
                 std::thread::sleep(Duration::from_millis(50));
             }
         }
-        let _ = child.kill();
+        crate::process::kill_tree(&mut child);
         let _ = child.wait();
     }
 }

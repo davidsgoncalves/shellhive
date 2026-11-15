@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useAgentChoices } from "../lib/availability";
 import { useStore } from "../lib/store";
 import { describeTrigger, DAY_NAMES, openBeeRun, useBeeRuns } from "../lib/bees";
 import {
@@ -823,16 +824,15 @@ function TriggerFields({
   );
 }
 
-const AGENTS: DroneAgent[] = ["claude", "codex", "opencode"];
-
 function AiFields({ node, flow, onPatch }: { node: Extract<FlowNode, { kind: "ai" }>; flow?: Flow; onPatch: (patch: Partial<FlowNodeData>) => void }) {
   const [more, setMore] = useState(false);
+  const agents = useAgentChoices(node.agent);
   return (
     <div className="flow-fields">
       <textarea className="flow-text" placeholder="Diga ao agente o que fazer" value={node.prompt} onChange={(e) => onPatch({ prompt: e.target.value })} />
       <div className="flow-inline">
         <select className="bee-select" value={node.agent} onChange={(e) => onPatch({ agent: e.target.value as DroneAgent, model: null })}>
-          {AGENTS.map((a) => (
+          {agents.map((a) => (
             <option key={a} value={a}>
               {AGENT_NAMES[a]}
             </option>
