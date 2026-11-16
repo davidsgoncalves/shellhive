@@ -22,6 +22,7 @@ import {
   BEE_GROUP_ID,
   COLONY_GROUP_ID,
   type Colony,
+  type Topic,
   type ColonyMessage,
   type Drone,
   type Subagent,
@@ -121,6 +122,8 @@ export type Modal =
   | { kind: "searchAll" }
   | { kind: "groupLaunch"; groupId: string }
   | { kind: "pluginCreator" }
+  /** A new topic, attached to `tabId` when one is given. */
+  | { kind: "newTopic"; tabId?: string }
   /** `once` opens this session elsewhere without changing the group; `change` only sets the group's folder. */
   | { kind: "pickFolder"; groupId: string; open?: SessionKind; once?: boolean; change?: boolean };
 
@@ -212,6 +215,12 @@ interface Store {
   beeQuota: BeeQuota;
   setBeeQuota: (patch: Partial<BeeQuota>) => void;
   colonies: Colony[];
+  topics: Topic[];
+  addTopic: (topic: Topic) => void;
+  /** Archives a topic, or brings it back, taking it off every tab when archived. */
+  setTopicArchived: (id: string, archived: boolean) => void;
+  /** Attaches a topic to a tab, or takes it off. */
+  setTabTopic: (tabId: string, topicId: string, on: boolean) => void;
   drones: Drone[];
   colonyMessages: ColonyMessage[];
   colonyView: ColonyView;
@@ -495,6 +504,23 @@ export const useStore = create<Store>()(
       beeQuota: { session: null, weekly: null },
       setBeeQuota: (patch) => set((s) => ({ beeQuota: { ...s.beeQuota, ...patch } })),
       colonies: [],
+      topics: [],
+      addTopic: (topic) => set((s) => ({ topics: [...s.topics, topic] })),
+      setTopicArchived: (id, archived) =>
+        set((s) => ({
+          topics: s.topics.map((t) => (t.id === id ? { ...t, archived } : t)),
+          tabs: archived
+            ? s.tabs.map((t) => (t.topicIds?.includes(id) ? { ...t, topicIds: t.topicIds.filter((x) => x !== id) } : t))
+            : s.tabs,
+        })),
+      setTabTopic: (tabId, topicId, on) =>
+        set((s) => ({
+          tabs: s.tabs.map((t) => {
+            if (t.id !== tabId) return t;
+            const ids = (t.topicIds ?? []).filter((x) => x !== topicId);
+            return { ...t, topicIds: on ? [...ids, topicId] : ids };
+          }),
+        })),
       drones: [],
       colonyMessages: [],
       colonyView: null,
@@ -1183,6 +1209,7 @@ export const useStore = create<Store>()(
         beeQuota: s.beeQuota,
         beeMaxRunning: s.beeMaxRunning,
         colonies: s.colonies,
+        topics: s.topics,
         drones: s.drones,
         colonyMessages: s.colonyMessages,
         openColonies: s.openColonies,

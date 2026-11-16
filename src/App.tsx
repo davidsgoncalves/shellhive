@@ -30,6 +30,7 @@ import { CommandCard, typeCommand } from "./components/CommandCard";
 import { PermissionCard } from "./components/PermissionQueue";
 import { checkConnections } from "./lib/connections";
 import { callColonyTool, droneTurnEnded, startColony } from "./lib/colony";
+import { attachByName, startTopicSync } from "./lib/topics";
 import { callBeeRunTool, finishBeeRun, startBeeWatch, stopBeeRun, useBeeRuns } from "./lib/bees";
 import { callFlowTool, fireFlowEvent, happeningOf, startFlows } from "./lib/flows";
 import { FlowsMain } from "./components/Flows";
@@ -228,10 +229,14 @@ function useBackendBridge() {
     }).then((u) => unlisteners.push(u));
 
     // `:<name>` typed in a tab, stopped before Claude by the prompt hook.
-    listen<{ tab_id: string | null; name: string }>("prompt-command", (ev) => {
-      const { tab_id, name } = ev.payload;
+    listen<{ tab_id: string | null; name: string; args?: string }>("prompt-command", (ev) => {
+      const { tab_id, name, args } = ev.payload;
       if (!tab_id) return;
       if (name === "duplicate") duplicateSession(tab_id);
+      // `:topico Nome` attaches the topic; the terminal already shows the reply.
+      if (name === "topico" && args?.trim()) {
+        void attachByName(tab_id, args).catch((err) => reportError("topics", String(err)));
+      }
     }).then((u) => unlisteners.push(u));
 
     listen<CommandSuggestion>("command-suggestion", (ev) => {
@@ -707,7 +712,9 @@ function useWorkSetup() {
     const stopFlows = startFlows();
     const stopIntegrations = startIntegrations();
     const stopColony = startColony();
+    const stopTopics = startTopicSync();
     return () => {
+      stopTopics();
       stopBees();
       stopFlows();
       stopIntegrations();

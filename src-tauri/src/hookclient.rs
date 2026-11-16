@@ -29,9 +29,10 @@ pub fn run(kind: &str) -> i32 {
             }
         }
         "prompt" => {
-            // The app answers with a block when the prompt is a Shellhive command.
+            // The app answers with a block when the prompt is a Shellhive
+            // command, or with context about the tab's topics.
             if let Some(out) = post("/prompt", &tab, &input, QUICK) {
-                if out.contains("decision") {
+                if out.contains("decision") || out.contains("additionalContext") {
                     print!("{out}");
                 }
             }

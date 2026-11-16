@@ -1,4 +1,5 @@
 import { useState, type DragEvent } from "react";
+import { TopicMark } from "./Topics";
 import {
   closeButtonTitle,
   closeWithButton,
@@ -40,6 +41,7 @@ function StripTab({ tab, active }: { tab: Tab; active: boolean }) {
     >
       <span className="dot" />
       <span className="strip-title">{tab.title}</span>
+      <TopicMark tab={tab} />
       {isDetached && (
         <span className="detached-mark" title="Em outra janela">
           ↗

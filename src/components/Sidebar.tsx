@@ -1,4 +1,5 @@
 import { useState, type DragEvent } from "react";
+import { TopicMark } from "./Topics";
 import {
   closeButtonTitle,
   closeWithButton,
@@ -143,7 +144,10 @@ function TabRow({ tab, active }: { tab: Tab; active: boolean }) {
         </span>
       )}
       <span className="tab-main">
-        <InlineName value={tab.title} onCommit={(v) => renameTab(tab.id, v)} className="tab-title" />
+        <span className="tab-title-row">
+          <InlineName value={tab.title} onCommit={(v) => renameTab(tab.id, v)} className="tab-title" />
+          <TopicMark tab={tab} />
+        </span>
         {PLUGINS.filter((p) => p.TabLine && enabledPlugins.includes(p.manifest.id)).map((p) => {
           const Line = p.TabLine!;
           return <Line key={p.manifest.id} tab={tab} />;

@@ -93,7 +93,7 @@ fn same_secret(a: &[u8], b: &[u8]) -> bool {
 /// What SessionStart tells Claude about running inside this app.
 /// What Claude is told when a session starts: that it runs inside Shellhive,
 /// plus a sentence from each enabled plugin.
-fn session_context() -> serde_json::Value {
+fn session_context(tab_id: Option<&str>) -> serde_json::Value {
     let mut text = String::from(
         "Voce esta rodando dentro do Shellhive, um terminal com abas agrupadas feito para o Claude Code. \
          Ele expoe o servidor MCP 'shellhive'. Quando precisar que o usuario rode um comando de shell ele mesmo, \
@@ -108,6 +108,10 @@ fn session_context() -> serde_json::Value {
     for extra in crate::plugins::agent_context() {
         text.push(' ');
         text.push_str(&extra);
+    }
+    if let Some(topics) = crate::topics::session_start_context(tab_id) {
+        text.push_str("\n\n");
+        text.push_str(&topics);
     }
     serde_json::json!({
         "hookSpecificOutput": { "hookEventName": "SessionStart", "additionalContext": text }
@@ -134,16 +138,26 @@ const PROMPT_COMMANDS: &[&str] = &["duplicate"];
 /// The Shellhive command a prompt names. Only a prompt that is exactly
 /// `:<name>` for a known name counts, so text like `::Class` or `:foo bar`
 /// still reaches Claude untouched.
-fn prompt_command(payload: &serde_json::Value) -> Option<&'static str> {
+fn prompt_command(payload: &serde_json::Value) -> Option<(&'static str, String)> {
     let prompt = payload.get("prompt")?.as_str()?.trim();
-    let name = prompt.strip_prefix(':')?;
-    PROMPT_COMMANDS.iter().copied().find(|c| *c == name)
+    let line = prompt.strip_prefix(':')?;
+    if let Some(name) = PROMPT_COMMANDS.iter().copied().find(|c| *c == line) {
+        return Some((name, String::new()));
+    }
+    // `:topico [nome]` takes the rest of its one line as the topic's name.
+    let (word, rest) = line.split_once(' ').unwrap_or((line, ""));
+    if (word == "topico" || word == "tópico") && !rest.contains('\n') {
+        return Some(("topico", rest.trim().to_string()));
+    }
+    None
 }
 
 #[derive(Clone, serde::Serialize)]
 struct PromptCommand {
     tab_id: Option<String>,
     name: String,
+    /// What followed the command's name, for a command that takes it.
+    args: String,
 }
 
 fn now_millis() -> u128 {
@@ -479,17 +493,23 @@ fn handle(app: AppHandle, mut req: tiny_http::Request) {
     // A Shellhive command stops here: the app runs it and Claude never sees
     // the prompt, so it is not recorded as the start of a turn either.
     if url.starts_with("/prompt") {
-        if let Some(name) = prompt_command(&payload) {
+        if let Some((name, args)) = prompt_command(&payload) {
+            let reason = if name == "topico" {
+                crate::topics::command_reply(tab_id.as_deref(), &args)
+            } else {
+                format!("Shellhive: :{name}")
+            };
             let _ = app.emit(
                 "prompt-command",
                 PromptCommand {
                     tab_id,
                     name: name.to_string(),
+                    args,
                 },
             );
             let _ = req.respond(json_response(&serde_json::json!({
                 "decision": "block",
-                "reason": format!("Shellhive: :{name}"),
+                "reason": reason,
             })));
             return;
         }
@@ -497,6 +517,18 @@ fn handle(app: AppHandle, mut req: tiny_http::Request) {
 
     // SessionStart is also a hook event; its reply carries the session context.
     let session_start = url.starts_with("/session-start");
+    // Topics attached or detached since the session was last told go with the prompt.
+    let reply = if session_start {
+        Some(session_context(tab_id.as_deref()))
+    } else if url.starts_with("/prompt") {
+        crate::topics::prompt_context(tab_id.as_deref()).map(|text| {
+            serde_json::json!({
+                "hookSpecificOutput": { "hookEventName": "UserPromptSubmit", "additionalContext": text }
+            })
+        })
+    } else {
+        None
+    };
     let event = if url.starts_with("/statusline") {
         "statusline-event"
     } else {
@@ -527,10 +559,13 @@ fn handle(app: AppHandle, mut req: tiny_http::Request) {
             payload,
         },
     );
-    if session_start {
-        let _ = req.respond(json_response(&session_context()));
-    } else {
-        let _ = req.respond(Response::empty(204));
+    match reply {
+        Some(reply) => {
+            let _ = req.respond(json_response(&reply));
+        }
+        None => {
+            let _ = req.respond(Response::empty(204));
+        }
     }
 }
 
@@ -812,7 +847,7 @@ pub fn write_scripts() -> Result<HookSetup, String> {
              \x20 -H \"{TOKEN_HEADER}: $(cat {token_file} 2>/dev/null)\" \\\n\
              \x20 --data-binary @- \"http://127.0.0.1:{PORT}/prompt\" 2>/dev/null)\n\
              case \"$out\" in\n\
-             \x20 *decision*) printf '%s' \"$out\" ;;\n\
+             \x20 *decision*|*additionalContext*) printf '%s' \"$out\" ;;\n\
              esac\n\
              exit 0\n"
         ),
@@ -892,9 +927,17 @@ pub fn write_scripts() -> Result<HookSetup, String> {
         }]),
     );
 
+    // Sessions keep the topics attached to them; their folders need no prompt.
+    let mut allow = allowed_tools();
+    let mut extra_dirs = Vec::new();
+    if let Some((rules, dir)) = crate::topics::permissions() {
+        allow.extend(rules);
+        extra_dirs.push(dir);
+    }
     let settings = serde_json::json!({
         "permissions": {
-            "allow": allowed_tools()
+            "allow": allow,
+            "additionalDirectories": extra_dirs,
         },
         "hooks": hooks,
         "statusLine": {
@@ -997,7 +1040,21 @@ mod tests {
     use super::*;
 
     fn command_of(prompt: &str) -> Option<&'static str> {
-        prompt_command(&serde_json::json!({ "prompt": prompt }))
+        prompt_command(&serde_json::json!({ "prompt": prompt })).map(|(name, _)| name)
+    }
+
+    /// `:topico` takes a name on its line; other text after a command is not one.
+    #[test]
+    fn the_topic_command_takes_a_name() {
+        let args = |p: &str| prompt_command(&serde_json::json!({ "prompt": p }));
+        assert_eq!(args(":topico"), Some(("topico", String::new())));
+        assert_eq!(
+            args(":topico  Bug do login "),
+            Some(("topico", "Bug do login".into()))
+        );
+        assert_eq!(args(":tópico Deploy"), Some(("topico", "Deploy".into())));
+        assert_eq!(args(":topicos"), None);
+        assert_eq!(args(":topico a\nb"), None);
     }
 
     /// Only a prompt that is exactly `:<known name>` is taken from Claude.

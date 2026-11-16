@@ -12,6 +12,7 @@ import { startSession, useStore, type SettingsTab } from "../lib/store";
 import { CLAUDE_MODELS as MODELS, PROVIDER_NAMES, SESSION_KINDS, type Provider } from "../lib/providers";
 import { openPluginCreator } from "../lib/pluginCreator";
 import { ConnectionsTab } from "./WorkSettings";
+import { createTopic, topicByName } from "../lib/topics";
 import { checkConnections, useConnections } from "../lib/connections";
 import { agentOfKind, useAvailableAgents } from "../lib/availability";
 import { DEFAULT_FONT_SIZE, THEMES, type ThemeId } from "../lib/theme";
@@ -795,6 +796,71 @@ function IntegrationsTab() {
   );
 }
 
+/** Names a new topic; the agent of the tabs it is attached to fills it. */
+function NewTopicDialog({ tabId, onClose }: { tabId?: string; onClose: () => void }) {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const tabTitle = useStore((s) => s.tabs.find((t) => t.id === tabId)?.title);
+
+  const create = async () => {
+    if (!name.trim()) return setError("Dê um nome ao tópico.");
+    if (topicByName(name)) return setError("Já existe um tópico com esse nome.");
+    setBusy(true);
+    try {
+      await createTopic(name, description, tabId);
+      onClose();
+    } catch (err) {
+      setError(String(err));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal
+      title="Novo tópico"
+      onClose={onClose}
+      footer={
+        <>
+          <button className="ghost auto" onClick={onClose}>
+            Cancelar
+          </button>
+          <button className="primary" disabled={busy} onClick={() => void create()}>
+            {tabTitle ? "Criar e ligar" : "Criar tópico"}
+          </button>
+        </>
+      }
+    >
+      <p className="hint">
+        Um tópico guarda o que um assunto longo ensinou, fora do chat. O Claude das abas ligadas a ele lê o que precisa e vai salvando o
+        que importa; os arquivos são dele.
+        {tabTitle ? ` Ele já fica ligado a ${tabTitle}.` : ""}
+      </p>
+      <label className="field">
+        <span>Nome</span>
+        <input
+          autoFocus
+          placeholder="Migração do banco, bug do login…"
+          value={name}
+          onChange={(e) => (setName(e.target.value), setError(null))}
+          onKeyDown={(e) => e.key === "Enter" && void create()}
+        />
+      </label>
+      <label className="field">
+        <span>Do que se trata</span>
+        <textarea
+          rows={3}
+          placeholder="Opcional. Uma ou duas frases para o Claude saber o assunto."
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+        />
+      </label>
+      {error && <p className="error">{error}</p>}
+    </Modal>
+  );
+}
+
 function NewGroupDialog({ onClose }: { onClose: () => void }) {
   const addGroup = useStore((s) => s.addGroup);
   const recent = useRecentFolders();
@@ -1060,5 +1126,6 @@ export function Dialogs() {
   if (modal.kind === "searchAll") return <SearchAll onClose={close} />;
   if (modal.kind === "groupLaunch") return <GroupLaunchDialog groupId={modal.groupId} onClose={close} />;
   if (modal.kind === "pluginCreator") return <PluginCreatorDialog onClose={close} />;
+  if (modal.kind === "newTopic") return <NewTopicDialog tabId={modal.tabId} onClose={close} />;
   return <PickFolderDialog groupId={modal.groupId} kind={modal.open} once={modal.once} change={modal.change} onClose={close} />;
 }

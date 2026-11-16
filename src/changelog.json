@@ -1,5 +1,15 @@
 [
   {
+    "version": "3.0.0-alpha.8",
+    "date": "2026-11-16",
+    "items": [
+      "Tópicos: a memória de um assunto que dura dias, fora do chat. Ligue um tópico a uma aba e o Claude dela passa a cuidar dele: lê o que precisa e vai salvando o que importa (decisões, causas, o que funcionou e o que falhou, próximos passos). Se o chat se perder, outro chat ligado ao mesmo tópico continua de onde parou.",
+      "A conversa recebe só o resumo do tópico e a lista dos arquivos, e consulta o resto quando precisa, sem gastar contexto à toa. Os arquivos ficam na pasta do Shellhive e são do Claude, que escreve neles sem pedir permissão.",
+      "Para ligar: botão direito na aba › Tópicos, ou digite :topico Nome na conversa (cria o tópico se ele não existir). :topico sozinho mostra os ligados. A aba ganha uma marca e o chat mostra os nomes no topo.",
+      "Painel Tópicos na barra da esquerda: cria tópicos, mostra os chats e sessões ligados a cada um e arquiva os que acabaram."
+    ]
+  },
+  {
     "version": "3.0.0-alpha.7",
     "date": "2026-11-16",
     "items": [

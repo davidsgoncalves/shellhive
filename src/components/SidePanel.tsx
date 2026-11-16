@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { NewTopicButton, TopicsPanel } from "./Topics";
 import { useStore } from "../lib/store";
 import { PermissionQueue, useQueued } from "./PermissionQueue";
 import { PluginSidePanel } from "./LocalPluginPanel";
@@ -17,7 +18,7 @@ import { FlowsPanel, NewFlowButton } from "./Flows";
 import { useFlowApprovals } from "../lib/flows";
 import { PluginsPanel } from "./PluginsScreen";
 
-type PanelTab = "tabs" | "queue" | "sessions" | "bees" | "flows" | "colony" | "plugins" | "events" | `plugin:${string}` | `official:${string}`;
+type PanelTab = "tabs" | "queue" | "sessions" | "bees" | "flows" | "colony" | "topics" | "plugins" | "events" | `plugin:${string}` | `official:${string}`;
 
 /** Drag payload type for an icon of the rail. */
 const PANEL_TAB_DRAG = "application/x-panel-tab";
@@ -47,6 +48,7 @@ const ICONS = {
   bees: <RailIcon><path d="M12 3l7.5 4.5v9L12 21l-7.5-4.5v-9z" /><path d="M9 10.5h6M9 13.5h6" /></RailIcon>,
   flows: <RailIcon><rect x="3" y="9" width="6" height="6" rx="1.5" /><rect x="15" y="4" width="6" height="6" rx="1.5" /><rect x="15" y="14" width="6" height="6" rx="1.5" /><path d="M9 12h2.5c1 0 1.5-.5 1.5-1.5V8.5c0-1 .5-1.5 1.5-1.5H15M11.5 12h0c1 0 1.5.5 1.5 1.5v2c0 1 .5 1.5 1.5 1.5H15" /></RailIcon>,
   colony: <RailIcon><circle cx="12" cy="7" r="3" /><circle cx="6.5" cy="16" r="3" /><circle cx="17.5" cy="16" r="3" /><path d="M10.5 9.5l-2.5 4M13.5 9.5l2.5 4M9.5 16h5" /></RailIcon>,
+  topics: <RailIcon><path d="M6 3h12v18l-6-4-6 4z" /></RailIcon>,
   plugins: <RailIcon><path d="M9 4h6v4h-6zM5 8h14v12H5z" /><path d="M9 14h6" /></RailIcon>,
 };
 
@@ -99,6 +101,7 @@ export function SidePanel() {
     },
     { key: "flows", label: "Fluxos", icon: ICONS.flows },
     { key: "colony", label: "Colony", icon: ICONS.colony },
+    { key: "topics", label: "Tópicos", icon: ICONS.topics },
     { key: "plugins", label: "Plugins", icon: ICONS.plugins },
     // Raw hook traffic, only for diagnosing the app; switched on under Sobre.
     ...(showEvents ? [{ key: "events" as const, label: "Eventos", icon: ICONS.events }] : []),
@@ -200,6 +203,7 @@ export function SidePanel() {
             {current === "bees" && <NewBeeButton />}
             {current === "colony" && <NewColonyButton />}
             {current === "flows" && <NewFlowButton />}
+            {current === "topics" && <NewTopicButton />}
             <button className="icon-btn" title={`Recolher (${shortcutLabel("sidebar")})`} onClick={togglePanel}>
               «
             </button>
@@ -224,6 +228,11 @@ export function SidePanel() {
           {current === "flows" && (
             <div className="panel-body">
               <FlowsPanel />
+            </div>
+          )}
+          {current === "topics" && (
+            <div className="panel-body">
+              <TopicsPanel />
             </div>
           )}
           {current === "plugins" && <PluginsPanel />}

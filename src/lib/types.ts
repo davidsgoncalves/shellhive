@@ -24,6 +24,22 @@ export interface Tab {
   /** Session of that agent (a Codex thread, an OpenCode session), resumed when the tab wakes. */
   agentSessionId?: string;
   agentModel?: string;
+  /** Topics attached to the tab; its Claude keeps them. */
+  topicIds?: string[];
+}
+
+/**
+ * Memory of a subject that outlasts one chat. Its folder, in the app's data,
+ * belongs to the agent of the tabs it is attached to; the user only names it.
+ */
+export interface Topic {
+  /** Also the name of its folder. */
+  id: string;
+  name: string;
+  description: string;
+  createdAt: number;
+  /** Out of the lists and off every tab; its folder stays. */
+  archived?: boolean;
 }
 
 /** One line of a session's chat, from Claude's transcript or an agent's own reports. */

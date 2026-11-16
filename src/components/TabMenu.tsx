@@ -1,5 +1,6 @@
 import { setAgentView } from "../lib/agents";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { activeTopics, canHaveTopics } from "../lib/topics";
 import { duplicateSession, useStore } from "../lib/store";
 import { closeDetachedWindow } from "../lib/detach";
 import { runPluginTool } from "../lib/pluginEffects";
@@ -31,6 +32,13 @@ export function TabMenu() {
     groups,
   } = useStore();
   const ref = useRef<HTMLDivElement>(null);
+  const topics = useStore((s) => s.topics);
+  const setTabTopic = useStore((s) => s.setTabTopic);
+  const openModal = useStore((s) => s.openModal);
+  const [topicsOpen, setTopicsOpen] = useState(false);
+
+  // Each time the menu opens, the topics start folded.
+  useEffect(() => setTopicsOpen(false), [tabMenu]);
 
   useEffect(() => {
     if (!tabMenu) return;
@@ -167,6 +175,47 @@ export function TabMenu() {
         >
           {pinned.includes(tab.claudeSessionId) ? "Desafixar sessão" : "Fixar sessão"}
         </button>
+      )}
+      {canHaveTopics(tab) && (
+        <>
+          <button className="menu-item" aria-expanded={topicsOpen} onClick={() => setTopicsOpen(!topicsOpen)}>
+            Tópicos
+            <span className="muted">
+              {(tab.topicIds?.length ?? 0) > 0 ? `${tab.topicIds!.length} · ` : ""}
+              {topicsOpen ? "▾" : "›"}
+            </span>
+          </button>
+          {topicsOpen && (
+            <div className="menu-sub">
+              {activeTopics(topics).map((t) => {
+                const on = !!tab.topicIds?.includes(t.id);
+                return (
+                  <button
+                    key={t.id}
+                    className="menu-item menu-check"
+                    role="menuitemcheckbox"
+                    aria-checked={on}
+                    title={t.description || undefined}
+                    onClick={() => setTabTopic(tab.id, t.id, !on)}
+                  >
+                    <span className="menu-check-mark">{on ? "✓" : ""}</span>
+                    {t.name}
+                  </button>
+                );
+              })}
+              <button
+                className="menu-item"
+                onClick={() => {
+                  openModal({ kind: "newTopic", tabId: tab.id });
+                  openTabMenu(null);
+                }}
+              >
+                <span className="menu-check-mark">+</span>
+                Novo tópico…
+              </button>
+            </div>
+          )}
+        </>
       )}
       <div className="menu-sep" />
       {inPane && !isDetached && (

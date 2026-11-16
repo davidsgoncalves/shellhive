@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { TopicChips } from "./Topics";
 import { invoke } from "@tauri-apps/api/core";
 import { useStore } from "../lib/store";
 import { terminals } from "../lib/terminals";
@@ -340,6 +341,7 @@ export function ChatView({ tab, rect }: Props) {
           {drone?.queen && <span className="drone-queen">Queen Bee</span>}
           {drone && !drone.queen && drone.role && <span className="drone-head-role">{drone.role}</span>}
         </h2>
+        <TopicChips tab={tab} />
         {items.length === 0 && !isColonyTab(tab) && (
           <select
             className="chat-pick"

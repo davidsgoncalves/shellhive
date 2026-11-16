@@ -20,6 +20,7 @@ mod process;
 mod pty;
 mod sessions;
 mod tabprocs;
+mod topics;
 
 use tauri::{Emitter, Manager};
 
@@ -65,6 +66,8 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            topics::topic_create,
+            topics::topic_tabs,
             pty::pty_spawn,
             pty::pty_write,
             pty::pty_resize,

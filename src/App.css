@@ -2438,3 +2438,43 @@ button.link.danger { color: var(--danger); }
   border: 1px dashed var(--border); font-size: 12px; color: var(--fg); line-height: 1.4;
 }
 .flow-receives .hint { font-size: 11px; }
+
+/* Topics: a mark on tabs that keep one, names in a chat's header, and their panel */
+.tab-title-row { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.tab-title-row .tab-title { flex: 0 1 auto; }
+.topic-mark { display: inline-flex; align-items: center; gap: 1px; color: var(--accent); flex-shrink: 0; line-height: 1; }
+.topic-mark small { font-size: 9px; font-variant-numeric: tabular-nums; }
+.strip-tab .topic-mark { margin-left: -2px; }
+.topic-chips { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
+.topic-chip {
+  display: inline-flex; align-items: center; gap: 4px; max-width: 220px;
+  padding: 2px 7px; border-radius: 10px; font-size: 11px;
+  color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.menu-sub { display: flex; flex-direction: column; gap: 1px; padding-left: 6px; border-left: 1px solid var(--border); margin: 0 0 2px 10px; }
+.menu-item.menu-check { display: flex; align-items: center; }
+.menu-check-mark { display: inline-block; width: 14px; flex-shrink: 0; color: var(--accent); }
+.topics-panel { display: flex; flex-direction: column; gap: 12px; }
+.topics-empty { padding: 4px 2px; line-height: 1.5; }
+.topic-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.topic-item { border: 1px solid var(--border); border-radius: 7px; padding: 8px 10px; background: var(--panel); }
+.topic-item.archived { opacity: .7; }
+.topic-head { display: flex; align-items: center; gap: 6px; color: var(--accent); }
+.topic-head b { color: var(--fg); font-size: 13px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topic-head button.ghost { width: auto; padding: 2px 8px; font-size: 11px; }
+.topic-head button.danger { color: var(--danger); }
+.topic-confirm { display: flex; gap: 4px; }
+.topic-desc { margin: 4px 0 0; font-size: 12px; color: var(--muted); line-height: 1.4; }
+.topic-item .hint { margin: 6px 0 0; font-size: 11px; }
+.topic-tabs { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.topic-tab {
+  display: flex; align-items: center; gap: 7px; width: 100%; min-width: 0;
+  background: none; border: none; color: var(--fg); text-align: left; cursor: pointer;
+  padding: 4px 6px; border-radius: 5px; font-size: 12px;
+}
+.topic-tab:hover { background: var(--panel-2); }
+.topic-tab-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topic-tab .muted { margin-left: auto; flex-shrink: 0; font-size: 10px; color: var(--muted); }
+.topics-archived > button.ghost { width: auto; font-size: 11px; padding: 2px 6px; margin-bottom: 6px; }
