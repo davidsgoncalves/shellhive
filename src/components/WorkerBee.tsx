@@ -758,7 +758,7 @@ function BeeEditor({ beeId, onDone }: { beeId?: string; onDone: (id?: string) =>
             <textarea className="bee-textarea bee-prompt" spellCheck={false} value={prompt} onChange={(e) => setPrompt(e.target.value)} />
             {unfilled && <span className="hint bee-warn">Ainda há partes {"{{...}}"} para substituir.</span>}
             <span className="hint">
-              Num fluxo, o que chega do passo anterior vai depois do prompt, ou no lugar de {"{{previous}}"} se ele aparecer.
+              Num fluxo, o que chega do passo anterior vai depois do prompt, ou no lugar de {"{{entrada}}"} se ele aparecer.
             </span>
           </label>
         </div>

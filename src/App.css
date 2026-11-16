@@ -2427,3 +2427,14 @@ button.link.danger { color: var(--danger); }
   background: var(--panel); border: 1px solid var(--border); font-size: 12px; color: var(--muted); pointer-events: none; white-space: nowrap;
 }
 .flow-layer.gliding { transition: transform 180ms ease-out; }
+.flow-code {
+  display: block; font-family: var(--font-mono); font-size: 11px; line-height: 1.5; padding: 7px 9px; border-radius: 8px;
+  background: var(--panel-2); color: var(--fg); word-break: break-all; cursor: copy; user-select: text;
+}
+.token-field { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.token-field input { min-width: 220px; }
+.flow-receives {
+  display: flex; flex-direction: column; gap: 3px; padding: 7px 9px; border-radius: 8px;
+  border: 1px dashed var(--border); font-size: 12px; color: var(--fg); line-height: 1.4;
+}
+.flow-receives .hint { font-size: 11px; }

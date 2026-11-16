@@ -6,7 +6,7 @@ import { notify } from "./notify";
 import { useAgentEntries } from "./agents";
 import { agentCommand } from "./providers";
 import type { Check } from "./connections";
-import { BEE_GROUP_ID, type AgentSpec, type Bee, type BeeEvent, type BeeRun, type BeeTrigger, type DroneAgent, type RateWindow } from "./types";
+import { BEE_GROUP_ID, type AgentSpec, type Bee, type BeeEvent, type BeeRun, type BeeTrigger, type DroneAgent, type FlowTrigger, type GithubEvent, type RateWindow, type SlackEvent } from "./types";
 import { PLACEHOLDER } from "./beeTemplates";
 
 /** Runs kept per bee or per flow node, newest first. */
@@ -93,8 +93,9 @@ export const runningRun = (beeId: string) =>
 export const runOfTab = (tabId: string | null | undefined) =>
   tabId ? useBeeRuns.getState().runs.find((r) => r.tabId === tabId && r.status === "running") : undefined;
 
-/** Stands for what reached the bee in a flow, or nothing when run by hand. */
-export const PREVIOUS = /\{\{previous\}\}/g;
+/** Stands for what reached the bee in a flow, or nothing when run by hand; {{previous}} is the older name. */
+export const PREVIOUS = /\{\{(?:entrada|previous)\}\}/g;
+const HAS_INPUT = /\{\{(?:entrada|previous)\}\}/;
 
 /** True while the prompt holds {{...}} parts the user still has to fill in. */
 export function hasUnfilled(prompt: string): boolean {
@@ -111,9 +112,16 @@ Pendências: o que ficou para depois ou para o usuário, ou "nenhuma".`;
 
 /** A bee's prompt, given what reached it: {{previous}} takes it, or it follows the prompt. */
 export function beePrompt(bee: Bee, input: string): string {
+  return withInput(bee.instructions, input);
+}
+
+/** A prompt given what reached its node: {{entrada}} takes it, or it follows the prompt. */
+export function withInput(prompt: string, input: string): string {
+  const own = prompt.trim();
   const text = input.trim();
-  if (/\{\{previous\}\}/.test(bee.instructions)) return bee.instructions.replace(PREVIOUS, text || "(nada chegou)");
-  return text ? `${bee.instructions}\n\nO que chegou do passo anterior:\n${text}` : bee.instructions;
+  if (HAS_INPUT.test(own)) return own.replace(PREVIOUS, text || "(nada chegou)");
+  if (!own) return text;
+  return text ? `${own}\n\nO que chegou do passo anterior:\n${text}` : own;
 }
 
 /** How many ended runs the user has not opened. */
@@ -151,13 +159,35 @@ function drainQueue(): void {
 }
 
 /** How a trigger reads in the list. */
-export function describeTrigger(t: BeeTrigger): string {
+export function describeTrigger(t: BeeTrigger | FlowTrigger): string {
   if (t.kind === "manual") return "Só manual";
+  if (t.kind === "github") return `GitHub: ${GITHUB_EVENTS[t.event]}${t.repo ? ` em ${t.repo}` : ""}`;
+  if (t.kind === "jira") return t.preset && t.preset !== "custom" ? `Jira${t.project ? ` ${t.project}` : ""}: busca pronta` : t.jql.trim() ? `Jira: ${t.jql.trim()}` : "Jira: escreva a busca";
+  if (t.kind === "slack") {
+    const where = t.event === "channel" && t.channel ? ` #${t.channel.replace(/^#/, "")}` : t.event === "dm" && t.personName ? ` de ${t.personName}` : "";
+    return `Slack: ${SLACK_EVENTS[t.event]}${where}`;
+  }
+  if (t.kind === "webhook") return "Webhook local";
   if (t.kind === "event") return describeEvent(t.event);
   if (t.kind === "interval") return t.minutes % 60 === 0 ? `A cada ${t.minutes / 60}h` : `A cada ${t.minutes} min`;
   const days = t.days.length === 7 ? "Todo dia" : [...t.days].sort().map((d) => DAY_NAMES[d]).join(", ");
   return `${days} às ${t.time}`;
 }
+
+export const GITHUB_EVENTS: Record<GithubEvent, string> = {
+  pr_opened: "PR aberto",
+  review_requested: "revisão pedida para você",
+  ci_failed: "CI falhou",
+  ci_passed: "CI passou",
+  comment: "comentário novo",
+  issue_assigned: "issue atribuída a você",
+};
+
+export const SLACK_EVENTS: Record<SlackEvent, string> = {
+  mention: "menção a você",
+  channel: "mensagem no canal",
+  dm: "mensagem direta",
+};
 
 /** How an event trigger reads in the list. */
 export function describeEvent(e: BeeEvent): string {

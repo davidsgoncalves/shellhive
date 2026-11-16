@@ -10,6 +10,7 @@ mod git;
 mod hookclient;
 mod hooks;
 mod install;
+mod integrations;
 mod mcp;
 mod opencode;
 mod paths;
@@ -96,6 +97,11 @@ pub fn run() {
             bees::bee_runs_set,
             bees::flow_runs_get,
             bees::flow_runs_set,
+            integrations::integration_secret_set,
+            integrations::integration_secret_status,
+            integrations::integration_get,
+            integrations::keep_awake,
+            integrations::webhook_port,
             bees::bee_workdir,
             bees::bee_prepare_dir,
             bees::bee_command_run,

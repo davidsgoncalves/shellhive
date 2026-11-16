@@ -4,7 +4,7 @@ import { useStore } from "./store";
 import { notify } from "./notify";
 import { sendMessage } from "./typing";
 import { agentCommand } from "./providers";
-import { beePrompt, describeTrigger, onFlowRunEnded, quotaResetAt, runJob, stopBeeRun, unqueue, useBeeRuns, DAY_NAMES } from "./bees";
+import { beePrompt, withInput, describeTrigger, onFlowRunEnded, quotaResetAt, runJob, stopBeeRun, unqueue, useBeeRuns, DAY_NAMES } from "./bees";
 import { makeNode, NODE_GAP, NODE_W } from "./flowGraph";
 import type { BeeEvent, BeeRun, Flow, FlowNode, FlowNodeState, FlowRun, FlowTrigger, HookEvent, Tab } from "./types";
 
@@ -366,8 +366,7 @@ async function startNode(run: FlowRun, node: FlowNode, input: string): Promise<v
       return void done(text && input ? `${text}\n\n${input}` : text || input);
     }
     case "ai": {
-      const own = node.prompt.trim();
-      const prompt = own && input ? `${own}\n\nO que chegou do passo anterior:\n${input}` : own || input;
+      const prompt = withInput(node.prompt, input);
       if (!prompt.trim()) return failNode(run.id, node.id, "Diga ao agente o que fazer, ou ligue uma Instrução antes dele.");
       patchNode(run.id, node.id, { status: "running", startedAt: now });
       return runJob({

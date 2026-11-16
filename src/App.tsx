@@ -33,6 +33,7 @@ import { callColonyTool, droneTurnEnded, startColony } from "./lib/colony";
 import { callBeeRunTool, finishBeeRun, startBeeWatch, stopBeeRun, useBeeRuns } from "./lib/bees";
 import { callFlowTool, fireFlowEvent, happeningOf, startFlows } from "./lib/flows";
 import { FlowsMain } from "./components/Flows";
+import { startIntegrations } from "./lib/integrations";
 import { callBeeTool, syncBeeCreators } from "./lib/beeCreator";
 import { BeeMain, LIVE_RECT, useWatchedBeeTab } from "./components/WorkerBee";
 import { PluginsMain } from "./components/PluginsScreen";
@@ -740,10 +741,12 @@ function useWorkSetup() {
     syncBeeCreators();
     const stopBees = startBeeWatch();
     const stopFlows = startFlows();
+    const stopIntegrations = startIntegrations();
     const stopColony = startColony();
     return () => {
       stopBees();
       stopFlows();
+      stopIntegrations();
       stopColony();
     };
   }, []);
