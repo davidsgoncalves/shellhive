@@ -17,25 +17,25 @@ const KEEP: usize = 2000;
 pub struct AgentEvent {
     /// "tool", "turn-start" or "turn-end".
     #[serde(rename = "type")]
-    kind: String,
-    tab_id: Option<String>,
+    pub(crate) kind: String,
+    pub(crate) tab_id: Option<String>,
     /// Milliseconds since the epoch.
-    at: u64,
+    pub(crate) at: u64,
     /// Folder the agent was in.
     #[serde(skip_serializing_if = "Option::is_none")]
-    cwd: Option<String>,
+    pub(crate) cwd: Option<String>,
     /// For "tool": the tool's name, like Edit or Bash.
     #[serde(skip_serializing_if = "Option::is_none")]
-    tool: Option<String>,
+    pub(crate) tool: Option<String>,
     /// For "tool": "edit", "read", "command" or "other".
     #[serde(skip_serializing_if = "Option::is_none")]
-    action: Option<String>,
+    pub(crate) action: Option<String>,
     /// For "tool": absolute paths of the files it touched.
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    paths: Vec<String>,
+    pub(crate) paths: Vec<String>,
     /// For a command: the command line.
     #[serde(skip_serializing_if = "Option::is_none")]
-    command: Option<String>,
+    pub(crate) command: Option<String>,
 }
 
 static HISTORY: Mutex<VecDeque<AgentEvent>> = Mutex::new(VecDeque::new());
@@ -99,6 +99,7 @@ fn from_hook(tab_id: Option<String>, at: u64, payload: &serde_json::Value) -> Op
 /// Records a hook event and tells the interface, which hands it to the
 /// panels allowed to see it.
 pub fn record(app: &AppHandle, tab_id: Option<String>, at: u64, payload: &serde_json::Value) {
+    super::git::on_hook(app, tab_id.as_deref(), at, payload);
     let Some(event) = from_hook(tab_id, at, payload) else {
         return;
     };

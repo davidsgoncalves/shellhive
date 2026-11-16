@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../lib/store";
+import { tabHints } from "../lib/plugins";
 import { STATE_LABEL, isHiddenTab, type Tab } from "../lib/types";
 
 interface Entry {
@@ -7,7 +8,7 @@ interface Entry {
   groupName: string;
   color: string;
   folder: string;
-  branch: string | null;
+  hint: string | null;
   hidden: boolean;
   detached: boolean;
   haystack: string;
@@ -15,7 +16,7 @@ interface Entry {
 
 /** Cmd+P: find a tab by name, folder, branch or group and jump to it. */
 export function QuickSwitcher({ onClose }: { onClose: () => void }) {
-  const { tabs, groups, detached, gitByTab, activateTab, activeTabId } = useStore();
+  const { tabs, groups, detached, enabledPlugins, activateTab, activeTabId } = useStore();
   const [query, setQuery] = useState("");
   const [cursor, setCursor] = useState(0);
   const listRef = useRef<HTMLUListElement>(null);
@@ -25,19 +26,20 @@ export function QuickSwitcher({ onClose }: { onClose: () => void }) {
       tabs.filter((t) => !isHiddenTab(t)).map((tab) => {
         const group = groups.find((g) => g.id === tab.groupId);
         const folder = tab.cwd ?? "";
-        const branch = gitByTab[tab.id]?.branch ?? null;
+        const hints = tabHints(tab.id, enabledPlugins);
+        const hint = hints.length ? hints.join(" · ") : null;
         return {
           tab,
           groupName: group?.name ?? "",
           color: group?.color ?? "transparent",
           folder,
-          branch,
+          hint,
           hidden: !!group?.hidden,
           detached: detached.includes(tab.id),
-          haystack: [tab.title, folder, branch ?? "", group?.name ?? ""].join(" ").toLowerCase(),
+          haystack: [tab.title, folder, hint ?? "", group?.name ?? ""].join(" ").toLowerCase(),
         };
       }),
-    [tabs, groups, detached, gitByTab],
+    [tabs, groups, detached, enabledPlugins],
   );
 
   const results = useMemo(() => {
@@ -103,7 +105,7 @@ export function QuickSwitcher({ onClose }: { onClose: () => void }) {
                 <span className="switcher-main">
                   <span className="switcher-title">{e.tab.title}</span>
                   <span className="switcher-sub">
-                    {[e.groupName, e.folder.split("/").slice(-2).join("/"), e.branch && `⎇ ${e.branch}`]
+                    {[e.groupName, e.folder.split("/").slice(-2).join("/"), e.hint]
                       .filter(Boolean)
                       .join(" · ")}
                   </span>

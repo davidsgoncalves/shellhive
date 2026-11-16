@@ -87,7 +87,6 @@ import {
   type HookEvent,
   type HookSetup,
   type CommandSuggestion,
-  type GitInfo,
   type PermissionRequest,
   type QuestionItem,
   type StatusEnvelope,
@@ -427,41 +426,6 @@ function useDetachedWindows() {
   }, []);
 }
 
-const GIT_POLL_MS = 10_000;
-
-/** Keeps each live tab's branch and pending changes current. */
-function useGitPoll() {
-  useEffect(() => {
-    const refresh = (tabId: string) => {
-      const tab = useStore.getState().tabs.find((t) => t.id === tabId);
-      if (!tab?.cwd) return;
-      invoke<GitInfo | null>("git_info", { cwd: tab.cwd })
-        .then((info) => useStore.getState().setGitInfo(tabId, info))
-        .catch(() => {});
-    };
-    const timers = new Map<string, ReturnType<typeof setTimeout>>();
-    const soon = (tabId: string) => {
-      clearTimeout(timers.get(tabId));
-      timers.set(tabId, setTimeout(() => refresh(tabId), 1500));
-    };
-    const tick = () => {
-      for (const tab of useStore.getState().tabs) if (tab.state !== "dormant") refresh(tab.id);
-    };
-    tick();
-    const id = setInterval(tick, GIT_POLL_MS);
-    // A finished turn is when files most likely changed.
-    const sub = listen<HookEvent>("hook-event", (ev) => {
-      const name = ev.payload.payload.hook_event_name;
-      if (ev.payload.tab_id && (name === "Stop" || name === "PostToolUse")) soon(ev.payload.tab_id);
-    });
-    return () => {
-      clearInterval(id);
-      timers.forEach(clearTimeout);
-      void sub.then((u) => u());
-    };
-  }, []);
-}
-
 const MINI_THROTTLE_MS = 250;
 
 function miniRows(): MiniRow[] {
@@ -764,7 +728,6 @@ function App() {
   useCacheOnLoad();
   useShortcuts();
   useDetachedWindows();
-  useGitPoll();
   useMiniPanel();
   useLook();
   usePluginSync();

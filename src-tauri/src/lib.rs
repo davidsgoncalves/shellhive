@@ -6,7 +6,6 @@ mod connections;
 mod db;
 mod errors;
 mod files;
-mod git;
 mod hookclient;
 mod hooks;
 mod install;
@@ -91,7 +90,6 @@ pub fn run() {
             db::state_load,
             db::state_save,
             db::metrics_summary,
-            git::git_info,
             connections::connections_check,
             bees::bee_runs_get,
             bees::bee_runs_set,
@@ -134,6 +132,23 @@ pub fn run() {
             plugins::editor::editor_cancel,
             plugins::plugins_set_enabled,
             plugins::plugin_tool_result,
+            plugins::git::git_info,
+            plugins::git::git_tab_worktrees,
+            plugins::git::git_worktree_info,
+            plugins::git::git_refs,
+            plugins::git::git_diff,
+            plugins::git::git_apply,
+            plugins::git::git_files,
+            plugins::git::git_commit,
+            plugins::git::git_push,
+            plugins::git::git_conflict,
+            plugins::git::git_resolve,
+            plugins::git::git_worktree_add,
+            plugins::git::git_worktree_check,
+            plugins::git::git_worktree_remove,
+            plugins::git::git_turns,
+            plugins::git::git_undo_turn,
+            plugins::git::git_agent_lines,
             plugins::welcome::welcome_day,
             plugins::welcome::welcome_github,
             plugins::welcome_jira::welcome_jira,
