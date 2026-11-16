@@ -8,6 +8,7 @@ import { agentCommand, CLAUDE_MODELS, PROVIDER_NAMES, type Provider } from "../l
 import { Markdown } from "../lib/markdown";
 import { droneOfTab, parseLetter } from "../lib/colony";
 import { BeeAvatar } from "./BeeAvatar";
+import { useAvailableAgents } from "../lib/availability";
 import { ChatMedia, ColonyEvent, ErrorBubble, mediaIn, PermissionBubble, QuestionBubble, StepsLine, type Step } from "./ChatBits";
 import { isColonyTab, type ChatEntry as Entry, type Tab } from "../lib/types";
 
@@ -245,6 +246,7 @@ export function ChatView({ tab, rect }: Props) {
   const [draft, setDraft] = useState("");
   const [images, setImages] = useState<Attached[]>([]);
   const [switching, setSwitching] = useState(false);
+  const agents = useAvailableAgents();
   const fileRef = useRef<HTMLInputElement>(null);
   const patchTab = useStore((s) => s.patchTab);
   const agentModels = useAgentModels((s) => s.byTab[tab.id]);
@@ -350,7 +352,7 @@ export function ChatView({ tab, rect }: Props) {
             }}
           >
             <option value="claude">Claude</option>
-            {(Object.keys(PROVIDER_NAMES) as Provider[]).map((p) => (
+            {(Object.keys(PROVIDER_NAMES) as Provider[]).filter((p) => p === provider || agents.includes(p)).map((p) => (
               <option key={p} value={p}>
                 {PROVIDER_NAMES[p]}
               </option>

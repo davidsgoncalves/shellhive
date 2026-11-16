@@ -9,9 +9,11 @@ import { useUpdater } from "../lib/updater";
 import type { ReportsState } from "../lib/errors";
 import { shortcutLabel, withShortcuts } from "../lib/shortcuts";
 import { startSession, useStore, type SettingsTab } from "../lib/store";
-import { CLAUDE_MODELS as MODELS, SESSION_KINDS } from "../lib/providers";
+import { CLAUDE_MODELS as MODELS, PROVIDER_NAMES, SESSION_KINDS, type Provider } from "../lib/providers";
 import { openPluginCreator } from "../lib/pluginCreator";
 import { ConnectionsTab } from "./WorkSettings";
+import { checkConnections, useConnections } from "../lib/connections";
+import { agentOfKind, useAvailableAgents } from "../lib/availability";
 import { DEFAULT_FONT_SIZE, THEMES, type ThemeId } from "../lib/theme";
 import { Modal } from "./Modal";
 import { browseFolder, FolderList, useRecentFolders } from "./FolderFields";
@@ -90,6 +92,46 @@ function Toggle({ on, onChange, disabled }: { on: boolean; onChange: (on: boolea
       className={`toggle ${on ? "on" : ""}`}
       onClick={() => onChange(!on)}
     />
+  );
+}
+
+/**
+ * Which agents besides Claude appear as choices: each needs to work here (the
+ * check finds it installed and signed in) and to be left on by the user.
+ */
+function AgentsBlock() {
+  const checks = useConnections((c) => c.checks);
+  const checking = useConnections((c) => c.checking);
+  const agentsOff = useStore((s) => s.agentsOff);
+  const setAgentOff = useStore((s) => s.setAgentOff);
+  useEffect(() => {
+    if (!checks) void checkConnections();
+  }, [checks]);
+  return (
+    <Block title="Agentes">
+      <Row label="Claude" hint="Sempre disponível" />
+      {(Object.keys(PROVIDER_NAMES) as Provider[]).map((p) => {
+        const check = checks?.find((c) => c.id === p);
+        const works = !!check?.ok;
+        const hint = !check
+          ? "Conferindo…"
+          : works
+            ? agentsOff.includes(p)
+              ? `${check.detail} Escondido das opções.`
+              : check.detail
+            : `${check.detail}${check.fix ? ` Para usar: ${check.fix}` : ""} Não aparece nas opções.`;
+        return (
+          <Row key={p} label={PROVIDER_NAMES[p]} hint={hint}>
+            <Toggle on={works && !agentsOff.includes(p)} disabled={!works} onChange={(on) => setAgentOff(p, !on)} />
+          </Row>
+        );
+      })}
+      <Row label="Conferir de novo" hint="Depois de instalar ou fazer login num agente">
+        <button className="ghost" disabled={checking} onClick={() => void checkConnections()}>
+          {checking ? "Conferindo…" : "Conferir"}
+        </button>
+      </Row>
+    </Block>
   );
 }
 
@@ -537,6 +579,8 @@ function SettingsDialog({ initialTab, onClose }: { initialTab?: SettingsTab; onC
       )}
 
       {tab === "sessoes" && (
+        <>
+        <AgentsBlock />
         <Block title="Lista de sessões">
           <Row label="Posição">
             <Seg
@@ -575,6 +619,7 @@ function SettingsDialog({ initialTab, onClose }: { initialTab?: SettingsTab; onC
             </select>
           </Row>
         </Block>
+        </>
       )}
 
       {tab === "avisos" && (
@@ -821,6 +866,8 @@ function GroupLaunchDialog({ groupId, onClose }: { groupId: string; onClose: () 
   const { groups, setGroupLaunch } = useStore();
   const group = groups.find((g) => g.id === groupId);
   const [openAs, setOpenAs] = useState<SessionKind>(group?.launch?.open ?? "terminal");
+  const agents = useAvailableAgents();
+  const kinds = SESSION_KINDS.filter(([kind]) => kind === openAs || !agentOfKind(kind) || agents.includes(agentOfKind(kind)!));
   const [model, setModel] = useState(group?.launch?.model ?? "");
   const [mode, setMode] = useState(group?.launch?.permissionMode ?? "");
   const [prompt, setPrompt] = useState(group?.launch?.prompt ?? "");
@@ -857,7 +904,7 @@ function GroupLaunchDialog({ groupId, onClose }: { groupId: string; onClose: () 
       <label className="field">
         <span>Abrir como</span>
         <select className="bee-select" value={openAs} onChange={(e) => setOpenAs(e.target.value as SessionKind)}>
-          {SESSION_KINDS.map(([value, label]) => (
+          {kinds.map(([value, label]) => (
             <option key={value} value={value}>
               {label}
             </option>

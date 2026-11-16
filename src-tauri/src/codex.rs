@@ -522,7 +522,7 @@ fn start(
 ) -> Result<StartInfo, String> {
     let state = app.state::<CodexSessions>();
     if let Some(old) = state.0.lock().unwrap().remove(&tab_id) {
-        let _ = old.child.lock().unwrap().kill();
+        crate::process::kill_tree(&mut old.child.lock().unwrap());
     }
     // With the user's shell PATH: an app opened from the Dock misses Homebrew.
     let mut child = crate::connections::tool("codex")
@@ -556,7 +556,7 @@ fn start(
     }
 
     let fail = |e: String| {
-        let _ = s.child.lock().unwrap().kill();
+        crate::process::kill_tree(&mut s.child.lock().unwrap());
         e
     };
     s.request(
@@ -704,7 +704,7 @@ pub async fn codex_interrupt(app: AppHandle, tab_id: String) -> Result<(), Strin
 #[tauri::command]
 pub fn codex_stop(state: tauri::State<CodexSessions>, tab_id: String) {
     if let Some(s) = state.0.lock().unwrap().remove(&tab_id) {
-        let _ = s.child.lock().unwrap().kill();
+        crate::process::kill_tree(&mut s.child.lock().unwrap());
     }
 }
 

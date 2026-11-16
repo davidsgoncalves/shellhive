@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import { useStore } from "./store";
+import type { Provider } from "./providers";
 
 export interface Check {
   id: string;
@@ -38,7 +39,11 @@ export async function checkConnections(): Promise<void> {
   const mcp = invoke<McpServer[]>("mcp_status")
     .then((list) => useConnections.setState({ mcp: list, mcpError: null }))
     .catch((err) => useConnections.setState({ mcp: null, mcpError: String(err) }));
-  const checks = invoke<Check[]>("connections_check").then((list) => useConnections.setState({ checks: list }));
+  const checks = invoke<Check[]>("connections_check").then((list) => {
+    useConnections.setState({ checks: list });
+    // Codex and OpenCode are offered as choices only while they work.
+    useStore.getState().setAgentsFound(list.filter((c) => c.ok && (c.id === "codex" || c.id === "opencode")).map((c) => c.id as Provider));
+  });
   await Promise.allSettled([mcp, checks]);
   useConnections.setState({ checking: false });
 }

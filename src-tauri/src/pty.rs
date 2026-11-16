@@ -284,6 +284,13 @@ fn launch_line() -> Option<String> {
 /// settings and a per-tab MCP config. On Unix it points at the shim; on
 /// Windows it is a PowerShell function doing the same thing, since there is
 /// no shim script to run there.
+///
+/// On Windows the function skips npm's `claude.cmd` for the program it wraps:
+/// cmd.exe cuts an argument at its first line break, which dropped every line
+/// of a first prompt after the first one, and the flags after it, so the
+/// session ran without the app's hooks. The command line is quoted here and
+/// passed with `--%`, because Windows PowerShell drops the quotes inside an
+/// argument it hands to a program.
 fn claude_function() -> Option<String> {
     #[cfg(windows)]
     {
@@ -300,8 +307,16 @@ fn claude_function() -> Option<String> {
              '{{\"mcpServers\":{{\"shellhive\":{{\"type\":\"http\",\"url\":\"http://127.0.0.1:{port}/mcp\",\"headers\":{{\"X-Tab-Id\":\"' + $t + '\",\"{token_header}\":\"' + $k + '\"}}}}}}}}' | Set-Content -Encoding ascii $m; \
              $real = (Get-Command claude -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1).Source; \
              if (-not $real) {{ Write-Error 'claude nao encontrado no PATH'; return }}; \
+             $pre = @(); \
+             if ($real -match '\\.(cmd|bat)$') {{ \
+             $pkg = Join-Path (Split-Path $real) 'node_modules\\@anthropic-ai\\claude-code'; \
+             $exe = Join-Path $pkg 'bin\\claude.exe'; $js = Join-Path $pkg 'cli.js'; \
+             if (Test-Path $exe) {{ $real = $exe }} \
+             elseif (Test-Path $js) {{ $pre = @($js); $real = (Get-Command node -CommandType Application | Select-Object -First 1).Source }} }}; \
              $s = if ($env:SHELLHIVE_SETTINGS) {{ $env:SHELLHIVE_SETTINGS }} else {{ '{settings}' }}; \
-             & $real @args --settings $s --mcp-config $m }}; Clear-Host\r"
+             $env:SHELLHIVE_ARGS = (@($pre + $args + @('--settings', $s, '--mcp-config', $m)) | \
+             ForEach-Object {{ '\"' + ((\"$_\" -replace '(\\\\*)\"', '$1$1\\\"') -replace '(\\\\+)$', '$1$1') + '\"' }}) -join ' '; \
+             . ([scriptblock]::Create('& $real --% %SHELLHIVE_ARGS%')) }}; Clear-Host\r"
         ))
     }
     #[cfg(not(windows))]

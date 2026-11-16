@@ -27,7 +27,25 @@ fn shell_path() -> Option<&'static str> {
     .as_deref()
 }
 
+/// Where a program named without extension lives on Windows. A bare name only
+/// finds an .exe there, and npm installs `codex` and `opencode` as .cmd files.
+#[cfg(windows)]
+fn resolve(program: &str) -> std::path::PathBuf {
+    let path = std::env::var_os("PATH").unwrap_or_default();
+    for dir in std::env::split_paths(&path) {
+        for ext in ["exe", "cmd", "bat", "com"] {
+            let file = dir.join(format!("{program}.{ext}"));
+            if file.is_file() {
+                return file;
+            }
+        }
+    }
+    program.into()
+}
+
 pub(crate) fn tool(program: &str) -> Command {
+    #[cfg(windows)]
+    let program = resolve(program);
     let mut cmd = crate::process::background(program);
     if let Some(path) = shell_path() {
         cmd.env("PATH", path);
@@ -104,12 +122,60 @@ fn check_gh() -> Check {
     check(true, format!("Logado como {account}."), None)
 }
 
-/// Claude Code and the GitHub CLI, each installed and signed in.
+fn check_codex() -> Check {
+    let check = |ok, detail: &str, fix: Option<&str>| Check {
+        id: "codex",
+        label: "Codex",
+        ok,
+        detail: detail.to_string(),
+        fix: fix.map(str::to_string),
+    };
+    let Some((ok, out)) = run("codex", &["login", "status"]) else {
+        return check(
+            false,
+            "Não encontrado no PATH.",
+            Some("npm install -g @openai/codex"),
+        );
+    };
+    if ok {
+        let line = out.lines().map(str::trim).find(|l| !l.is_empty());
+        check(true, line.unwrap_or("Logado."), None)
+    } else {
+        check(false, "Não está logado.", Some("codex login"))
+    }
+}
+
+fn check_opencode() -> Check {
+    let check = |ok, detail: String, fix: Option<&str>| Check {
+        id: "opencode",
+        label: "OpenCode",
+        ok,
+        detail,
+        fix: fix.map(str::to_string),
+    };
+    match run("opencode", &["--version"]) {
+        Some((true, out)) => check(true, format!("Instalado ({}).", out.trim()), None),
+        Some((false, _)) => check(
+            false,
+            "Instalado, mas não abre.".into(),
+            Some("npm install -g opencode-ai"),
+        ),
+        None => check(
+            false,
+            "Não encontrado no PATH.".into(),
+            Some("npm install -g opencode-ai"),
+        ),
+    }
+}
+
+/// Claude Code, the GitHub CLI, Codex and OpenCode, each installed and signed in.
 #[tauri::command]
 pub async fn connections_check() -> Vec<Check> {
-    tauri::async_runtime::spawn_blocking(|| vec![check_claude(), check_gh()])
-        .await
-        .unwrap_or_default()
+    tauri::async_runtime::spawn_blocking(|| {
+        vec![check_claude(), check_gh(), check_codex(), check_opencode()]
+    })
+    .await
+    .unwrap_or_default()
 }
 
 #[derive(serde::Serialize, Debug, PartialEq)]

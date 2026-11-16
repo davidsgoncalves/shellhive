@@ -1,12 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { openSessionInGroup, useStore } from "../lib/store";
 import type { SessionKind } from "../lib/types";
+import { useAvailableAgents } from "../lib/availability";
 import { ClaudeMark, CodexMark, OpencodeMark, TerminalMark } from "./ProviderMarks";
 
 type Agent = "claude" | "codex" | "opencode";
 type Style = "chat" | "terminal";
 
-const AGENTS: { id: Agent; name: string; mark: () => React.ReactNode }[] = [
+const ALL_AGENTS: { id: Agent; name: string; mark: () => React.ReactNode }[] = [
   { id: "claude", name: "Claude", mark: ClaudeMark },
   { id: "codex", name: "Codex", mark: CodexMark },
   { id: "opencode", name: "OpenCode", mark: OpencodeMark },
@@ -19,7 +20,7 @@ const KINDS: Record<Agent, Record<Style, SessionKind>> = {
 };
 
 function split(kind: SessionKind): [Agent, Style] | null {
-  for (const agent of AGENTS) {
+  for (const agent of ALL_AGENTS) {
     if (KINDS[agent.id].chat === kind) return [agent.id, "chat"];
     if (KINDS[agent.id].terminal === kind) return [agent.id, "terminal"];
   }
@@ -59,6 +60,9 @@ export function NewSessionMenu() {
   const [cursor, setCursor] = useState(0);
   const steps = useRef<(HTMLDivElement | null)[]>([]);
   const [height, setHeight] = useState<number>();
+  // Only the agents that work here and were not hidden in the settings.
+  const available = useAvailableAgents();
+  const AGENTS = ALL_AGENTS.filter((a) => available.includes(a.id));
 
   const preferred = group?.launch?.open ?? "terminal";
   const preferredSplit = split(preferred);

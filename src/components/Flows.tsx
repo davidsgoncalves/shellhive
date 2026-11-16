@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useAgentChoices } from "../lib/availability";
 import { useStore } from "../lib/store";
 import { describeTrigger, DAY_NAMES, GITHUB_EVENTS, openBeeRun, SLACK_EVENTS, useBeeRuns } from "../lib/bees";
 import { githubRepos, JIRA_PRESETS, jiraQuery, pollNow, slackChannels, slackPeople, useTriggerErrors } from "../lib/integrations";
@@ -1120,18 +1121,16 @@ function Receives({ flow, node, prompt }: { flow?: Flow; node: FlowNode; prompt:
     </div>
   );
 }
-
-const AGENTS: DroneAgent[] = ["claude", "codex", "opencode"];
-
 function AiFields({ node, flow, onPatch }: { node: Extract<FlowNode, { kind: "ai" }>; flow?: Flow; onPatch: (patch: Partial<FlowNodeData>) => void }) {
   const [more, setMore] = useState(false);
+  const agents = useAgentChoices(node.agent);
   return (
     <div className="flow-fields">
       <textarea className="flow-text" placeholder="Diga ao agente o que fazer" value={node.prompt} onChange={(e) => onPatch({ prompt: e.target.value })} />
       <Receives flow={flow} node={node} prompt={node.prompt} />
       <div className="flow-inline">
         <select className="bee-select" value={node.agent} onChange={(e) => onPatch({ agent: e.target.value as DroneAgent, model: null })}>
-          {AGENTS.map((a) => (
+          {agents.map((a) => (
             <option key={a} value={a}>
               {AGENT_NAMES[a]}
             </option>

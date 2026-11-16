@@ -1,7 +1,7 @@
 [
   {
-    "version": "3.0.0-alpha.4",
-    "date": "2026-11-13",
+    "version": "3.0.0-alpha.6",
+    "date": "2026-11-16",
     "items": [
       "Gatilhos do GitHub para os fluxos: PR aberto (por você ou por qualquer pessoa), revisão pedida para você, CI que falhou ou passou, comentário novo e issue atribuída. O repositório sai de uma lista com os seus.",
       "Gatilho do Jira: dispara quando uma issue entra numa busca. Há buscas prontas, como atribuídas a mim ou prioridade alta, com filtro por projeto, ou a sua própria JQL.",
@@ -11,6 +11,22 @@
       "Opção para não deixar o computador dormir enquanto um fluxo ativo espera um horário ou um serviço, no macOS, no Windows e no Linux.",
       "Os nós de IA e de abelha mostram o que recebem de cada ligação, e {{entrada}} no prompt coloca esse texto onde você quiser.",
       "Excluir um fluxo voltou a pedir confirmação, em vez de não fazer nada."
+    ]
+  },
+  {
+    "version": "3.0.0-alpha.5",
+    "date": "2026-11-16",
+    "items": [
+      "Só aparecem como opção os agentes que funcionam no seu computador: o Codex precisa estar instalado e logado, e o OpenCode, instalado. Vale para o menu +, a troca de agente no chat, o \"Abrir como\" do grupo, a colônia e os fluxos.",
+      "Em Configurações › Sessões, o bloco Agentes mostra o estado do Codex e do OpenCode e tem uma chave para esconder cada um das opções.",
+      "No Windows, o Codex e o OpenCode instalados pelo npm voltam a abrir, e o servidor deles para quando a aba fecha."
+    ]
+  },
+  {
+    "version": "3.0.0-alpha.4",
+    "date": "2026-11-14",
+    "items": [
+      "No Windows, a colônia volta a funcionar: a Rainha e os zangões abriam o Claude sem as configurações do app e ficavam parados em \"Abrindo o Claude…\". O mesmo valia para qualquer aba aberta com um primeiro pedido de mais de uma linha, como as abelhas operárias."
     ]
   },
   {

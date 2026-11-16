@@ -15,3 +15,15 @@ pub fn background(program: impl AsRef<OsStr>) -> Command {
     }
     cmd
 }
+
+/// Kills a program with the processes it started. On Windows a program npm
+/// installed runs under cmd.exe, and killing only that would leave it running.
+pub fn kill_tree(child: &mut std::process::Child) {
+    #[cfg(windows)]
+    {
+        let _ = background("taskkill")
+            .args(["/T", "/F", "/PID", &child.id().to_string()])
+            .status();
+    }
+    let _ = child.kill();
+}
