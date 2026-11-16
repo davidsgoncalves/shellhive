@@ -1,5 +1,12 @@
 [
   {
+    "version": "3.0.0-alpha.9",
+    "date": "2026-11-16",
+    "items": [
+      "Uma sessão reaberta pelo Histórico, ou uma aba fechada reaberta, volta com os tópicos que tinha."
+    ]
+  },
+  {
     "version": "3.0.0-alpha.8",
     "date": "2026-11-16",
     "items": [

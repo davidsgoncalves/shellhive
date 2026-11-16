@@ -216,6 +216,9 @@ interface Store {
   setBeeQuota: (patch: Partial<BeeQuota>) => void;
   colonies: Colony[];
   topics: Topic[];
+  /** The topics each session had, by its id, so it gets them back when reopened. */
+  sessionTopics: Record<string, string[]>;
+  setSessionTopics: (sessionId: string, topicIds: string[]) => void;
   addTopic: (topic: Topic) => void;
   /** Archives a topic, or brings it back, taking it off every tab when archived. */
   setTopicArchived: (id: string, archived: boolean) => void;
@@ -505,6 +508,8 @@ export const useStore = create<Store>()(
       setBeeQuota: (patch) => set((s) => ({ beeQuota: { ...s.beeQuota, ...patch } })),
       colonies: [],
       topics: [],
+      sessionTopics: {},
+      setSessionTopics: (sessionId, topicIds) => set((s) => ({ sessionTopics: { ...s.sessionTopics, [sessionId]: topicIds } })),
       addTopic: (topic) => set((s) => ({ topics: [...s.topics, topic] })),
       setTopicArchived: (id, archived) =>
         set((s) => ({
@@ -1210,6 +1215,7 @@ export const useStore = create<Store>()(
         beeMaxRunning: s.beeMaxRunning,
         colonies: s.colonies,
         topics: s.topics,
+        sessionTopics: s.sessionTopics,
         drones: s.drones,
         colonyMessages: s.colonyMessages,
         openColonies: s.openColonies,

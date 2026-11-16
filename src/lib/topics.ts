@@ -44,6 +44,28 @@ export function topicsOf(tab: Tab, topics: Topic[]): Topic[] {
   return (tab.topicIds ?? []).map((id) => topics.find((t) => t.id === id && !t.archived)).filter((t): t is Topic => !!t);
 }
 
+const sessionOf = (tab: Tab) => (tab.provider ? tab.agentSessionId : tab.claudeSessionId) ?? null;
+
+/**
+ * Remembers the topics of each tab's session, and gives them back to a tab
+ * that opens that session again (from the history, or reopening a closed
+ * tab). A tab whose topics were all taken off on purpose has an empty list,
+ * not none, and gets nothing back.
+ */
+function rememberSessionTopics(): void {
+  const s = useStore.getState();
+  for (const tab of s.tabs) {
+    const session = sessionOf(tab);
+    if (!session || !canHaveTopics(tab)) continue;
+    const saved = s.sessionTopics[session];
+    if (tab.topicIds === undefined) {
+      if (saved?.length) s.patchTab(tab.id, { topicIds: saved });
+    } else if (JSON.stringify(saved ?? []) !== JSON.stringify(tab.topicIds)) {
+      s.setSessionTopics(session, tab.topicIds);
+    }
+  }
+}
+
 /**
  * Keeps the backend told which topics each tab has, with the other tabs that
  * keep each one: it hands them to the tab's Claude through its hooks.
@@ -51,6 +73,7 @@ export function topicsOf(tab: Tab, topics: Topic[]): Topic[] {
 export function startTopicSync(): () => void {
   let last = "";
   const sync = () => {
+    rememberSessionTopics();
     const { tabs, topics } = useStore.getState();
     const map: Record<string, { id: string; name: string; description: string; others: string[] }[]> = {};
     for (const tab of tabs) {
