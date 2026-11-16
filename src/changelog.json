@@ -1,5 +1,14 @@
 [
   {
+    "version": "3.0.0-alpha.5",
+    "date": "2026-11-16",
+    "items": [
+      "Só aparecem como opção os agentes que funcionam no seu computador: o Codex precisa estar instalado e logado, e o OpenCode, instalado. Vale para o menu +, a troca de agente no chat, o \"Abrir como\" do grupo, a colônia e os fluxos.",
+      "Em Configurações › Sessões, o bloco Agentes mostra o estado do Codex e do OpenCode e tem uma chave para esconder cada um das opções.",
+      "No Windows, o Codex e o OpenCode instalados pelo npm voltam a abrir, e o servidor deles para quando a aba fecha."
+    ]
+  },
+  {
     "version": "3.0.0-alpha.4",
     "date": "2026-11-14",
     "items": [
