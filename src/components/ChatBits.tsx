@@ -151,7 +151,7 @@ export function PermissionBubble({ req }: { req: PermissionRequest }) {
       <code className="chat-wait-cmd">{summary}</code>
       {risky && <span className="chat-wait-note">Parece destrutivo: decida no terminal.</span>}
       <div className="chat-pills">
-        <button className="chat-pill main" disabled={!!sent || risky} onClick={() => void decide("allow")}>
+        <button className="chat-pill chat-pill-primary" disabled={!!sent || risky} onClick={() => void decide("allow")}>
           Permitir
         </button>
         {always && (
@@ -230,7 +230,7 @@ export function QuestionBubble({ item, onTerminal }: { item: QuestionItem; onTer
             {(q.options ?? []).map((o) => (
               <button
                 key={o.label}
-                className={`chat-pill ${(picked[q.question] ?? []).includes(o.label) ? "main" : ""}`}
+                className={`chat-pill ${(picked[q.question] ?? []).includes(o.label) ? "chat-pill-primary" : ""}`}
                 title={o.description}
                 disabled={!live}
                 onClick={() => pick(q.question, o.label, q.multiSelect)}
@@ -263,7 +263,7 @@ export function QuestionBubble({ item, onTerminal }: { item: QuestionItem; onTer
       {live ? (
         <div className="chat-pills">
           {needsSend && (
-            <button className="chat-pill main" disabled={!ready} onClick={() => ready && void submit(ready)}>
+            <button className="chat-pill chat-pill-primary" disabled={!ready} onClick={() => ready && void submit(ready)}>
               Enviar
             </button>
           )}
