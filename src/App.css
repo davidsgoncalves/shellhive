@@ -2149,7 +2149,7 @@ button.link.danger { color: var(--danger); }
   background: var(--chip, var(--panel)); color: var(--fg);
 }
 .chat-pill:hover:not(:disabled) { filter: brightness(1.15); }
-.chat-pill.main { background: var(--c-permission); color: #1a1405; font-weight: 600; }
+.chat-pill.chat-pill-primary { background: var(--c-permission); color: #1a1405; font-weight: 600; }
 .chat-pill:disabled { opacity: .5; cursor: default; }
 .chat-error-bubble .chat-pill { background: color-mix(in srgb, var(--danger) 20%, transparent); color: var(--fg); }
 .chat-link { background: none; border: none; padding: 0 4px; color: var(--accent); font: inherit; font-size: 12px; cursor: pointer; }
