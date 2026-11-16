@@ -6,6 +6,7 @@
 
 pub mod editor;
 pub mod events;
+pub mod git;
 pub mod local;
 pub mod welcome;
 pub mod welcome_jira;
@@ -18,6 +19,7 @@ use tauri::{AppHandle, Emitter};
 
 const MANIFESTS: &[&str] = &[
     include_str!("../../../plugins/editor/plugin.json"),
+    include_str!("../../../plugins/git/plugin.json"),
     include_str!("../../../plugins/mermaid/plugin.json"),
     include_str!("../../../plugins/todo/plugin.json"),
     include_str!("../../../plugins/welcome/plugin.json"),

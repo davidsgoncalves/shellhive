@@ -8,7 +8,8 @@ import {
 } from "../lib/store";
 import { droppedOutside } from "../lib/detach";
 import { HiddenGroups } from "./HiddenGroups";
-import { STATE_LABEL, type GitInfo, type Group, type StatusPayload, type Subagent, type Tab } from "../lib/types";
+import { PLUGINS } from "../lib/plugins";
+import { STATE_LABEL, type Group, type StatusPayload, type Subagent, type Tab } from "../lib/types";
 
 function ctxClass(pct: number): string {
   if (pct >= 90) return "crit";
@@ -107,25 +108,6 @@ function SubagentLines({ agents, tabId }: { agents: Subagent[]; tabId: string })
   );
 }
 
-/** Branch and pending changes under a tab's name. */
-function GitLine({ git }: { git: GitInfo }) {
-  const dirty = git.files > 0;
-  return (
-    <span
-      className="tab-git"
-      title={dirty ? `${git.branch} · ${git.files} arquivo(s) alterado(s), +${git.added} −${git.removed}` : `${git.branch} · sem alterações`}
-    >
-      <span className="git-branch">⎇ {git.branch}</span>
-      {dirty && (
-        <>
-          <span className="git-add">+{git.added}</span>
-          <span className="git-del">−{git.removed}</span>
-        </>
-      )}
-    </span>
-  );
-}
-
 function TabRow({ tab, active }: { tab: Tab; active: boolean }) {
   const { activateTab, renameTab, openTabMenu, detachTab } = useStore();
   const isDetached = useStore((s) => s.detached.includes(tab.id));
@@ -133,7 +115,7 @@ function TabRow({ tab, active }: { tab: Tab; active: boolean }) {
   const status = useStore((s) => s.statusByTab[tab.id]);
   const stale = useStore((s) => s.alerted.includes(tab.id));
   const wrap = useStore((s) => s.tabTitleWrap === "wrap");
-  const git = useStore((s) => s.gitByTab[tab.id]);
+  const enabledPlugins = useStore((s) => s.enabledPlugins);
   const agents = useStore((s) => s.subagentsByTab[tab.id]);
   const pinned = useStore((s) => !!tab.claudeSessionId && s.pinned.includes(tab.claudeSessionId));
   const badges = useStore((s) => s.pluginBadges[tab.id]);
@@ -162,7 +144,10 @@ function TabRow({ tab, active }: { tab: Tab; active: boolean }) {
       )}
       <span className="tab-main">
         <InlineName value={tab.title} onCommit={(v) => renameTab(tab.id, v)} className="tab-title" />
-        {git && <GitLine git={git} />}
+        {PLUGINS.filter((p) => p.TabLine && enabledPlugins.includes(p.manifest.id)).map((p) => {
+          const Line = p.TabLine!;
+          return <Line key={p.manifest.id} tab={tab} />;
+        })}
         {badgeList.length > 0 && (
           <span className="tab-badges">
             {badgeList.map(([plugin, text]) => (

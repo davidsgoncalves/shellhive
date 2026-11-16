@@ -24,7 +24,6 @@ import {
   type Colony,
   type ColonyMessage,
   type Drone,
-  type GitInfo,
   type Subagent,
   type CommandSuggestion,
   type Group,
@@ -322,8 +321,6 @@ interface Store {
   sessionGroups: Record<string, string>;
   /** Recently closed tabs, newest last, for Cmd+Shift+T. */
   closedTabs: ClosedTab[];
-  /** Git state of each tab's folder; absent outside a repository. */
-  gitByTab: Record<string, GitInfo>;
 
   addGroup: (name?: string, folderId?: string | null) => string;
   setGroupFolder: (id: string, folderId: string | null) => void;
@@ -376,7 +373,6 @@ interface Store {
   reattachTab: (id: string) => void;
   /** Wakes tabs saved in their own windows and opens those windows again. */
   restoreDetached: (ids: string[]) => void;
-  setGitInfo: (id: string, info: GitInfo | null) => void;
   reopenClosedTab: () => void;
   openSearch: (tabId: string | null, query?: string) => void;
   setSubagents: (tabId: string, list: Subagent[]) => void;
@@ -576,7 +572,6 @@ export const useStore = create<Store>()(
       questions: [],
       commands: [],
       detached: [],
-      gitByTab: {},
       closedTabs: [],
       sessionGroups: {},
       searchTabId: null,
@@ -887,22 +882,6 @@ export const useStore = create<Store>()(
         });
         if (last.claudeSessionId) markPendingResume([id]);
       },
-      setGitInfo: (id, info) =>
-        set((s) => {
-          const prev = s.gitByTab[id];
-          if (!info) {
-            if (!prev) return s;
-            const { [id]: _dropped, ...gitByTab } = s.gitByTab;
-            return { gitByTab };
-          }
-          const same =
-            prev &&
-            prev.branch === info.branch &&
-            prev.added === info.added &&
-            prev.removed === info.removed &&
-            prev.files === info.files;
-          return same ? s : { gitByTab: { ...s.gitByTab, [id]: info } };
-        }),
       patchTab: (id, patch) =>
         set((s) => ({ tabs: s.tabs.map((t) => (t.id === id ? { ...t, ...patch } : t)) })),
 

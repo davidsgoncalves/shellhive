@@ -1,0 +1,13 @@
+{
+  "id": "git",
+  "name": "Git",
+  "description": "Branch e alterações embaixo de cada aba e um painel de git sobre o terminal: diff com base à escolha, stage, descarte e commit por arquivo, trecho ou linha, push, conflitos de merge em três vias, comentários no diff que vão para o agente, o que mudou em cada turno do agente com opção de desfazer, e worktrees criadas, arquivadas ou apagadas em um ou mais repositórios. O agente continua usando git por conta própria.",
+  "agentContext": "O plugin Git oferece git_worktrees, que mostra ao usuario, num painel, em quais repositorios e worktrees voce esta mexendo nesta aba. Chame quando comecar a trabalhar em outra worktree ou repositorio, ou quando o usuario perguntar onde voce esta trabalhando.",
+  "tools": [
+    {
+      "name": "git_worktrees",
+      "description": "Lista os repositórios e worktrees em que você mexeu nesta aba, com branch, arquivos alterados e commits à frente e atrás, e abre o painel Git do Shellhive sobre o terminal desta aba.",
+      "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false }
+    }
+  ]
+}

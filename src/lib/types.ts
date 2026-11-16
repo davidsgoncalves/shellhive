@@ -413,14 +413,6 @@ export interface Subagent {
   startedAt: number;
 }
 
-/** Branch and pending changes of a tab's folder. */
-export interface GitInfo {
-  branch: string;
-  added: number;
-  removed: number;
-  files: number;
-}
-
 /** How strongly a group's colour tints its background. */
 
 /** How a long tab name fits in the sidebar. */

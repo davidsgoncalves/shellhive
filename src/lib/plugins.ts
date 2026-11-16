@@ -1,4 +1,5 @@
 import type { ComponentType, ReactNode } from "react";
+import type { Tab } from "./types";
 
 /** Where a pane sits in the terminals area, in percentages. */
 export interface PaneRect {
@@ -42,6 +43,10 @@ export interface ShellhivePlugin {
   Overlay?: ComponentType<{ host: PluginHost }>;
   /** A panel of its own on the rail while the plugin is on. */
   SideTab?: { title: string; Component: ComponentType; icon?: ReactNode };
+  /** A line under each tab's name in the sidebar, while the plugin is on. */
+  TabLine?: ComponentType<{ tab: Tab }>;
+  /** A short text about a tab, like its branch, for tooltips and the tab search. */
+  tabHint?: (tabId: string) => string | null;
   /** Drawn in the plugin's own window, labelled `plugin-<id>`. */
   Window?: ComponentType;
   /** Handlers of the manifest's tools that run in the interface, by name. */
@@ -50,6 +55,13 @@ export interface ShellhivePlugin {
 
 // Official plugins live in plugins/<id>/ and are bundled with the app.
 const found = import.meta.glob<{ default: ShellhivePlugin }>("../../plugins/*/index.tsx", { eager: true });
+
+/** What the enabled plugins say about a tab, joined. */
+export function tabHints(tabId: string, enabled: string[]): string[] {
+  return PLUGINS.filter((p) => p.tabHint && enabled.includes(p.manifest.id))
+    .map((p) => p.tabHint!(tabId))
+    .filter((h): h is string => !!h);
+}
 
 export const PLUGINS: ShellhivePlugin[] = Object.values(found)
   .map((m) => m.default)
