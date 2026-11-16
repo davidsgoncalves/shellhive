@@ -1,5 +1,19 @@
 [
   {
+    "version": "3.0.0-alpha.7",
+    "date": "2026-11-16",
+    "items": [
+      "Plugin Git oficial. A linha de branch embaixo de cada aba agora vem dele: ligue o plugin em Plugins para continuar vendo.",
+      "Clicar na linha de branch abre o painel Git sobre o terminal da aba, com as alterações, a comparação com uma base à escolha (de onde a branch saiu, main ou qualquer commit) e o que o agente mudou em cada turno.",
+      "Stage, tirar do stage e descartar por arquivo, por trecho ou por linha. Commit e push saem do mesmo painel, com a mensagem escrita por você.",
+      "Conflitos de merge abrem lado a lado (nosso, base e deles), com uma escolha para cada bloco.",
+      "Linhas escolhidas no diff viram comentários para o agente: dá para colar no prompt e revisar antes, ou enviar direto.",
+      "Desfazer turno: os arquivos que o agente mudou numa resposta voltam a como estavam antes dela. Arquivos que você editou depois ficam como estão, e commits e o stage não são tocados. As linhas que vieram do agente aparecem marcadas no diff.",
+      "Worktrees criadas em .worktrees/ dentro de um ou mais repositórios de uma vez, com a opção de abrir uma aba nelas. Arquivar remove a pasta e mantém a branch, apagar leva as duas. Ao fechar a aba que criou uma worktree, o Shellhive pergunta o que fazer com ela.",
+      "O agente continua usando git por conta própria. O plugin só mostra e oferece as ações para você."
+    ]
+  },
+  {
     "version": "3.0.0-alpha.6",
     "date": "2026-11-16",
     "items": [
