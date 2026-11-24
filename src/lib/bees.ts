@@ -402,6 +402,19 @@ function lastAgentText(tabId: string): string {
   return "";
 }
 
+/** How long a finished run's tab waits for Claude to write its last reply. */
+const TRANSCRIPT_WAIT_MS = 15_000;
+
+/** Waits until the transcript ends with `reply`, or the wait runs out. */
+async function transcriptHasReply(path: string, reply: string): Promise<void> {
+  const deadline = Date.now() + TRANSCRIPT_WAIT_MS;
+  while (Date.now() < deadline) {
+    const last = await invoke<string | null>("session_last_reply", { path }).catch(() => null);
+    if (last?.trim() === reply.trim()) return;
+    await new Promise((r) => setTimeout(r, 500));
+  }
+}
+
 /** Ends the run a bee tab holds, once its agent stops: keeps its reply and closes the tab. */
 export async function finishBeeRun(tabId: string, reply?: string): Promise<void> {
   const run = useBeeRuns.getState().runs.find((r) => r.tabId === tabId && r.status === "running");
@@ -433,7 +446,14 @@ export async function finishBeeRun(tabId: string, reply?: string): Promise<void>
     read: run.flowRunId ? true : false,
   };
   useBeeRuns.getState().put(done);
-  if (!run.revealed) s.closeTab(tabId);
+  if (!run.revealed) {
+    // Claude writes the last reply to the transcript after the Stop event; closing
+    // the tab before that loses it, and the session opened later ends without it.
+    const path = tab?.provider ? null : tab?.transcriptPath;
+    const last = reply?.trim();
+    if (path && last) void transcriptHasReply(path, last).then(() => useStore.getState().closeTab(tabId));
+    else s.closeTab(tabId);
+  }
   if (run.flowRunId) flowListener?.(done);
   else if (!run.attention) void notify(`Worker bee ${bee?.name ?? ""} terminou`, summary?.slice(0, 160) ?? "Sem resumo.", true);
   drainQueue();
