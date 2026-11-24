@@ -1,5 +1,15 @@
 [
   {
+    "version": "3.0.0-alpha.10",
+    "date": "2026-11-24",
+    "items": [
+      "Worker bees cuidam da tarefa até o fim: a execução só termina quando a própria abelha avisa que acabou. Uma tarefa curta termina na primeira resposta; uma que acompanha um PR até o merge pode durar dias, na mesma sessão.",
+      "Enquanto espera algo acontecer (um CI rodar, um review chegar), a abelha dorme pelo tempo que ela mesma escolhe e libera a vaga. Ao acordar, continua na mesma sessão, ou entra na fila se as vagas estiverem ocupadas. O painel mostra até quando ela dorme.",
+      "Se a abelha parar com uma pergunta, você recebe um aviso e responde na sessão dela; enquanto espera você, ela também não ocupa vaga.",
+      "Ao abrir o app, um aviso lista as worker bees que estavam trabalhando quando ele fechou."
+    ]
+  },
+  {
     "version": "3.0.0-alpha.9",
     "date": "2026-11-16",
     "items": [

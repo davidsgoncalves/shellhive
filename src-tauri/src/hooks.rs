@@ -90,7 +90,14 @@ fn same_secret(a: &[u8], b: &[u8]) -> bool {
     a.len() == b.len() && a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 
-/// What SessionStart tells Claude about running inside this app.
+/// How a worker bee's run works, told to every bee whatever its own prompt says.
+const BEE_TASK_CONTEXT: &str = "Esta sessao e uma worker bee do Shellhive, rodando numa aba escondida. \
+    Voce e responsavel por terminar a sua tarefa: ela so acaba quando voce chamar bee_done com o resumo, \
+    e ate la esta sessao continua viva. Quando precisar esperar algo acontecer (um CI rodar, um review chegar), \
+    chame bee_sleep com quantos minutos esperar e termine o turno: esta mesma sessao recebe uma mensagem quando o tempo passar. \
+    Se parar sem chamar nenhuma das duas, o usuario e avisado de que voce espera por ele e responde nesta sessao. \
+    Para isso, termine o turno com a pergunta; use bee_needs_you para dizer o motivo no aviso.";
+
 /// What Claude is told when a session starts: that it runs inside Shellhive,
 /// plus a sentence from each enabled plugin.
 fn session_context(tab_id: Option<&str>) -> serde_json::Value {
@@ -108,6 +115,10 @@ fn session_context(tab_id: Option<&str>) -> serde_json::Value {
     for extra in crate::plugins::agent_context() {
         text.push(' ');
         text.push_str(&extra);
+    }
+    if crate::mcp::is_bee_task(tab_id) {
+        text.push_str("\n\n");
+        text.push_str(BEE_TASK_CONTEXT);
     }
     if let Some(topics) = crate::topics::session_start_context(tab_id) {
         text.push_str("\n\n");

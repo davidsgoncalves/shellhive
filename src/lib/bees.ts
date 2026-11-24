@@ -8,6 +8,7 @@ import { agentCommand } from "./providers";
 import type { Check } from "./connections";
 import { BEE_GROUP_ID, type AgentSpec, type Bee, type BeeEvent, type BeeRun, type BeeTrigger, type DroneAgent, type FlowTrigger, type GithubEvent, type RateWindow, type SlackEvent } from "./types";
 import { PLACEHOLDER } from "./beeTemplates";
+import { sendMessage } from "./typing";
 
 /** Runs kept per bee or per flow node, newest first. */
 const KEEP_RUNS = 20;
@@ -62,12 +63,23 @@ export const useBeeRuns = create<RunStore>()((set, get) => ({
     if (get().loaded) return;
     const stored = await invoke<{ runs?: BeeRun[] } | null>("bee_runs_get").catch(() => null);
     // A run still marked running was cut short by the app closing.
-    const runs = (Array.isArray(stored?.runs) ? stored.runs : []).map((r) =>
+    const list = Array.isArray(stored?.runs) ? stored.runs : [];
+    const cut = list.filter((r) => r.status === "running");
+    const runs = list.map((r) =>
       r.status === "running"
-        ? { ...r, status: "error" as const, tabId: null, endedAt: r.endedAt ?? r.startedAt, summary: "O app fechou durante a execução." }
+        ? { ...r, status: "error" as const, tabId: null, endedAt: Date.now(), summary: "O app fechou durante a execução.", read: false, idle: null, wakeAt: null }
         : r,
     );
     set({ runs, loaded: true });
+    if (cut.length) void saveRuns(runs);
+    const names = [...new Set(cut.filter(isTask).map((r) => useStore.getState().bees.find((b) => b.id === r.beeId)?.name ?? "Worker bee"))];
+    if (names.length) {
+      void notify(
+        names.length === 1 ? "Worker bee interrompida" : `${names.length} worker bees interrompidas`,
+        `${names.join(", ")}: o app fechou enquanto ${names.length === 1 ? "ela trabalhava" : "elas trabalhavam"}.`,
+        true,
+      );
+    }
   },
   put: (run) => {
     const owner = ownerOf(run);
@@ -82,6 +94,9 @@ export const useBeeRuns = create<RunStore>()((set, get) => ({
   queued: [],
   setQueued: (queued) => set({ queued }),
 }));
+
+/** A worker bee's run, which lasts until the bee calls bee_done; a flow's AI node ends with its turn. */
+const isTask = (r: BeeRun) => !!r.beeId;
 
 const keyOf = (r: BeeRun) => (r.flowRunId ? `${r.flowRunId}:${r.nodeId}` : r.beeId);
 
@@ -101,14 +116,6 @@ const HAS_INPUT = /\{\{(?:entrada|previous)\}\}/;
 export function hasUnfilled(prompt: string): boolean {
   return PLACEHOLDER.test(prompt.replace(PREVIOUS, ""));
 }
-
-/** Asked of a bee run by hand, so the summaries of different bees read the same way. */
-const REPLY_FORMAT = `
-
-Ao terminar, responda só com estas três linhas:
-Resultado: o que mudou ou o que você concluiu, numa frase.
-O que fiz: as ações principais, em poucas palavras.
-Pendências: o que ficou para depois ou para o usuário, ou "nenhuma".`;
 
 /** A bee's prompt, given what reached it: {{previous}} takes it, or it follows the prompt. */
 export function beePrompt(bee: Bee, input: string): string {
@@ -140,13 +147,43 @@ function ended(tabId: string | null) {
 /** Jobs being set up to run, not yet listed as running. */
 const starting = new Set<string>();
 
+/** Runs holding a place: an asleep bee or one waiting for the user leaves its place. */
 function runningCount(): number {
-  return useBeeRuns.getState().runs.filter((r) => r.status === "running").length + starting.size;
+  return useBeeRuns.getState().runs.filter((r) => r.status === "running" && !r.idle).length + starting.size;
 }
 
-/** Starts the jobs waiting their turn, as far as the most runs at once allows. */
+/** Asleep bees whose time came, the earliest first. */
+function dueSleepers(now: number): BeeRun[] {
+  return useBeeRuns
+    .getState()
+    .runs.filter((r) => r.status === "running" && r.idle === "sleep" && r.tabId && (r.wakeAt ?? 0) <= now)
+    .sort((a, b) => (a.wakeAt ?? 0) - (b.wakeAt ?? 0));
+}
+
+/** Wakes an asleep bee in its own session. */
+function wake(run: BeeRun): void {
+  const tabId = run.tabId!;
+  useBeeRuns.getState().put({ ...run, idle: null, wakeAt: null, sleepReason: null });
+  // Marked at once, so the turn's end is seen as one.
+  useStore.getState().patchTab(tabId, { state: "working" });
+  const why = run.sleepReason?.trim();
+  const text = `O tempo do bee_sleep passou${why ? ` (${why})` : ""}. Continue a tarefa.`;
+  void sendMessage(tabId, text).catch((err) => {
+    const now = runOfTab(tabId);
+    if (now) stopBeeRun(now, `Não consegui acordar a worker bee: ${err}`);
+  });
+}
+
+/**
+ * Wakes the asleep bees whose time came, then starts the jobs waiting their
+ * turn, as far as the most runs at once allows. A bee back from sleep goes first.
+ */
 function drainQueue(): void {
   const max = useStore.getState().beeMaxRunning;
+  for (const run of dueSleepers(Date.now())) {
+    if (max !== null && runningCount() >= max) break;
+    wake(run);
+  }
   const { queued, setQueued } = useBeeRuns.getState();
   if (!queued.length) return;
   const next = [...queued];
@@ -250,7 +287,7 @@ export function runBee(bee: Bee, dir: string | null = null): Promise<void> {
   return runJob({
     key: bee.id,
     name: bee.name,
-    prompt: bee.instructions.replace(PREVIOUS, "").trim() + REPLY_FORMAT,
+    prompt: bee.instructions.replace(PREVIOUS, "").trim(),
     dir,
     worktree: !!bee.worktree,
     agent: "claude",
@@ -374,8 +411,11 @@ export async function finishBeeRun(tabId: string, reply?: string): Promise<void>
   const s = useStore.getState();
   const tab = s.tabs.find((t) => t.id === tabId);
   const bee = s.bees.find((b) => b.id === run.beeId);
+  if (isTask(run) && run.doneSummary == null) return idleBeeRun(run, reply);
   // The Stop event carries the last reply; the transcript may not have it written yet.
-  const summary = reply?.trim()
+  const summary = run.doneSummary?.trim()
+    ? run.doneSummary
+    : reply?.trim()
     ? reply
     : tab?.provider
       ? lastAgentText(tabId) || null
@@ -396,6 +436,25 @@ export async function finishBeeRun(tabId: string, reply?: string): Promise<void>
   if (!run.revealed) s.closeTab(tabId);
   if (run.flowRunId) flowListener?.(done);
   else if (!run.attention) void notify(`Worker bee ${bee?.name ?? ""} terminou`, summary?.slice(0, 160) ?? "Sem resumo.", true);
+  drainQueue();
+}
+
+/**
+ * A worker bee's turn ended without bee_done: it sleeps when it asked to,
+ * otherwise it waits for the user to answer in its session. Either way its
+ * place goes to the next run.
+ */
+function idleBeeRun(run: BeeRun, reply?: string): void {
+  const name = useStore.getState().bees.find((b) => b.id === run.beeId)?.name ?? "Worker bee";
+  if (run.wakeAt) {
+    useBeeRuns.getState().put({ ...run, idle: "sleep" });
+  } else {
+    const asked = run.attention?.trim();
+    const question = reply?.trim().split("\n").find((l) => l.trim())?.trim() ?? "";
+    useBeeRuns.getState().put({ ...run, idle: "user", attention: asked || question || "Espera sua resposta." });
+    // bee_needs_you already told the user why.
+    if (!asked) void notify(`${name} espera você`, question.slice(0, 160) || "Abra a sessão para responder.", true);
+  }
   drainQueue();
 }
 
@@ -449,13 +508,24 @@ export function startBeeWatch(): () => void {
   // Only a running bee's tab sees the tools that read its state and call the user.
   let tabIds = "";
   const unsubscribeRuns = useBeeRuns.subscribe(({ runs }) => {
-    const ids = runs.filter((r) => r.status === "running" && r.tabId).map((r) => r.tabId as string);
-    if (ids.join() === tabIds) return;
-    tabIds = ids.join();
-    void invoke("bee_run_tabs", { ids }).catch(console.error);
+    const live = runs.filter((r) => r.status === "running" && r.tabId);
+    const ids = live.map((r) => r.tabId as string);
+    const tasks = live.filter(isTask).map((r) => r.tabId as string);
+    const key = `${ids.join()}|${tasks.join()}`;
+    if (key === tabIds) return;
+    tabIds = key;
+    void invoke("bee_run_tabs", { ids, tasks }).catch(console.error);
   });
   const unsubscribeTabs = useStore.subscribe((s, prev) => {
-    if (s.tabs !== prev.tabs) sendFirstPrompts();
+    if (s.tabs === prev.tabs) return;
+    sendFirstPrompts();
+    // The user answered a bee that waited for them, or woke one early: it works again.
+    for (const run of useBeeRuns.getState().runs) {
+      if (run.status !== "running" || !run.idle || !run.tabId) continue;
+      if (s.tabs.find((t) => t.id === run.tabId)?.state === "working") {
+        useBeeRuns.getState().put({ ...run, idle: null, wakeAt: null, sleepReason: null, attention: null });
+      }
+    }
   });
   const tick = () => {
     const now = Date.now();
@@ -496,7 +566,24 @@ export function callBeeRunTool(tool: string, args: Record<string, unknown>, tabI
     if (!reason) return { text: "Informe o motivo em reason.", isError: true };
     useBeeRuns.getState().put({ ...run, attention: reason });
     void notify(`${bee?.name ?? run.spec?.name ?? "Worker bee"} precisa de você`, reason.slice(0, 160), true);
-    return { text: "O usuário foi avisado. Termine a execução com o que já foi feito." };
+    return {
+      text: isTask(run)
+        ? "O usuário foi avisado. Termine o turno com a pergunta; a resposta dele chega nesta sessão."
+        : "O usuário foi avisado. Termine a execução com o que já foi feito.",
+    };
+  }
+  if (isTask(run) && tool === "bee_done") {
+    const summary = typeof args.summary === "string" ? args.summary.trim() : "";
+    if (!summary) return { text: "Informe o resumo em summary.", isError: true };
+    useBeeRuns.getState().put({ ...run, doneSummary: summary, wakeAt: null, sleepReason: null });
+    return { text: "Tarefa encerrada. Termine o turno; a aba fecha em seguida." };
+  }
+  if (isTask(run) && tool === "bee_sleep") {
+    const minutes = typeof args.minutes === "number" ? Math.round(args.minutes) : NaN;
+    if (!(minutes >= 1 && minutes <= 10_080)) return { text: "minutes vai de 1 a 10080.", isError: true };
+    const reason = typeof args.reason === "string" ? args.reason.trim() : "";
+    useBeeRuns.getState().put({ ...run, wakeAt: Date.now() + minutes * 60_000, sleepReason: reason || null, doneSummary: null });
+    return { text: `Combinado: esta sessão recebe uma mensagem em ${minutes} min. Termine o turno agora.` };
   }
   if (!bee) return { text: "Só uma worker bee guarda estado entre execuções.", isError: true };
   if (tool === "bee_state_get") return { text: bee.state ?? "null" };

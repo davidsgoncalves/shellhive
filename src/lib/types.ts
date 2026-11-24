@@ -273,6 +273,17 @@ export interface BeeRun {
   revealed?: boolean;
   /** Why the bee asked for the user, when it did. */
   attention?: string | null;
+  /**
+   * A worker bee's run between turns, which leaves its place to another run:
+   * asleep until `wakeAt`, or waiting for the user to answer in its session.
+   */
+  idle?: "sleep" | "user" | null;
+  /** When an asleep bee is woken, set by bee_sleep. */
+  wakeAt?: number | null;
+  /** What the bee checks when it wakes. */
+  sleepReason?: string | null;
+  /** Set by bee_done: the run ends with it once the turn stops. */
+  doneSummary?: string | null;
   /** False for a run that ended and the user has not opened yet; unset counts as seen. */
   read?: boolean;
   /** The session's transcript, to show the run as a chat once it ended. */
