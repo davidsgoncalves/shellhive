@@ -60,6 +60,15 @@ function ApprovalCard({ plugin }: { plugin: LocalPlugin }) {
           Roda sozinho: {plugin.schedule.map((j) => `${j.tool} a cada ${j.every}s`).join(", ")}
         </p>
       )}
+      {(plugin.bees ?? []).map((b) => (
+        <details key={b.id} className="plugin-approval-bee">
+          <summary className="plugin-approval-label">
+            Cria a worker bee "{b.name}", que roda {b.every ? `a cada ${Math.round(b.every / 60)} min` : "quando o plugin pedir"}
+            {b.permissionMode ? `, com permissões ${b.permissionMode}` : ""} e pode usar sem perguntar: {b.allowedTools.join(", ")}
+          </summary>
+          <p className="bee-instructions">{b.instructions}</p>
+        </details>
+      ))}
       {plugin.view && <p className="plugin-approval-label">Vista "{plugin.view.title}" num espaço da tela dividida</p>}
       {plugin.window && <p className="plugin-approval-label">Janela própria "{plugin.window.title}"</p>}
       {plugin.band && (

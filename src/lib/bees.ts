@@ -282,12 +282,16 @@ function failRun(run: BeeRun, summary: string): void {
   if (done.flowRunId) flowListener?.(done);
 }
 
-/** Starts a bee run by hand: its prompt, in a hidden tab, unless one of it is still going. */
-export function runBee(bee: Bee, dir: string | null = null): Promise<void> {
+/**
+ * Starts a bee run by hand, or for the plugin that brought it: its prompt,
+ * with `input` where {{entrada}} is or after it, in a hidden tab, unless one
+ * of it is still going.
+ */
+export function runBee(bee: Bee, dir: string | null = null, input = ""): Promise<void> {
   return runJob({
     key: bee.id,
     name: bee.name,
-    prompt: bee.instructions.replace(PREVIOUS, "").trim(),
+    prompt: input.trim() ? beePrompt(bee, input) : bee.instructions.replace(PREVIOUS, "").trim(),
     dir,
     worktree: !!bee.worktree,
     agent: "claude",

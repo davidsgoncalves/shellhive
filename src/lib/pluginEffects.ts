@@ -7,6 +7,8 @@ import { notify } from "./notify";
 import { pluginTab, type LocalPlugin, type PluginTab, type Surface } from "./localPlugins";
 import { openPluginWindow } from "./pluginWindow";
 import { markPendingPrompt } from "./restored";
+import { runPluginBee } from "./pluginBees";
+import { reportError } from "./errors";
 
 /** What a tool reply may ask the app to do, besides answering. */
 export interface PluginEffects {
@@ -26,6 +28,8 @@ export interface PluginEffects {
   band?: unknown;
   /** Bands by tab id; null removes one. */
   bands?: Record<string, unknown>;
+  /** Runs one of the plugin's bees now, with `input` for its prompt. */
+  runBee?: { id?: unknown; input?: unknown };
 }
 
 const BADGE_MAX = 60;
@@ -61,6 +65,13 @@ export function applyEffects(plugin: LocalPlugin, tabId: string | null, effects:
   if (plugin.band) {
     if ("band" in effects && tabId) s.setPluginBand(tabId, plugin.id, effects.band ?? null);
     for (const [tab, data] of Object.entries(effects.bands ?? {})) s.setPluginBand(tab, plugin.id, data ?? null);
+  }
+  if (effects.runBee && typeof effects.runBee.id === "string") {
+    try {
+      runPluginBee(plugin, effects.runBee.id, effects.runBee.input);
+    } catch (err) {
+      reportError("plugin", `${plugin.id}/${effects.runBee.id}: ${err}`);
+    }
   }
   if (effects.view !== undefined) openSurface(plugin, "view", tabId, effects.view);
   if (effects.window !== undefined) openSurface(plugin, "window", tabId, effects.window);

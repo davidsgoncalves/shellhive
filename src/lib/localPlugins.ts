@@ -21,7 +21,23 @@ export interface LocalPlugin {
   band: { position: "top" | "bottom"; maxHeight: number } | null;
   shortcuts: Array<{ key: string; tool: string | null; open: Surface | null }>;
   permissions: string[];
+  /** Worker bees the plugin brings, created on approval. */
+  bees: PluginBee[];
 }
+
+export interface PluginBee {
+  id: string;
+  name: string;
+  instructions: string;
+  /** Seconds between runs, or null to run only when the plugin asks. */
+  every: number | null;
+  /** Includes the plugin's own tools. */
+  allowedTools: string[];
+  permissionMode: string | null;
+}
+
+/** The app's id for a plugin's bee. */
+export const pluginBeeId = (pluginId: string, beeId: string) => `plugin:${pluginId}:${beeId}`;
 
 /** The places a plugin can show itself. */
 export type Surface = "panel" | "side" | "view" | "window";

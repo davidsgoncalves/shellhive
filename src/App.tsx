@@ -31,6 +31,7 @@ import { PermissionCard } from "./components/PermissionQueue";
 import { checkConnections } from "./lib/connections";
 import { callColonyTool, droneTurnEnded, startColony } from "./lib/colony";
 import { attachByName, startTopicSync } from "./lib/topics";
+import { usePluginBees } from "./lib/pluginBees";
 import { callBeeRunTool, finishBeeRun, startBeeWatch, stopBeeRun, useBeeRuns } from "./lib/bees";
 import { callFlowTool, fireFlowEvent, happeningOf, startFlows } from "./lib/flows";
 import { FlowsMain } from "./components/Flows";
@@ -741,6 +742,7 @@ function App() {
   usePluginToolCalls();
   useLocalPlugins();
   usePluginSchedules();
+  usePluginBees();
   useWorkSetup();
   usePluginShortcuts();
   const tabs = useStore((s) => s.tabs);

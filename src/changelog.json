@@ -1,5 +1,14 @@
 [
   {
+    "version": "3.0.0-alpha.12",
+    "date": "2026-11-24",
+    "items": [
+      "Plugins locais podem trazer worker bees: o plugin.json declara o prompt, de quanto em quanto tempo ela roda e o que pode usar sem perguntar. O cartão de aprovação mostra tudo isso, e o Shellhive cria as bees quando você aprova e liga o plugin.",
+      "A bee de um plugin já pode usar as ferramentas dele sem pedir permissão, e o plugin pode rodá-la na hora, pelo painel ou pela resposta de uma ferramenta, mandando dados para o prompt.",
+      "As bees de plugin aparecem no painel do Worker bee marcadas com o nome do plugin. Elas desligam junto com ele e somem quando ele é removido."
+    ]
+  },
+  {
     "version": "3.0.0-alpha.11",
     "date": "2026-11-24",
     "items": [

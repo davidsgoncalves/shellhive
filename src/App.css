@@ -1333,6 +1333,8 @@ button.ghost.danger { border-color: var(--danger); color: var(--danger); }
 /* ---------- local plugins ---------- */
 .plugin-approval { border-left-color: var(--accent); }
 .plugin-approval-label { margin: 6px 0 4px; font-size: 11px; color: var(--muted); }
+.plugin-approval-bee summary { cursor: pointer; }
+.plugin-approval-bee .bee-instructions { max-height: 160px; overflow-y: auto; font-size: 11px; }
 .plugin-panel {
   position: absolute; z-index: 51; display: flex; flex-direction: column; min-height: 160px;
   margin: 0 6px 6px; background: var(--panel); overflow: hidden;

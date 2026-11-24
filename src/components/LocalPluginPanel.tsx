@@ -10,6 +10,7 @@ import { submit, typeText } from "../lib/typing";
 import { notify } from "../lib/notify";
 import { allTabs, dispatchEffects, openAgentTab, openSurface, runPluginTool } from "../lib/pluginEffects";
 import { pluginTab, type LocalPlugin, type Surface } from "../lib/localPlugins";
+import { runPluginBee } from "../lib/pluginBees";
 
 /** Theme variables handed to a panel, so it can match the app. */
 const THEME_VARS = ["--bg", "--panel", "--panel-2", "--border", "--fg", "--muted", "--accent", "--danger", "--success", "--font-ui", "--font-mono"];
@@ -66,6 +67,7 @@ function frameDocument(html: string): string {
     openTab: (opts) => call("openTab", opts || {}),
     focusTab: (id) => call("focusTab", { id }),
     pickFolder: (opts) => call("pickFolder", opts || {}),
+    runBee: (id, input) => call("runBee", { id: id, input: input }),
     tool: (name, args) => call("tool", { name, args }),
     prompt: (text, opts) => call("prompt", { text, submit: !!(opts && opts.submit) }),
     storage: { get: () => call("storage.get"), set: (value) => call("storage.set", { value }) },
@@ -213,6 +215,9 @@ export function PluginFrame({
             s.activateTab(id);
             return reply(null);
           }
+          case "runBee":
+            runPluginBee(plugin, String(m.params?.id ?? ""), m.params?.input);
+            return reply(null);
           case "pickFolder": {
             // The user picks, so the plugin learns only the folder they chose.
             const picked = await openDialog({

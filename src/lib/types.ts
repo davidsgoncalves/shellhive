@@ -237,6 +237,8 @@ export interface Bee {
   allowedTools?: string[];
   /** What the bee keeps between runs, as JSON text it reads and writes over MCP. */
   state?: string | null;
+  /** Set for a bee a local plugin brings: its prompt and permissions come from the plugin. */
+  plugin?: { id: string; bee: string; every: number | null };
 }
 
 /** How an agent run is set up when no bee holds the settings: a flow's AI node. */
