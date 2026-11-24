@@ -7,7 +7,7 @@ import { SessionsBrowser } from "./SessionsBrowser";
 import { EventsList } from "./EventsPanel";
 import { SessionsPanel } from "./Sidebar";
 import { shortcutLabel } from "../lib/shortcuts";
-import { PLUGINS } from "../lib/plugins";
+import { PLUGINS, usePluginBadges } from "../lib/plugins";
 import { ColumnResizer } from "./ColumnResizer";
 import { RailIcon } from "./RailIcon";
 import { UsageRings } from "./UsageRings";
@@ -77,6 +77,7 @@ export function SidePanel() {
     (p) => p.status === "approved" && p.sidePanel && enabledPlugins.includes(p.id),
   );
   const officialTabs = PLUGINS.filter((p) => p.SideTab && enabledPlugins.includes(p.manifest.id));
+  const pluginBadges = usePluginBadges();
   // In the store, so a plugin can bring its own panel forward.
   const panel = useStore((s) => s.panelTab) as PanelTab;
   const setPanel = useStore((s) => s.setPanelTab);
@@ -109,6 +110,7 @@ export function SidePanel() {
       key: `official:${p.manifest.id}` as const,
       label: p.SideTab!.title,
       icon: p.SideTab!.icon ?? <span className="rail-initials">{initials(p.SideTab!.title)}</span>,
+      badge: pluginBadges[p.manifest.id] ?? 0,
     })),
     ...sidePlugins.map((p) => ({
       key: `plugin:${p.id}` as const,

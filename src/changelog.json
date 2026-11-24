@@ -1,5 +1,15 @@
 [
   {
+    "version": "3.0.0-alpha.11",
+    "date": "2026-11-24",
+    "items": [
+      "Plugin Calendário: você e o Claude marcam eventos com dia, hora (ou dia todo) e prioridade alta, média ou baixa. O Claude só marca, muda ou apaga quando você pede; \"me avisa de X\" vira um evento para agora.",
+      "No topo do painel ficam as notificações: os eventos de hoje e os que já passaram sem ser cumpridos, dos mais importantes para os menos. Marque como cumprido ali mesmo, ou volte à sessão de onde o evento veio. O ícone na barra mostra quantos estão pendentes.",
+      "Abaixo, o calendário do mês: escolha um dia para ver, criar e editar os eventos dele.",
+      "A sessão de uma worker bee que terminou não perde mais a última resposta: a aba escondida espera o Claude gravar a resposta antes de fechar (contribuição de Diogo Fenilli)."
+    ]
+  },
+  {
     "version": "3.0.0-alpha.10",
     "date": "2026-11-24",
     "items": [

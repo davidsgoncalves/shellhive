@@ -1,0 +1,143 @@
+{
+  "id": "calendar",
+  "name": "Calendário",
+  "description": "Um calendário onde você e o agente marcam eventos com prioridade. Os eventos de hoje e os que já passaram sem ser cumpridos aparecem nas notificações, das prioridades mais altas para as mais baixas, até você marcá-los como cumpridos.",
+  "agentContext": "O plugin Calendario guarda eventos com prioridade (low, medium, high); os de hoje e os passados nao cumpridos aparecem nas notificacoes do usuario. Chame add_event somente quando o usuario pedir para marcar, lembrar ou avisar algo; um pedido para avisar sem data vira um evento para agora. Use list_events para saber o que ja esta marcado e para achar ids; complete_event, update_event e remove_event somente quando o usuario pedir.",
+  "tools": [
+    {
+      "name": "add_event",
+      "description": "Marca um evento no calendário do Shellhive, com a sessão de onde veio. Use somente quando o usuário pedir. Devolve o id e a data de hoje.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "O que é o evento, numa frase."
+          },
+          "date": {
+            "type": "string",
+            "description": "Dia no formato AAAA-MM-DD, no fuso do usuário. Sem ele, hoje."
+          },
+          "time": {
+            "type": "string",
+            "description": "Hora no formato HH:MM. Sem ela, o evento vale para o dia inteiro; sem date e sem time, é agora."
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "description": "Prioridade nas notificações. Padrão medium, a menos que o usuário diga outra."
+          },
+          "notes": {
+            "type": "string",
+            "description": "Detalhes, se houver."
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_events",
+      "description": "Lista os eventos do calendário entre duas datas, com id, data, hora, prioridade e se foram cumpridos, mais as notificações pendentes. Devolve também a data de hoje.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "description": "Primeiro dia, AAAA-MM-DD. Padrão hoje."
+          },
+          "to": {
+            "type": "string",
+            "description": "Último dia, AAAA-MM-DD. Padrão 30 dias depois de from."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "update_event",
+      "description": "Muda os campos dados de um evento. Use somente quando o usuário pedir. Pegue o id em list_events.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Id do evento, de list_events."
+          },
+          "title": {
+            "type": "string",
+            "description": "O que é o evento, numa frase."
+          },
+          "date": {
+            "type": "string",
+            "description": "Dia no formato AAAA-MM-DD, no fuso do usuário. Sem ele, hoje."
+          },
+          "time": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Hora HH:MM, ou null para o dia inteiro."
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "description": "Prioridade nas notificações. Padrão medium, a menos que o usuário diga outra."
+          },
+          "notes": {
+            "type": "string",
+            "description": "Detalhes, se houver."
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "complete_event",
+      "description": "Marca um evento como cumprido, o que o tira das notificações. Use somente quando o usuário pedir.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Id do evento, de list_events."
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "remove_event",
+      "description": "Apaga um evento do calendário. Use somente quando o usuário pedir para apagar, não para concluir.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Id do evento, de list_events."
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "additionalProperties": false
+      }
+    }
+  ]
+}
