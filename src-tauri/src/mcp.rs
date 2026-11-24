@@ -16,6 +16,8 @@ pub(crate) fn text_result(text: String, is_error: bool) -> serde_json::Value {
 static BEE_CREATORS: Mutex<Option<HashSet<String>>> = Mutex::new(None);
 /// Hidden tabs running a bee; only they see the tools of a run.
 static BEE_RUNS: Mutex<Option<HashSet<String>>> = Mutex::new(None);
+/// The runs among them that belong to a worker bee, which ends its own task.
+static BEE_TASKS: Mutex<Option<HashSet<String>>> = Mutex::new(None);
 /// Tabs of a colony's drones, Queens included; they see the colony tools.
 static DRONES: Mutex<Option<HashSet<String>>> = Mutex::new(None);
 /// Tabs of a colony's Queen; only they build the colony.
@@ -36,6 +38,11 @@ fn is_bee_creator(tab_id: Option<&str>) -> bool {
 
 fn is_bee_run(tab_id: Option<&str>) -> bool {
     listed(&BEE_RUNS, tab_id)
+}
+
+/// A worker bee's run, which only ends when the bee calls bee_done.
+pub fn is_bee_task(tab_id: Option<&str>) -> bool {
+    listed(&BEE_TASKS, tab_id)
 }
 
 fn is_drone(tab_id: Option<&str>) -> bool {
@@ -59,10 +66,11 @@ pub fn bee_creator_tabs(ids: Vec<String>) {
     *BEE_CREATORS.lock().unwrap() = Some(ids.into_iter().collect());
 }
 
-/// The tabs running a bee, as the interface keeps them.
+/// The tabs running a bee, as the interface keeps them, and the worker bees' among them.
 #[tauri::command]
-pub fn bee_run_tabs(ids: Vec<String>) {
+pub fn bee_run_tabs(ids: Vec<String>, tasks: Option<Vec<String>>) {
     *BEE_RUNS.lock().unwrap() = Some(ids.into_iter().collect());
+    *BEE_TASKS.lock().unwrap() = Some(tasks.unwrap_or_default().into_iter().collect());
 }
 
 /// Tools of the core, followed by those of the enabled plugins, and the bee
@@ -75,6 +83,9 @@ fn tool_definitions(tab_id: Option<&str>) -> serde_json::Value {
     }
     if is_bee_run(tab_id) {
         tools.extend(bee_run_tools());
+    }
+    if is_bee_task(tab_id) {
+        tools.extend(bee_task_tools());
     }
     if is_drone(tab_id) {
         tools.extend(drone_tools());
@@ -141,6 +152,36 @@ fn bee_tools() -> Vec<serde_json::Value> {
 }
 
 const BEE_RUN_TOOLS: [&str; 3] = ["bee_state_get", "bee_state_set", "bee_needs_you"];
+const BEE_TASK_TOOLS: [&str; 2] = ["bee_done", "bee_sleep"];
+
+fn bee_task_tools() -> Vec<serde_json::Value> {
+    let tools = serde_json::json!([
+        {
+            "name": "bee_done",
+            "description": "Encerra a tarefa desta worker bee. Chame só quando a tarefa inteira acabou; a aba fecha quando o turno terminar.",
+            "inputSchema": {
+                "type": "object",
+                "properties": { "summary": { "type": "string", "description": "O que veio da tarefa, em três linhas: \"Resultado:\" numa frase, \"O que fiz:\" em poucas palavras, \"Pendências:\" ou \"nenhuma\". Num fluxo, é isto que chega ao próximo passo." } },
+                "required": ["summary"],
+                "additionalProperties": false
+            }
+        },
+        {
+            "name": "bee_sleep",
+            "description": "Põe esta worker bee para dormir até a próxima verificação, liberando a vaga. Termine o turno logo depois; esta mesma sessão recebe uma mensagem quando o tempo passar.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "minutes": { "type": "integer", "minimum": 1, "maximum": 10080, "description": "Quantos minutos esperar antes de voltar." },
+                    "reason": { "type": "string", "description": "O que vai conferir ao voltar, numa frase." }
+                },
+                "required": ["minutes"],
+                "additionalProperties": false
+            }
+        }
+    ]);
+    tools.as_array().cloned().unwrap_or_default()
+}
 
 fn bee_run_tools() -> Vec<serde_json::Value> {
     let tools = serde_json::json!([
@@ -434,6 +475,9 @@ pub fn handle_rpc(
                     crate::plugins::call_frontend(app, "worker-bee", bee, tab_id, &args)
                 }
                 bee if BEE_RUN_TOOLS.contains(&bee) && is_bee_run(tab_id.as_deref()) => {
+                    crate::plugins::call_frontend(app, "worker-bee", bee, tab_id, &args)
+                }
+                bee if BEE_TASK_TOOLS.contains(&bee) && is_bee_task(tab_id.as_deref()) => {
                     crate::plugins::call_frontend(app, "worker-bee", bee, tab_id, &args)
                 }
                 tool if DRONE_TOOLS.contains(&tool) && is_drone(tab_id.as_deref()) => {

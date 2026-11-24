@@ -12,13 +12,13 @@ const MODES = ["manual", "acceptEdits", "auto", "plan", "dontAsk", "bypassPermis
 /** The first message of a bee-creation session: what bees are and how to make one. */
 const GUIDE = `Esta é a sessão de criação de worker bees do Shellhive. Ajude o usuário a montar uma worker bee e crie com a ferramenta create_bee.
 
-Uma worker bee é um prompt que o Shellhive roda numa sessão do Claude escondida, sem ninguém acompanhando, na hora marcada. O prompt é tudo o que ela sabe: tarefa, pastas e repositórios, regras e o que responder no fim. Ela não pode fazer perguntas enquanto roda.
+Uma worker bee é um prompt que o Shellhive roda numa sessão do Claude escondida, sem ninguém acompanhando, na hora marcada. O prompt é tudo o que ela sabe: tarefa, pastas e repositórios e regras. A própria worker bee encerra a tarefa quando ela acaba: pode ser numa resposta, ou depois de dias acompanhando algo (um PR até o merge, por exemplo). Se ela parar com uma pergunta, o usuário é avisado e responde na sessão dela.
 
 Quando roda: manual, a cada intervalo em minutos, ou em dias da semana e horário. Só roda com o app aberto; um horário perdido com o app fechado roda uma vez ao abrir (padrão) ou é pulado.
 
 Onde roda: a worker bee é genérica e não tem pasta própria. Quem pede a execução diz a pasta: o usuário ao rodar, a sessão que disparou o evento, ou a worker bee anterior numa cadeia. Por agenda ou intervalo, roda numa pasta vazia só das worker bees, então o prompt diz onde trabalhar. Com worktree, uma execução que recebe um repositório trabalha numa worktree nova dele, sem tocar na cópia do usuário. Permissões: permissionMode e allowedTools (regras do Claude Code, como "Bash(gh pr:*)") liberam o que a worker bee faz sem perguntar; o resto espera o usuário aprovar.
 
-Enquanto roda, a worker bee tem três ferramentas, que o prompt pode mandar usar: bee_state_get e bee_state_set guardam um JSON de uma execução para a outra (o que já tentou, o que já viu), e bee_needs_you avisa o usuário quando ela não consegue seguir sem ele.
+Enquanto roda, a worker bee tem estas ferramentas: bee_done encerra a tarefa com o resumo; bee_sleep a faz dormir alguns minutos, liberando a vaga, e acorda na mesma sessão (ela escolhe quanto, conforme o que espera); bee_needs_you avisa o usuário quando ela não consegue seguir sem ele; bee_state_get e bee_state_set guardam um JSON de uma execução para a outra. O Shellhive já explica bee_done e bee_sleep a ela em toda execução; o prompt não precisa repetir.
 
 Há templates prontos que você pode usar de base com list_bees (campo templates): troque cada {{...}} pelo conteúdo do usuário.
 

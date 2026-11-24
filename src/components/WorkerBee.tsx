@@ -422,6 +422,10 @@ function RunNow({
 
 /** The first line of a run's reply that says what came of it. */
 function headline(run: BeeRun): string {
+  if (run.status === "running" && run.idle === "sleep") {
+    const at = new Date(run.wakeAt ?? Date.now()).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    return `Dormindo até ${at}${run.sleepReason ? `: ${run.sleepReason}` : ""}`;
+  }
   if (run.attention) return `Precisa de você: ${run.attention}`;
   const text = run.summary?.trim() ?? "";
   const line = text.split("\n").find((l) => /^resultado\s*:/i.test(l.trim())) ?? text.split("\n")[0] ?? "";
