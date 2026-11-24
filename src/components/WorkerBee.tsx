@@ -264,12 +264,17 @@ function BeeDetail({ bee, live }: { bee: Bee; live: boolean }) {
         <div>
           <h2>{bee.name}</h2>
           <p className="hint">
-            {TEMPLATES.find((t) => t.id === bee.templateId)?.name ?? "Sem template"} · {usedIn(allFlows, bee.id)}
+            {bee.plugin
+              ? `Do plugin ${bee.plugin.id}${bee.plugin.every ? `, roda a cada ${Math.round(bee.plugin.every / 60)} min` : ""}${bee.enabled ? "" : " · plugin desligado"}`
+              : TEMPLATES.find((t) => t.id === bee.templateId)?.name ?? "Sem template"}{" "}
+            · {usedIn(allFlows, bee.id)}
           </p>
         </div>
-        <button className="ghost auto" onClick={() => setBeeView({ mode: "edit", id: bee.id })}>
-          Editar
-        </button>
+        {!bee.plugin && (
+          <button className="ghost auto" onClick={() => setBeeView({ mode: "edit", id: bee.id })}>
+            Editar
+          </button>
+        )}
         {running ? (
           <button className="ghost auto" onClick={() => stopBeeRun(running)}>
             Parar

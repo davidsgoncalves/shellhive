@@ -112,6 +112,26 @@ pub struct BandInfo {
 /// The shortest interval a schedule may ask for.
 const SCHEDULE_MIN_SECS: u64 = 15;
 
+/// A worker bee the plugin brings: the app creates it on approval and runs
+/// it every `every` seconds, or when the plugin asks.
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginBee {
+    id: String,
+    name: String,
+    /// The whole prompt, from `instructions` or from the file `prompt` names.
+    instructions: String,
+    every: Option<u64>,
+    /// Rules allowed without asking; the plugin's own tools are always among them.
+    allowed_tools: Vec<String>,
+    permission_mode: Option<String>,
+}
+
+/// The shortest interval a plugin's bee may run on.
+const BEE_MIN_SECS: u64 = 60;
+/// Claude's permission modes a plugin's bee may ask for.
+const BEE_MODES: &[&str] = &["default", "acceptEdits", "auto", "plan", "dontAsk", "bypassPermissions"];
+
 /// A plugin found in the folder, as the interface shows it.
 #[derive(Clone, serde::Serialize)]
 pub struct LocalPlugin {
@@ -136,6 +156,7 @@ pub struct LocalPlugin {
     band: Option<BandInfo>,
     shortcuts: Vec<Shortcut>,
     permissions: Vec<String>,
+    bees: Vec<PluginBee>,
     #[serde(skip)]
     agent_context: Option<String>,
     /// MCP definitions of the tools, without the `run` field.
@@ -249,6 +270,7 @@ fn read_plugin(dir: &Path, id: &str, approved: &HashMap<String, String>) -> Loca
         band: None,
         shortcuts: Vec::new(),
         permissions: Vec::new(),
+        bees: Vec::new(),
         agent_context: None,
         definitions: Vec::new(),
     };
@@ -462,6 +484,73 @@ fn parse(dir: &Path, id: &str, plugin: &mut LocalPlugin) -> Result<(), String> {
             }
         }
         plugin.shortcuts.push(Shortcut { key, tool, open });
+    }
+
+    for item in m.get("bees").and_then(|v| v.as_array()).into_iter().flatten() {
+        let bee_id = text(item, "id").ok_or("uma bee está sem id")?;
+        if !valid_id(&bee_id) {
+            return Err(format!(
+                "o id da bee {bee_id} precisa ter só letras minúsculas, números e hífen"
+            ));
+        }
+        if plugin.bees.iter().any(|b| b.id == bee_id) {
+            return Err(format!("há duas bees com o id {bee_id}"));
+        }
+        let name = text(item, "name").unwrap_or_else(|| bee_id.clone());
+        let instructions = match (text(item, "instructions"), text(item, "prompt")) {
+            (Some(t), None) => t,
+            (None, Some(file)) => {
+                if file.contains(['/', '\\']) || file.starts_with('.') {
+                    return Err(format!("o prompt da bee {bee_id} precisa ser um arquivo na pasta do plugin"));
+                }
+                fs::read_to_string(dir.join(&file))
+                    .map_err(|_| format!("não achei {file}, o prompt da bee {bee_id}"))?
+                    .trim()
+                    .to_string()
+            }
+            _ => {
+                return Err(format!(
+                    "a bee {bee_id} precisa de instructions (o texto) ou prompt (um arquivo do plugin), não dos dois"
+                ))
+            }
+        };
+        if instructions.is_empty() {
+            return Err(format!("o prompt da bee {bee_id} está vazio"));
+        }
+        let every = item.get("every").and_then(|e| e.as_u64());
+        if every.is_some_and(|e| e < BEE_MIN_SECS) {
+            return Err(format!(
+                "a bee {bee_id} precisa de every de ao menos {BEE_MIN_SECS} segundos"
+            ));
+        }
+        let permission_mode = text(item, "permissionMode");
+        if let Some(mode) = &permission_mode {
+            if !BEE_MODES.contains(&mode.as_str()) {
+                return Err(format!(
+                    "permissionMode da bee {bee_id} precisa ser {}",
+                    BEE_MODES.join(", ")
+                ));
+            }
+        }
+        let mut allowed_tools: Vec<String> = plugin
+            .tools
+            .iter()
+            .map(|t| format!("mcp__shellhive__{}", t.name))
+            .collect();
+        for rule in item.get("allowedTools").and_then(|v| v.as_array()).into_iter().flatten() {
+            let rule = rule.as_str().map(str::trim).unwrap_or_default();
+            if !rule.is_empty() && !allowed_tools.iter().any(|r| r == rule) {
+                allowed_tools.push(rule.to_string());
+            }
+        }
+        plugin.bees.push(PluginBee {
+            id: bee_id,
+            name,
+            instructions,
+            every,
+            allowed_tools,
+            permission_mode,
+        });
     }
 
     if plugin.tools.is_empty()
@@ -846,6 +935,9 @@ fn run_tool(
             }
         }
     }
+    if let Some(run) = reply.get("runBee").filter(|_| !plugin.bees.is_empty()) {
+        effects.insert("runBee".into(), run.clone());
+    }
     let effects = (!effects.is_empty()).then_some(serde_json::Value::Object(effects));
     let result = text_result(
         reply["text"].as_str().unwrap_or_default().to_string(),
@@ -909,6 +1001,50 @@ mod tests {
             .as_str()
             .unwrap()
             .contains("Ana"));
+    }
+
+    #[test]
+    fn a_plugin_bee_gets_its_prompt_and_the_plugin_tools() {
+        let tmp = std::env::temp_dir().join(format!("shellhive-bees-{}", std::process::id()));
+        let dir = tmp.join("demo");
+        let tool = r#"{"name":"demo_x","description":"d","run":["true"]}"#;
+        write(
+            &dir,
+            &[
+                (
+                    "plugin.json",
+                    &format!(
+                        r#"{{"id":"demo","name":"Demo","tools":[{tool}],"bees":[{{"id":"triagem","prompt":"bee.md","every":900,"allowedTools":["Bash(gh pr:*)"]}}]}}"#
+                    ),
+                ),
+                ("bee.md", "Leia e resuma.\n"),
+            ],
+        );
+        let p = read_plugin(&dir, "demo", &HashMap::new());
+        assert_eq!(p.error, None);
+        let bee = &p.bees[0];
+        assert_eq!(bee.instructions, "Leia e resuma.");
+        assert_eq!(bee.every, Some(900));
+        assert_eq!(bee.allowed_tools, vec!["mcp__shellhive__demo_x", "Bash(gh pr:*)"]);
+
+        write(
+            &dir,
+            &[(
+                "plugin.json",
+                &format!(r#"{{"id":"demo","name":"Demo","tools":[{tool}],"bees":[{{"id":"t","prompt":"../x.md"}}]}}"#),
+            )],
+        );
+        assert!(read_plugin(&dir, "demo", &HashMap::new()).error.is_some());
+        write(
+            &dir,
+            &[(
+                "plugin.json",
+                &format!(r#"{{"id":"demo","name":"Demo","tools":[{tool}],"bees":[{{"id":"t","instructions":"x","every":10}}]}}"#),
+            )],
+        );
+        let p = read_plugin(&dir, "demo", &HashMap::new());
+        let _ = fs::remove_dir_all(&tmp);
+        assert!(p.error.is_some());
     }
 
     #[test]

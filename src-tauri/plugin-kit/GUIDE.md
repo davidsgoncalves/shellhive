@@ -65,6 +65,7 @@ Qualquer alteração em um arquivo da pasta pede aprovação de novo. Se o plugi
 - `band`: opcional. Faixa presa ao terminal das abas que o plugin escolher, em cima (`"position": "top"`) ou embaixo (`"bottom"`, o padrão); o terminal encolhe para dar lugar a ela. Começa com uma linha (28 px) e cresce até `maxHeight` (padrão 160, máximo 400) quando a página pede. Só aparece numa aba depois que o plugin manda `band` ou `bands` para ela.
 - `shortcuts`: opcional. Cada atalho é `key` (`KeyA` a `KeyZ` ou `Digit0` a `Digit9`) mais `tool` (roda essa ferramenta com `{ "tab": { … } }`) ou `open` (`panel`, `side`, `view` ou `window`). No macOS a combinação é ⌘⌥ + tecla; no Linux e no Windows, Ctrl+Alt+Shift + tecla.
 - `schedule`: opcional. Ferramentas que o app roda sozinho enquanto o plugin está ligado, a cada `every` segundos (mínimo 15), com `{ "tabs": [ … ] }` como argumentos.
+- `bees`: opcional. Worker bees que o plugin traz (veja Worker bees do plugin).
 - `permissions`: opcional. Vale para os painéis; `events` também libera os eventos para os programas, e `badge` e `notify` também valem para as respostas das ferramentas.
 - Um plugin precisa de ao menos uma ferramenta ou um painel.
 
@@ -93,6 +94,7 @@ A resposta sai no stdout, de uma de duas formas:
   - `window`: abre a janela com esse valor em `shellhive.onData`;
   - `band`: mostra a faixa no terminal da aba que chamou, com esse valor em `shellhive.onData`, ou `null` para tirar;
   - `bands`: objeto `{ "<id da aba>": dados | null }`, para várias abas de uma vez, útil numa rotina.
+  - `runBee`: `{ "id": "<id da bee>", "input": … }`, roda agora uma bee do plugin com `input` no prompt.
 
 Cada aba chega como `{ id, title, cwd, sessionId, group, state }`. O `sessionId` é a sessão do agente; ele continua o mesmo quando a sessão é fechada e reaberta, então serve para ligar dados a uma sessão (o `id` da aba muda ao reabrir).
 
@@ -120,6 +122,7 @@ Saída de erro com código diferente de zero vira erro para o agente. Uma chamad
 | `shellhive.openTab({ cwd, title, prompt, group })` | `sessions` | Abre uma aba nova na pasta `cwd` (sem ela, a da aba ativa), no grupo de nome `group` (sem ele, o da aba ativa), e inicia o agente com `prompt` como primeira mensagem. Devolve o id da aba |
 | `shellhive.focusTab(id)` | `sessions` | Traz a aba para a frente |
 | `shellhive.pickFolder({ title, defaultPath })` | nenhuma | Abre o seletor de pastas do sistema e devolve o caminho escolhido, ou `null` se o usuário cancelar |
+| `shellhive.runBee(id, entrada)` | nenhuma | Roda agora uma bee do plugin, com `entrada` no prompt (texto ou JSON) |
 | `shellhive.tool(nome, args)` | `tools` | Chama uma ferramenta do próprio plugin e devolve `{ text, isError }` |
 | `shellhive.prompt(texto, { submit })` | `prompt` | Escreve no prompt do agente da aba; envia só com `submit: true` |
 | `shellhive.storage.get()` / `.set(valor)` | `storage` | Guarda um valor JSON do plugin, até 256 KB |
@@ -127,6 +130,36 @@ Saída de erro com código diferente de zero vira erro para o agente. Uma chamad
 | `shellhive.onEvent(fn)` | `events` | Chama `fn` com cada evento novo, de qualquer aba, enquanto o painel está aberto |
 
 Todas devolvem Promise. O usuário também abre o painel pelo menu de clique direito da aba, em "Abrir painel". A aba lateral, a vista, a janela e a faixa usam o mesmo formato de arquivo e as mesmas funções; na faixa, `tab()` é a aba do terminal em que ela está e `close()` tira a faixa dessa aba. Na janela própria, `tab()` e `prompt()` não têm aba para trabalhar: use a vista ou a aba lateral quando precisar delas.
+
+## Worker bees do plugin
+
+Um plugin pode trazer worker bees: sessões do Claude que rodam numa aba escondida, com o prompt e as permissões que o plugin define. É assim que um plugin usa IA. Exemplo:
+
+```json
+"bees": [
+  {
+    "id": "triagem",
+    "name": "Triagem do Slack",
+    "prompt": "triagem.md",
+    "every": 900,
+    "allowedTools": ["mcp__claude_ai_Slack__slack_search_public_and_private"],
+    "permissionMode": "default"
+  }
+]
+```
+
+- `id`: letras minúsculas, números e hífen, único no plugin.
+- `name`: o nome no painel do Worker bee. Sem ele, vale o `id`.
+- `instructions` ou `prompt`: o prompt da bee, escrito no próprio campo ou num arquivo da pasta do plugin. Use `{{entrada}}` para dizer onde entra o que o plugin manda ao rodar a bee; sem isso, a entrada vai no fim do prompt.
+- `every`: opcional. Roda sozinha a cada tantos segundos (mínimo 60) enquanto o plugin está ligado. Sem ele, só roda quando o plugin pede.
+- `allowedTools`: opcional. Regras do Claude Code liberadas sem perguntar. As ferramentas do próprio plugin já vêm liberadas.
+- `permissionMode`: opcional. `default`, `acceptEdits`, `auto`, `plan`, `dontAsk` ou `bypassPermissions`.
+
+O cartão de aprovação mostra o prompt e as permissões de cada bee. O Shellhive cria as bees quando o plugin é aprovado e ligado, desliga junto com o plugin e apaga quando o plugin sai da pasta. O que a bee guarda com `bee_state_set` continua entre uma atualização e outra do plugin. As bees aparecem no painel do Worker bee, sem edição: para mudar, edite o plugin.
+
+Cada execução termina quando a bee chama `bee_done`. Para rodar uma bee sob demanda, use `shellhive.runBee(id, entrada)` num painel ou `runBee` na resposta de uma ferramenta.
+
+Os programas do plugin não devem guardar dados dentro da pasta do plugin: qualquer arquivo alterado ali pede aprovação de novo. Use uma pasta fora dela, por exemplo `~/.shellhive-<id>/`.
 
 ## Eventos do agente
 
