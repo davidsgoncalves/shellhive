@@ -1,4 +1,5 @@
 import type { ComponentType, ReactNode } from "react";
+import { create } from "zustand";
 import type { Tab } from "./types";
 
 /** Where a pane sits in the terminals area, in percentages. */
@@ -51,6 +52,14 @@ export interface ShellhivePlugin {
   Window?: ComponentType;
   /** Handlers of the manifest's tools that run in the interface, by name. */
   tools?: Record<string, ToolHandler>;
+}
+
+/** Counts plugins show on their rail icon, by plugin id. */
+export const usePluginBadges = create<Record<string, number>>(() => ({}));
+
+/** Sets the count on a plugin's rail icon; 0 hides it. */
+export function setPluginBadge(id: string, count: number): void {
+  if ((usePluginBadges.getState()[id] ?? 0) !== count) usePluginBadges.setState({ [id]: count });
 }
 
 // Official plugins live in plugins/<id>/ and are bundled with the app.

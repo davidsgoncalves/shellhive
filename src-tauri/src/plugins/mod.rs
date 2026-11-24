@@ -18,6 +18,7 @@ use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
 
 const MANIFESTS: &[&str] = &[
+    include_str!("../../../plugins/calendar/plugin.json"),
     include_str!("../../../plugins/editor/plugin.json"),
     include_str!("../../../plugins/git/plugin.json"),
     include_str!("../../../plugins/mermaid/plugin.json"),
