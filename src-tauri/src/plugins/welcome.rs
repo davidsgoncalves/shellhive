@@ -59,14 +59,31 @@ fn git(dir: &Path, args: &[&str]) -> Option<String> {
         .then(|| String::from_utf8_lossy(&out.stdout).into_owned())
 }
 
+/// The main checkout of the repository holding `dir`, so that its worktrees,
+/// which share one history, are read once and under the repository's name.
+fn main_checkout(dir: &Path) -> Option<PathBuf> {
+    let top = PathBuf::from(git(dir, &["rev-parse", "--show-toplevel"])?.trim());
+    let common = git(
+        dir,
+        &["rev-parse", "--path-format=absolute", "--git-common-dir"],
+    )
+    .map(|c| PathBuf::from(c.trim()));
+    Some(match common {
+        Some(c) if c.file_name().is_some_and(|n| n == ".git") => {
+            c.parent().map_or(top, Path::to_path_buf)
+        }
+        _ => top,
+    })
+}
+
 /// The repository holding `dir`, or, when it is a plain folder of projects,
 /// the repositories right inside it.
 fn repos_in(dir: &Path) -> Vec<PathBuf> {
     if !dir.is_dir() {
         return Vec::new();
     }
-    if let Some(top) = git(dir, &["rev-parse", "--show-toplevel"]) {
-        return vec![PathBuf::from(top.trim())];
+    if let Some(repo) = main_checkout(dir) {
+        return vec![repo];
     }
     let Ok(entries) = std::fs::read_dir(dir) else {
         return Vec::new();
@@ -76,6 +93,7 @@ fn repos_in(dir: &Path) -> Vec<PathBuf> {
         .take(SCAN_LIMIT)
         .map(|e| e.path())
         .filter(|p| p.join(".git").exists())
+        .filter_map(|p| main_checkout(&p))
         .collect()
 }
 
@@ -341,6 +359,30 @@ mod tests {
         let top = repos_in(&deep);
         assert_eq!(top.len(), 1);
         assert!(top[0].ends_with("api"));
+    }
+
+    #[test]
+    fn reads_the_worktrees_of_a_repo_as_the_repo_itself() {
+        let base = scratch("worktree");
+        let main = base.join("api");
+        repo(&main, "a@b.c");
+        commit(&main, "first", 1_790_000_000);
+        sh(
+            &main,
+            &["worktree", "add", "-q", "-b", "feature", "../wt-api-1"],
+        );
+        sh(
+            &main,
+            &["worktree", "add", "-q", "-b", "other", "../wt-api-2"],
+        );
+        let main = main.canonicalize().unwrap();
+
+        let inside: BTreeSet<_> = repos_in(&base).into_iter().collect();
+        assert_eq!(inside.len(), 1);
+        assert_eq!(inside.first().unwrap().canonicalize().unwrap(), main);
+
+        let from_worktree = repos_in(&base.join("wt-api-2"));
+        assert_eq!(from_worktree[0].canonicalize().unwrap(), main);
     }
 
     #[test]

@@ -130,7 +130,14 @@ pub struct PluginBee {
 /// The shortest interval a plugin's bee may run on.
 const BEE_MIN_SECS: u64 = 60;
 /// Claude's permission modes a plugin's bee may ask for.
-const BEE_MODES: &[&str] = &["default", "acceptEdits", "auto", "plan", "dontAsk", "bypassPermissions"];
+const BEE_MODES: &[&str] = &[
+    "default",
+    "acceptEdits",
+    "auto",
+    "plan",
+    "dontAsk",
+    "bypassPermissions",
+];
 
 /// A plugin found in the folder, as the interface shows it.
 #[derive(Clone, serde::Serialize)]
@@ -486,7 +493,12 @@ fn parse(dir: &Path, id: &str, plugin: &mut LocalPlugin) -> Result<(), String> {
         plugin.shortcuts.push(Shortcut { key, tool, open });
     }
 
-    for item in m.get("bees").and_then(|v| v.as_array()).into_iter().flatten() {
+    for item in m
+        .get("bees")
+        .and_then(|v| v.as_array())
+        .into_iter()
+        .flatten()
+    {
         let bee_id = text(item, "id").ok_or("uma bee está sem id")?;
         if !valid_id(&bee_id) {
             return Err(format!(
@@ -537,7 +549,12 @@ fn parse(dir: &Path, id: &str, plugin: &mut LocalPlugin) -> Result<(), String> {
             .iter()
             .map(|t| format!("mcp__shellhive__{}", t.name))
             .collect();
-        for rule in item.get("allowedTools").and_then(|v| v.as_array()).into_iter().flatten() {
+        for rule in item
+            .get("allowedTools")
+            .and_then(|v| v.as_array())
+            .into_iter()
+            .flatten()
+        {
             let rule = rule.as_str().map(str::trim).unwrap_or_default();
             if !rule.is_empty() && !allowed_tools.iter().any(|r| r == rule) {
                 allowed_tools.push(rule.to_string());
@@ -1025,13 +1042,18 @@ mod tests {
         let bee = &p.bees[0];
         assert_eq!(bee.instructions, "Leia e resuma.");
         assert_eq!(bee.every, Some(900));
-        assert_eq!(bee.allowed_tools, vec!["mcp__shellhive__demo_x", "Bash(gh pr:*)"]);
+        assert_eq!(
+            bee.allowed_tools,
+            vec!["mcp__shellhive__demo_x", "Bash(gh pr:*)"]
+        );
 
         write(
             &dir,
             &[(
                 "plugin.json",
-                &format!(r#"{{"id":"demo","name":"Demo","tools":[{tool}],"bees":[{{"id":"t","prompt":"../x.md"}}]}}"#),
+                &format!(
+                    r#"{{"id":"demo","name":"Demo","tools":[{tool}],"bees":[{{"id":"t","prompt":"../x.md"}}]}}"#
+                ),
             )],
         );
         assert!(read_plugin(&dir, "demo", &HashMap::new()).error.is_some());
@@ -1039,7 +1061,9 @@ mod tests {
             &dir,
             &[(
                 "plugin.json",
-                &format!(r#"{{"id":"demo","name":"Demo","tools":[{tool}],"bees":[{{"id":"t","instructions":"x","every":10}}]}}"#),
+                &format!(
+                    r#"{{"id":"demo","name":"Demo","tools":[{tool}],"bees":[{{"id":"t","instructions":"x","every":10}}]}}"#
+                ),
             )],
         );
         let p = read_plugin(&dir, "demo", &HashMap::new());
